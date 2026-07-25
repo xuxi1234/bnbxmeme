@@ -1,0 +1,22 @@
+{
+  "name": "@bnbx/contracts",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "solcjs --base-path . --include-path . --optimize --bin --abi -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
+    "lint": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
+    "typecheck": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
+    "test": "node scripts/run-evm-tests.mjs",
+    "preflight:testnet": "node scripts/preflight-testnet.mjs",
+    "deploy:testnet": "node scripts/deploy-testnet.mjs",
+    "verify:testnet": "node scripts/verify-testnet.mjs",
+    "verify-source:testnet": "node scripts/verify-source-testnet.mjs",
+    "verify-launch-source:testnet": "node scripts/verify-launch-source-testnet.mjs",
+    "smoke:testnet": "node scripts/smoke-test-testnet.mjs"
+  },
+  "devDependencies": {
+    "ganache": "7.9.2",
+    "solc": "0.8.30",
+    "viem": "2.33.0"
+  }
+}

@@ -1,0 +1,96 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+export type TokenMetadata = {
+  name?: string;
+  symbol?: string;
+  description?: string;
+  image?: string;
+  website?: string;
+  telegram?: string;
+  twitter?: string;
+  debox?: string;
+};
+
+const gateway =
+  process.env.NEXT_PUBLIC_IPFS_GATEWAY?.replace(/\/+$/, "") ??
+  "https://ipfs.io/ipfs";
+
+export function resolveContentURI(uri?: string) {
+  if (!uri) return "";
+  if (uri.startsWith("ipfs://")) {
+    return `${gateway}/${uri.slice("ipfs://".length).replace(/^ipfs\//, "")}`;
+  }
+  try {
+    const url = new URL(uri);
+    return url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function safeLink(value: unknown) {
+  if (typeof value !== "string" || !value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function sanitizeMetadata(value: unknown): TokenMetadata | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, unknown>;
+  return {
+    name: typeof source.name === "string" ? source.name.slice(0, 40) : undefined,
+    symbol:
+      typeof source.symbol === "string" ? source.symbol.slice(0, 10) : undefined,
+    description:
+      typeof source.description === "string"
+        ? source.description.slice(0, 500)
+        : undefined,
+    image:
+      typeof source.image === "string"
+        ? resolveContentURI(source.image)
+        : undefined,
+    website: safeLink(source.website),
+    telegram: safeLink(source.telegram),
+    twitter: safeLink(source.twitter),
+    debox: safeLink(source.debox),
+  };
+}
+
+export function useTokenMetadata(uri?: string) {
+  const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const url = resolveContentURI(uri);
+    if (!url) {
+      setMetadata(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsLoading(true);
+    fetch(url, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("metadata fetch failed");
+        return response.json();
+      })
+      .then((data) => setMetadata(sanitizeMetadata(data)))
+      .catch(() => {
+        if (!controller.signal.aborted) setMetadata(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [uri]);
+
+  return { metadata, isLoading };
+}

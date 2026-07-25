@@ -1,0 +1,89 @@
+name: Deploy BNBX Testnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: Spend ~1.02 tBNB on a real 1 BNB graduation smoke test
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bnbx-testnet-deployment
+  cancel-in-progress: false
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    environment: testnet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Testnet deployment preflight
+        env:
+          BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+          RUN_SMOKE: ${{ inputs.run_smoke }}
+        run: pnpm --filter @bnbx/contracts preflight:testnet
+
+      - name: Run EVM tests
+        run: pnpm --filter @bnbx/contracts test
+
+      - name: Deploy Factory to BNB Testnet
+        env:
+          BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          FEE_RECIPIENT: "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6"
+        run: pnpm --filter @bnbx/contracts deploy:testnet
+
+      - name: Verify deployed configuration
+        env:
+          BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+        run: pnpm --filter @bnbx/contracts verify:testnet
+
+      - name: Publish Factory source on BscScan
+        env:
+          BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+        run: pnpm --filter @bnbx/contracts verify-source:testnet
+
+      - name: Run real graduation smoke test
+        if: ${{ inputs.run_smoke }}
+        env:
+          BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: pnpm --filter @bnbx/contracts smoke:testnet
+
+      - name: Publish smoke Token and Curve source on BscScan
+        if: ${{ inputs.run_smoke }}
+        env:
+          BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+          BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+        run: pnpm --filter @bnbx/contracts verify-launch-source:testnet
+
+      - name: Upload deployment record
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-bsc-testnet-deployment
+          path: packages/contracts/deployments/bsc-testnet*.json
+          if-no-files-found: error
+          retention-days: 30
