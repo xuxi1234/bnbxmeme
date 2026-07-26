@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { HomeBanner } from "@/components/home-banner";
 import { TokenMarket } from "@/components/token-market";
 
 const facts = [
@@ -15,38 +15,16 @@ const migration = [
   ["04", "LP 永久销毁"],
 ];
 
+const assurances = [
+  ["独立合约", "一币一合约", "每个项目部署独立、不可升级的 0 税代币合约。"],
+  ["链上开源", "交易公开可验", "创建、买卖、毕业和 LP 销毁全部保留链上记录。"],
+  ["资金安全", "超额自动退款", "买入超过毕业所需金额时，多余 BNB 在同笔交易中退回。"],
+];
+
 export default function Home() {
   return (
     <main className="home">
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">BNB CHAIN TESTNET</p>
-          <h1>
-            发现、创建、
-            <br />
-            交易下一轮热点。
-          </h1>
-          <p className="lead">
-            0 税公平发射 · 固定 10 亿供应 · 8 亿联合曲线
-            <br />
-            达标后自动迁移 PancakeSwap V2 并永久销毁 LP
-          </p>
-          <div className="hero-actions">
-            <Link className="button" href="/create">
-              ＋ 创建代币
-            </Link>
-            <a className="text-link" href="#protocol">
-              查看测试协议 ↗
-            </a>
-          </div>
-        </div>
-        <aside className="hero-panel">
-          <span>BNBX 生态</span>
-          <strong>公平发射，<br />从内盘到 V2</strong>
-          <p>0 税代币、透明联合曲线、自动迁移与 LP 销毁。</p>
-          <div className="hero-orbit">BNBX</div>
-        </aside>
-      </section>
+      <HomeBanner />
 
       <section className="stats" id="protocol" aria-label="协议参数">
         {facts.map(([value, label]) => (
@@ -57,11 +35,21 @@ export default function Home() {
         ))}
       </section>
 
-      <section className="market-section">
+      <section className="assurance-grid" aria-label="平台安全机制">
+        {assurances.map(([eyebrow, title, description]) => (
+          <article key={title}>
+            <small>{eyebrow}</small>
+            <strong>{title}</strong>
+            <p>{description}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="market-section" id="market">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">LIVE MARKET</p>
-            <h2>实时内盘</h2>
+            <p className="eyebrow">PROJECT LIST</p>
+            <h2>实时项目</h2>
           </div>
           <div className="market-tabs">
             <button className="active">热门</button>
