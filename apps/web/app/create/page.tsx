@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   encodeDeployData,
   getCreate2Address,
@@ -60,6 +61,7 @@ function safeInitialBuy(value: string) {
 }
 
 export default function CreateTokenPage() {
+  const router = useRouter();
   const { language, t } = useLanguage();
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -86,11 +88,23 @@ export default function CreateTokenPage() {
   const { switchChain } = useSwitchChain();
   const { data: hash, error, isPending, writeContract } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
-
   const factoryAddress =
     template === "liquidity"
       ? autoLiquidityFactoryAddress
       : testnetFactoryAddress;
+
+  useEffect(() => {
+    if (!receipt.isSuccess || !receipt.data || !factoryAddress) return;
+    const created = receipt.data.logs.find(
+      (log) =>
+        log.address.toLowerCase() === factoryAddress.toLowerCase() &&
+        log.topics.length >= 4,
+    );
+    const tokenTopic = created?.topics[1];
+    if (!tokenTopic) return;
+    const tokenAddress = `0x${tokenTopic.slice(-40)}`;
+    router.push(`/token/${tokenAddress}`);
+  }, [factoryAddress, receipt.data, receipt.isSuccess, router]);
 
   function taxSideToBps(side: TaxSide) {
     return {
