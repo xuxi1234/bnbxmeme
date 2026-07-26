@@ -37,6 +37,17 @@ packages/sdk     typed BNBX client
 packages/ui      shared UI components
 ```
 
+## BSC Testnet deployment
+
+- Factory: `0x4395a6b887e7be4b9f1828b3e4a005c63abfd67d`
+- Chain ID: `97`
+- Deployment block: `121325056`
+- PancakeSwap V2 Router: `0xD99D1c33F9fC3444f8101754aBC46c52416550D1`
+
+The web deployment requires a server-only `PINATA_JWT` environment variable
+for token image and metadata uploads. Never expose it through a
+`NEXT_PUBLIC_*` variable or commit it to this repository.
+
 ## Safety
 
 Never commit private keys, RPC credentials, deployer mnemonics, or production
