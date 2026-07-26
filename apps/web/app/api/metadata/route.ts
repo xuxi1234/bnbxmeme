@@ -84,6 +84,7 @@ export async function POST(request: Request) {
       telegram: safeUrl(text(form, "telegram", 200)),
       twitter: safeUrl(text(form, "twitter", 200)),
       debox: safeUrl(text(form, "debox", 200)),
+      qq: safeUrl(text(form, "qq", 200)),
       createdBy: "BNBX",
       chainId: 97,
     };
