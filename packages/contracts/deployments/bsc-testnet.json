@@ -1,0 +1,12 @@
+{
+  "chainId": 97,
+  "deploymentBlock": "121325056",
+  "deployedAt": "2026-07-26T04:52:22.000Z",
+  "deployer": "0xbe37ab912de351b9312fa593c9f99e3279fdb0a2",
+  "factory": "0x4395a6b887e7be4b9f1828b3e4a005c63abfd67d",
+  "feeRecipient": "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6",
+  "pancakeV2Router": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+  "pancakeV2Factory": "0x6725F303b657a9451d8BA641348b6761A6CC7a17",
+  "wbnb": "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+  "transactionHash": "0xe224cb6a51fcc4554ebbf6cf17e47b1ce7e271a88b20693e335a3574f4b62c44"
+}
