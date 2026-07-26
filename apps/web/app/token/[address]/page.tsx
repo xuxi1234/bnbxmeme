@@ -47,6 +47,7 @@ export default function TokenTradingPage() {
   const { switchChain } = useSwitchChain();
   const [buyAmount, setBuyAmount] = useState("0.01");
   const [sellAmount, setSellAmount] = useState("0");
+  const [copied, setCopied] = useState(false);
   const { data: hash, error, isPending, writeContract } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
@@ -202,6 +203,12 @@ export default function TokenTradingPage() {
     });
   }
 
+  async function copyTokenAddress() {
+    await navigator.clipboard.writeText(tokenAddress);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1_600);
+  }
+
   return (
     <main>
       <header className="topbar">
@@ -218,9 +225,16 @@ export default function TokenTradingPage() {
           )}
           <div>
             <h1 className="form-title">{name.data ?? "代币"}</h1>
-            <p className="lead">
-              ${symbol.data ?? "—"} · {tokenAddress}
-            </p>
+            <p className="lead">${symbol.data ?? "—"}</p>
+            <button
+              className="copy-address"
+              type="button"
+              onClick={copyTokenAddress}
+              title="复制代币合约地址"
+            >
+              <span>{tokenAddress}</span>
+              <strong>{copied ? "已复制 ✓" : "复制"}</strong>
+            </button>
           </div>
         </div>
         {metadata?.description && (
@@ -231,12 +245,34 @@ export default function TokenTradingPage() {
           {metadata?.telegram && <a href={metadata.telegram} target="_blank" rel="noreferrer">Telegram ↗</a>}
           {metadata?.twitter && <a href={metadata.twitter} target="_blank" rel="noreferrer">X / Twitter ↗</a>}
           {metadata?.debox && <a href={metadata.debox} target="_blank" rel="noreferrer">DeBox ↗</a>}
+          {metadata?.qq && <a href={metadata.qq} target="_blank" rel="noreferrer">QQ 群 ↗</a>}
           <a
             href={`https://testnet.bscscan.com/token/${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
           >
             BscScan ↗
+          </a>
+          <a
+            href={`https://ave.ai/token/${tokenAddress}-bsc`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            AVE.AI ↗
+          </a>
+          <a
+            href={`https://dexscreener.com/bsc/${tokenAddress}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            DexScreener ↗
+          </a>
+          <a
+            href={`https://www.dextools.io/app/en/bnb/pair-explorer/${tokenAddress}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            DEXTools ↗
           </a>
         </div>
       </section>
