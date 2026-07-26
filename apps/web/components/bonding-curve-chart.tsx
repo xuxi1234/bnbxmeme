@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 
-type Period = 300 | 900 | 3600;
+type Period = 60 | 300 | 900 | 3600 | 14400 | 86400;
 type Point = { timestamp: number; price: number; volume: number };
 type Candle = {
   timestamp: number;
@@ -15,9 +15,12 @@ type Candle = {
 };
 
 const periods: ReadonlyArray<{ label: string; value: Period }> = [
+  { label: "1分", value: 60 },
   { label: "5分", value: 300 },
   { label: "15分", value: 900 },
   { label: "1时", value: 3600 },
+  { label: "4时", value: 14400 },
+  { label: "1日", value: 86400 },
 ];
 
 function compact(value: number) {
@@ -55,9 +58,11 @@ function aggregate(points: Point[], period: Period) {
 export function BondingCurveChart({
   curve,
   symbol,
+  refreshKey,
 }: {
   curve: `0x${string}`;
   symbol: string;
+  refreshKey?: `0x${string}`;
 }) {
   const [points, setPoints] = useState<Point[]>([]);
   const [period, setPeriod] = useState<Period>(300);
@@ -102,7 +107,7 @@ export function BondingCurveChart({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [curve]);
+  }, [curve, refreshKey]);
 
   const candles = useMemo(() => aggregate(points, period), [period, points]);
   const latest = candles.at(-1);
