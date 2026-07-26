@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import {
@@ -10,16 +11,21 @@ import {
   tokenAbi,
 } from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
+import { useLanguage } from "./language-provider";
 
 const MAX_VISIBLE_TOKENS = 24;
+type MarketFilter = "hot" | "latest" | "graduating" | "graduated";
 
 function TokenCard({
   token,
   factory,
+  filter,
 }: {
   token: `0x${string}`;
   factory: `0x${string}`;
+  filter: MarketFilter;
 }) {
+  const { t } = useLanguage();
   const details = useReadContracts({
     contracts: [
       { address: token, abi: tokenAbi, functionName: "name" },
@@ -55,6 +61,12 @@ function TokenCard({
   const state = Number(curveDetails.data?.[2]?.result ?? 0);
   const progress =
     target > 0n ? Math.min(100, Number((principal * 10_000n) / target) / 100) : 0;
+  const visible =
+    filter === "hot" ||
+    filter === "latest" ||
+    (filter === "graduating" && state < 2 && progress >= 70) ||
+    (filter === "graduated" && state === 2);
+  if (!visible) return null;
 
   return (
     <Link className="token-card" href={`/token/${token}`}>
@@ -68,15 +80,15 @@ function TokenCard({
         )}
       </div>
       <div className="token-card-title">
-        <strong>{name ?? "读取中…"}</strong>
+        <strong>{name ?? t("loading")}</strong>
         <span>${symbol ?? "—"}</span>
       </div>
       <span className={`state-label state-${state}`}>
-        {state === 2 ? "已毕业" : state === 1 ? "毕业中" : "内盘"}
+        {state === 2 ? t("graduatedState") : state === 1 ? t("graduatingState") : t("internal")}
       </span>
       <div className="token-card-progress">
         <div>
-          <span>毕业进度</span>
+          <span>{t("progress")}</span>
           <strong>{progress.toFixed(2)}%</strong>
         </div>
         <div className="mini-track">
@@ -85,13 +97,15 @@ function TokenCard({
       </div>
       <div className="token-card-footer">
         <span>{formatEther(principal)} BNB</span>
-        <span>目标 {formatEther(target)} BNB</span>
+        <span>{t("target")} {formatEther(target)} BNB</span>
       </div>
     </Link>
   );
 }
 
 export function TokenMarket() {
+  const [filter, setFilter] = useState<MarketFilter>("hot");
+  const { t } = useLanguage();
   const factory = testnetFactoryAddress ?? zeroAddress;
   const count = useReadContract({
     address: factory,
@@ -141,11 +155,26 @@ export function TokenMarket() {
   }
 
   return (
-    <div className="token-grid">
+    <>
+      <div className="market-tabs" role="tablist">
+        {(["hot", "latest", "graduating", "graduated"] as MarketFilter[]).map((item) => (
+          <button
+            className={filter === item ? "active" : ""}
+            key={item}
+            type="button"
+            aria-pressed={filter === item}
+            onClick={() => setFilter(item)}
+          >
+            {t(item)}
+          </button>
+        ))}
+      </div>
+      <div className="token-grid">
       {tokenAddresses.map((token) => (
-        <TokenCard key={token} token={token} factory={factory} />
+        <TokenCard key={token} token={token} factory={factory} filter={filter} />
       ))}
-    </div>
+      </div>
+    </>
   );
 }
 
