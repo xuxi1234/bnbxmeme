@@ -16,6 +16,7 @@ import { WalletButton } from "@/components/wallet-button";
 import {
   curveAbi,
   factoryAbi,
+  autoLiquidityFactoryAddress,
   testnetFactoryAddress,
   tokenAbi,
 } from "@/lib/web3";
@@ -42,7 +43,6 @@ function safeParseEther(value: string) {
 export default function TokenTradingPage() {
   const params = useParams<{ address: string }>();
   const tokenAddress = isAddress(params.address) ? params.address : zeroAddress;
-  const factoryAddress = testnetFactoryAddress ?? zeroAddress;
   const { address: user } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -57,6 +57,23 @@ export default function TokenTradingPage() {
   const receipt = useWaitForTransactionReceipt({ hash: tradeWrite.data });
   const approvalReceipt = useWaitForTransactionReceipt({ hash: approvalWrite.data });
   const { t } = useLanguage();
+
+  const launchManager = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "launchManager",
+    query: { enabled: tokenAddress !== zeroAddress },
+  });
+  const knownFactories = [
+    testnetFactoryAddress,
+    autoLiquidityFactoryAddress,
+  ].filter((factory): factory is `0x${string}` => Boolean(factory));
+  const factoryAddress =
+    knownFactories.find(
+      (factory) =>
+        factory.toLowerCase() ===
+        (launchManager.data ?? "").toLowerCase(),
+    ) ?? zeroAddress;
 
   const curveQuery = useReadContract({
     address: factoryAddress,
@@ -98,12 +115,6 @@ export default function TokenTradingPage() {
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "totalSupply",
-    query: { enabled: tokenAddress !== zeroAddress },
-  });
-  const launchManager = useReadContract({
-    address: tokenAddress,
-    abi: tokenAbi,
-    functionName: "launchManager",
     query: { enabled: tokenAddress !== zeroAddress },
   });
   const graduationAuthority = useReadContract({
