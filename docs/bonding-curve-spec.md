@@ -90,7 +90,8 @@ target. Test vectors must cover all boundary conditions.
 
 ## Atomic create and buy
 
-`createTokenAndBuy` deploys and initializes a launch, then executes the
+`createVanityTokenAndBuy` deploys a guaranteed `1111` vanity-address token,
+initializes its launch, then executes the
 creator's first buy in the same transaction. No externally callable trading
 state exists between creation and the first buy.
 
