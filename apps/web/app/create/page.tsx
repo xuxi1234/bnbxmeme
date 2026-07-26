@@ -1,11 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { isAddress, parseEther } from "viem";
+import { createPublicClient, http, isAddress, parseEther } from "viem";
 import {
   useAccount,
   useChainId,
-  usePublicClient,
   useSwitchChain,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -22,6 +21,18 @@ import { useLanguage } from "@/components/language-provider";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 const MAX_SIDE_TAX = 25;
+const VANITY_SEARCH_CHUNK = 2_500n;
+const VANITY_SEARCH_ROUNDS = 67;
+const vanityClients = [
+  "https://bsc-testnet-rpc.publicnode.com",
+  "https://bsc-testnet.drpc.org",
+  "https://data-seed-prebsc-1-s1.bnbchain.org:8545",
+].map((url) =>
+  createPublicClient({
+    chain: bscTestnet,
+    transport: http(url, { timeout: 12_000 }),
+  }),
+);
 
 type TemplateId = "standard" | "liquidity" | "holders" | "lp";
 type TaxKey = "burn" | "liquidity" | "marketing" | "rewards";
@@ -68,7 +79,6 @@ export default function CreateTokenPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const publicClient = usePublicClient({ chainId: bscTestnet.id });
   const { data: hash, error, isPending, writeContract } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
@@ -121,44 +131,66 @@ export default function CreateTokenPage() {
   }
 
   async function findVanitySalt() {
-    if (!publicClient) throw new Error("测试网 RPC 尚未连接");
     const tokenName = name.trim();
     const tokenSymbol = symbol.trim().toUpperCase();
-    const chunk = 20_000n;
-    let start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      if (template === "liquidity") {
-        if (!autoLiquidityFactoryAddress || !address) {
-          throw new Error("自动回流测试网 Factory 尚未配置");
-        }
-        const marketing =
-          marketingWallet.trim() === "" ? address : marketingWallet.trim();
-        if (!isAddress(marketing)) throw new Error("营销钱包地址格式错误");
-        const [found, salt] = await publicClient.readContract({
-          address: autoLiquidityFactoryAddress,
-          abi: autoLiquidityFactoryAbi,
-          functionName: "findVanitySalt",
-          args: [
-            tokenName,
-            tokenSymbol,
-            marketing,
-            configuredTaxes(),
-            start,
-            chunk,
-          ],
-        });
+    const start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
+    const parallelWidth = BigInt(vanityClients.length);
+    const marketing =
+      marketingWallet.trim() === "" ? address : marketingWallet.trim();
+    if (template === "liquidity" && (!marketing || !isAddress(marketing))) {
+      throw new Error("营销钱包地址格式错误");
+    }
+    const marketingAddress = marketing as `0x${string}`;
+
+    for (let round = 0; round < VANITY_SEARCH_ROUNDS; round += 1) {
+      const roundStart =
+        start +
+        BigInt(round) * VANITY_SEARCH_CHUNK * parallelWidth;
+      const results = await Promise.allSettled(
+        vanityClients.map((client, index) => {
+          const batchStart =
+            roundStart + BigInt(index) * VANITY_SEARCH_CHUNK;
+          if (template === "liquidity") {
+            if (!autoLiquidityFactoryAddress || !marketingAddress) {
+              throw new Error("自动回流测试网 Factory 尚未配置");
+            }
+            return client.readContract({
+              address: autoLiquidityFactoryAddress,
+              abi: autoLiquidityFactoryAbi,
+              functionName: "findVanitySalt",
+              args: [
+                tokenName,
+                tokenSymbol,
+                marketingAddress,
+                configuredTaxes(),
+                batchStart,
+                VANITY_SEARCH_CHUNK,
+              ],
+            });
+          }
+          return client.readContract({
+            address: testnetFactoryAddress,
+            abi: factoryAbi,
+            functionName: "findVanitySalt",
+            args: [
+              tokenName,
+              tokenSymbol,
+              batchStart,
+              VANITY_SEARCH_CHUNK,
+            ],
+          });
+        }),
+      );
+      let successfulCalls = 0;
+      for (const result of results) {
+        if (result.status !== "fulfilled") continue;
+        successfulCalls += 1;
+        const [found, salt] = result.value;
         if (found) return salt;
-        start += chunk;
-        continue;
       }
-      const [found, salt] = await publicClient.readContract({
-        address: testnetFactoryAddress,
-        abi: factoryAbi,
-        functionName: "findVanitySalt",
-        args: [tokenName, tokenSymbol, start, chunk],
-      });
-      if (found) return salt;
-      start += chunk;
+      if (successfulCalls === 0) {
+        throw new Error("测试网 RPC 当前繁忙，请稍后重新提交");
+      }
     }
     throw new Error("暂未找到 1111 靓号，请重新提交");
   }
