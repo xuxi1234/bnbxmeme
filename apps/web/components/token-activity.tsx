@@ -38,6 +38,7 @@ export function TokenActivity({
   const [holders, setHolders] = useState<Holder[]>([]);
   const [bnbUsd, setBnbUsd] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (token === zeroAddress || curve === zeroAddress) return;
@@ -45,6 +46,7 @@ export function TokenActivity({
 
     async function load() {
       setIsLoading(true);
+      setLoadError(false);
       try {
         const response = await fetch(`/api/chain-data?curve=${curve}&token=${token}`, {
           signal: controller.signal,
@@ -70,6 +72,7 @@ export function TokenActivity({
         if (!controller.signal.aborted) {
           setTrades([]);
           setHolders([]);
+          setLoadError(true);
         }
       } finally {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -96,6 +99,10 @@ export function TokenActivity({
         </div>
         {isLoading ? (
           <p className="activity-empty">{t("readingLogs")}</p>
+        ) : loadError ? (
+          <p className="activity-empty activity-error">
+            链上节点暂时繁忙，正在自动切换备用 RPC…
+          </p>
         ) : trades.length === 0 ? (
           <p className="activity-empty">{t("noTrades")}</p>
         ) : (
@@ -141,6 +148,10 @@ export function TokenActivity({
         </div>
         {isLoading ? (
           <p className="activity-empty">{t("readingLogs")}</p>
+        ) : loadError ? (
+          <p className="activity-empty activity-error">
+            持币数据同步延迟，备用节点将在下一轮重试。
+          </p>
         ) : holders.length === 0 ? (
           <p className="activity-empty">{t("noHolders")}</p>
         ) : (
