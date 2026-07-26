@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { formatEther, zeroAddress } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
-import { curveAbi, factoryAbi, tokenAbi } from "@/lib/web3";
+import {
+  curveAbi,
+  factoryAbi,
+  testnetFactoryAddress,
+  tokenAbi,
+} from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
 
 const MAX_VISIBLE_TOKENS = 24;
@@ -87,9 +92,7 @@ function TokenCard({
 }
 
 export function TokenMarket() {
-  const factory =
-    (process.env.NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined) ??
-    zeroAddress;
+  const factory = testnetFactoryAddress ?? zeroAddress;
   const count = useReadContract({
     address: factory,
     abi: factoryAbi,
