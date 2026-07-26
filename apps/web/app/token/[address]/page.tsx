@@ -21,6 +21,7 @@ import {
 } from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
 import { TokenActivity } from "@/components/token-activity";
+import { BondingCurveChart } from "@/components/bonding-curve-chart";
 
 const states = ["内盘交易", "准备毕业", "PancakeSwap V2"];
 const SLIPPAGE_BPS = 100n;
@@ -276,6 +277,13 @@ export default function TokenTradingPage() {
           </a>
         </div>
       </section>
+
+      {curveAddress !== zeroAddress && (
+        <BondingCurveChart
+          curve={curveAddress}
+          symbol={symbol.data ?? "TOKEN"}
+        />
+      )}
 
       <section className="trade-layout">
         <article className="card progress-card">
