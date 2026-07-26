@@ -225,21 +225,31 @@ contract FactoryIntegrationTest {
         launchFactory = new BNBXFactory(FEE_RECIPIENT, address(router));
     }
 
+    function vanityRequest(
+        string memory name,
+        string memory symbol,
+        uint8 target,
+        string memory metadataURI
+    ) internal view returns (BNBXFactory.CreateRequest memory request) {
+        (bool found, bytes32 salt,) =
+            launchFactory.findVanitySalt(name, symbol, 0, 500_000);
+        require(found, "VANITY_NOT_FOUND");
+        request = BNBXFactory.CreateRequest(name, symbol, target, metadataURI, salt);
+    }
+
     function testCreateBuyFillGraduateAndBurnLPAtomically() public {
         uint256 balanceBefore = address(this).balance;
 
         (address tokenAddress, address curveAddress, uint256 tokensOut) =
-            launchFactory.createTokenAndBuy{ value: 5.5 ether }(
-                "Zhang San",
-                "ZS",
-                5,
-                "ipfs://bnbx-test-metadata",
-                799_999_999 ether,
-                block.timestamp,
-                address(this)
+            launchFactory.createVanityTokenAndBuy{ value: 5.5 ether }(
+                vanityRequest("Zhang San", "ZS", 5, "ipfs://bnbx-test-metadata"),
+                BNBXFactory.BuyRequest(
+                    799_999_999 ether, block.timestamp, address(this)
+                )
             );
 
         BNBXToken token = BNBXToken(tokenAddress);
+        assert(uint16(uint160(tokenAddress)) == 0x1111);
         BondingCurve curve = BondingCurve(payable(curveAddress));
         address pairAddress = pancakeFactory.getPair(tokenAddress, address(wbnb));
         MockPair pair = MockPair(pairAddress);
@@ -272,6 +282,7 @@ contract FactoryIntegrationTest {
             );
 
         BNBXToken token = BNBXToken(tokenAddress);
+        assert(uint16(uint160(tokenAddress)) == 0x1111);
         BondingCurve curve = BondingCurve(payable(curveAddress));
         assert(launchFactory.tokenCount() == 1);
         assert(launchFactory.allTokens(0) == tokenAddress);
@@ -355,14 +366,9 @@ contract FactoryIntegrationTest {
 
     function testPairLockDefeatsOneSidedWBNBGriefing() public {
         (address tokenAddress, address curveAddress,) =
-            launchFactory.createTokenAndBuy{ value: 0.101 ether }(
-                "Pair Safe",
-                "PAIRSAFE",
-                5,
-                "",
-                1,
-                block.timestamp,
-                address(this)
+            launchFactory.createVanityTokenAndBuy{ value: 0.101 ether }(
+                vanityRequest("Pair Safe", "PAIRSAFE", 5, ""),
+                BNBXFactory.BuyRequest(1, block.timestamp, address(this))
             );
         BNBXToken token = BNBXToken(tokenAddress);
         BondingCurve curve = BondingCurve(payable(curveAddress));
@@ -463,14 +469,9 @@ contract FactoryIntegrationTest {
 
     function testGraduatedLaunchCannotTradeAgain() public {
         (address tokenAddress, address curveAddress,) =
-            launchFactory.createTokenAndBuy{ value: 5.5 ether }(
-                "Finished",
-                "DONE",
-                5,
-                "",
-                1,
-                block.timestamp,
-                address(this)
+            launchFactory.createVanityTokenAndBuy{ value: 5.5 ether }(
+                vanityRequest("Finished", "DONE", 5, ""),
+                BNBXFactory.BuyRequest(1, block.timestamp, address(this))
             );
         BNBXToken token = BNBXToken(tokenAddress);
         token.approve(curveAddress, 1 ether);
@@ -504,14 +505,9 @@ contract FactoryIntegrationTest {
 
 contract TradingIntegrationTest is FactoryIntegrationTest {
     function testPartialBuyThenSellChargesFeeBothWays() public {
-        (, address curveAddress,) = launchFactory.createTokenAndBuy{ value: 0.101 ether }(
-            "Round Trip",
-            "RT",
-            5,
-            "",
-            1,
-            block.timestamp,
-            address(this)
+        (, address curveAddress,) = launchFactory.createVanityTokenAndBuy{ value: 0.101 ether }(
+            vanityRequest("Round Trip", "RT", 5, ""),
+            BNBXFactory.BuyRequest(1, block.timestamp, address(this))
         );
 
         BondingCurve curve = BondingCurve(payable(curveAddress));
