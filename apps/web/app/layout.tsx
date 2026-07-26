@@ -4,6 +4,7 @@ import { Providers } from "./providers";
 import { SiteHeader } from "@/components/site-header";
 import { LanguageProvider } from "@/components/language-provider";
 import { SiteFooter } from "@/components/site-footer";
+import { AnnouncementBar } from "@/components/announcement-bar";
 
 export const metadata: Metadata = {
   title: "BNBX — Build Next Bull System",
@@ -20,6 +21,7 @@ export default function RootLayout({
         <Providers>
           <LanguageProvider>
             <SiteHeader />
+            <AnnouncementBar />
             {children}
             <SiteFooter />
           </LanguageProvider>
