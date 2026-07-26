@@ -6,7 +6,7 @@ import { WalletButton } from "./wallet-button";
 import { useLanguage, type Language } from "./language-provider";
 
 export function SiteHeader() {
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage, theme, toggleTheme, t } = useLanguage();
   const navigation = [
     [t("market"), "/#market"],
     [t("create"), "/create"],
@@ -50,6 +50,15 @@ export function SiteHeader() {
           <option value="ko">한국어</option>
           <option value="ja">日本語</option>
         </select>
+        <button
+          className="theme-toggle"
+          type="button"
+          aria-label={t("theme")}
+          title={t("theme")}
+          onClick={toggleTheme}
+        >
+          {theme === "dark" ? "☀" : "◐"}
+        </button>
         <span className="network-chip">
           <i />
           TESTNET
