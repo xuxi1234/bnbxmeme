@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createConfig, http } from "wagmi";
+import { createConfig, fallback, http } from "wagmi";
 import { bscTestnet } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
@@ -19,7 +19,13 @@ export const wagmiConfig = createConfig({
   chains: [bscTestnet],
   connectors: [injected()],
   transports: {
-    [bscTestnet.id]: http(),
+    [bscTestnet.id]: fallback([
+      http("https://bsc-testnet-rpc.publicnode.com", { timeout: 12_000 }),
+      http("https://bsc-testnet.drpc.org", { timeout: 12_000 }),
+      http("https://data-seed-prebsc-1-s1.bnbchain.org:8545", {
+        timeout: 12_000,
+      }),
+    ]),
   },
   ssr: true,
 });
