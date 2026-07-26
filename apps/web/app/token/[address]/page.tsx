@@ -64,25 +64,41 @@ export default function TokenTradingPage() {
     functionName: "launchManager",
     query: { enabled: tokenAddress !== zeroAddress },
   });
-  const knownFactories = [
-    testnetFactoryAddress,
-    autoLiquidityFactoryAddress,
-  ].filter((factory): factory is `0x${string}` => Boolean(factory));
-  const factoryAddress =
-    knownFactories.find(
-      (factory) =>
-        factory.toLowerCase() ===
-        (launchManager.data ?? "").toLowerCase(),
-    ) ?? zeroAddress;
-
-  const curveQuery = useReadContract({
-    address: factoryAddress,
+  // launchManager is deliberately renounced during token creation. Probe both
+  // supported factories and use the one that owns a non-zero curve.
+  const standardCurveQuery = useReadContract({
+    address: testnetFactoryAddress,
     abi: factoryAbi,
     functionName: "curveOf",
     args: [tokenAddress],
-    query: { enabled: factoryAddress !== zeroAddress && tokenAddress !== zeroAddress },
+    query: { enabled: tokenAddress !== zeroAddress },
   });
-  const curveAddress = curveQuery.data ?? zeroAddress;
+  const autoCurveQuery = useReadContract({
+    address: autoLiquidityFactoryAddress,
+    abi: factoryAbi,
+    functionName: "curveOf",
+    args: [tokenAddress],
+    query: { enabled: tokenAddress !== zeroAddress },
+  });
+  const standardCurve =
+    standardCurveQuery.data && standardCurveQuery.data !== zeroAddress
+      ? standardCurveQuery.data
+      : zeroAddress;
+  const autoCurve =
+    autoCurveQuery.data && autoCurveQuery.data !== zeroAddress
+      ? autoCurveQuery.data
+      : zeroAddress;
+  const factoryAddress =
+    standardCurve !== zeroAddress
+      ? testnetFactoryAddress
+      : autoCurve !== zeroAddress
+        ? autoLiquidityFactoryAddress
+        : zeroAddress;
+  const curveAddress =
+    standardCurve !== zeroAddress ? standardCurve : autoCurve;
+  const isAutoLiquidityTemplate =
+    factoryAddress !== zeroAddress &&
+    factoryAddress.toLowerCase() === autoLiquidityFactoryAddress.toLowerCase();
   const metadataURI = useReadContract({
     address: factoryAddress,
     abi: factoryAbi,
@@ -160,6 +176,32 @@ export default function TokenTradingPage() {
     functionName: "liquidityPair",
     query: { enabled: curveAddress !== zeroAddress },
   });
+  const buyTaxes = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "buyTaxes",
+    query: { enabled: tokenAddress !== zeroAddress && isAutoLiquidityTemplate },
+  });
+  const sellTaxes = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "sellTaxes",
+    query: { enabled: tokenAddress !== zeroAddress && isAutoLiquidityTemplate },
+  });
+  const marketingWallet = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "marketingWallet",
+    query: { enabled: tokenAddress !== zeroAddress && isAutoLiquidityTemplate },
+  });
+  const taxPercent = (value: number | undefined) =>
+    `${((value ?? 0) / 100).toFixed(2)}%`;
+  const buyTaxTotal = buyTaxes.data
+    ? buyTaxes.data.reduce((sum, value) => sum + value, 0)
+    : 0;
+  const sellTaxTotal = sellTaxes.data
+    ? sellTaxes.data.reduce((sum, value) => sum + value, 0)
+    : 0;
 
   const buyWei = safeParseEther(buyAmount);
   const sellWei = safeParseEther(sellAmount);
@@ -279,6 +321,37 @@ export default function TokenTradingPage() {
         </div>
         {metadata?.description && (
           <p className="token-description">{metadata.description}</p>
+        )}
+        {isAutoLiquidityTemplate && (
+          <section className="tax-template-card">
+            <div className="tax-template-heading">
+              <div>
+                <span className="eyebrow">AUTO LIQUIDITY TEMPLATE</span>
+                <strong>自动回流代币</strong>
+              </div>
+              <span>买入税 {taxPercent(buyTaxTotal)} · 卖出税 {taxPercent(sellTaxTotal)}</span>
+            </div>
+            <div className="tax-breakdown">
+              <div>
+                <span>买入税分配</span>
+                <strong>
+                  销毁 {taxPercent(buyTaxes.data?.[0])} · 回流 {taxPercent(buyTaxes.data?.[1])} ·
+                  营销 {taxPercent(buyTaxes.data?.[2])} · 分红 {taxPercent(buyTaxes.data?.[3])}
+                </strong>
+              </div>
+              <div>
+                <span>卖出税分配</span>
+                <strong>
+                  销毁 {taxPercent(sellTaxes.data?.[0])} · 回流 {taxPercent(sellTaxes.data?.[1])} ·
+                  营销 {taxPercent(sellTaxes.data?.[2])} · 分红 {taxPercent(sellTaxes.data?.[3])}
+                </strong>
+              </div>
+              <div>
+                <span>营销钱包</span>
+                <strong>{marketingWallet.data ?? "读取中…"}</strong>
+              </div>
+            </div>
+          </section>
         )}
         <div className="project-links">
           {metadata?.website && <a href={metadata.website} target="_blank" rel="noreferrer">官网 ↗</a>}
