@@ -1,15 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatEther, parseAbiItem, zeroAddress } from "viem";
-import { usePublicClient } from "wagmi";
-
-const boughtEvent = parseAbiItem(
-  "event Bought(address indexed buyer, uint256 grossBNB, uint256 feeBNB, uint256 netBNB, uint256 tokensOut, uint256 refundBNB)",
-);
-const soldEvent = parseAbiItem(
-  "event Sold(address indexed seller, uint256 tokensIn, uint256 grossBNB, uint256 feeBNB, uint256 netBNB)",
-);
+import { formatEther, zeroAddress } from "viem";
 
 type Period = 300 | 900 | 3600;
 type Point = { timestamp: number; price: number; volume: number };
@@ -27,12 +19,6 @@ const periods: ReadonlyArray<{ label: string; value: Period }> = [
   { label: "15分", value: 900 },
   { label: "1时", value: 3600 },
 ];
-
-function deploymentStart(latest: bigint) {
-  const configured = process.env.NEXT_PUBLIC_BNBX_DEPLOYMENT_BLOCK;
-  if (configured && /^\d+$/.test(configured)) return BigInt(configured);
-  return latest > 100_000n ? latest - 100_000n : 0n;
-}
 
 function compact(value: number) {
   if (!Number.isFinite(value)) return "0";
@@ -73,86 +59,32 @@ export function BondingCurveChart({
   curve: `0x${string}`;
   symbol: string;
 }) {
-  const client = usePublicClient();
   const [points, setPoints] = useState<Point[]>([]);
   const [period, setPeriod] = useState<Period>(300);
   const [status, setStatus] = useState("正在同步链上成交…");
 
   useEffect(() => {
-    if (!client || curve === zeroAddress) return;
-    const publicClient = client;
+    if (curve === zeroAddress) return;
     let cancelled = false;
 
     async function load() {
       try {
-        const latest = await publicClient.getBlockNumber();
-        const fromBlock = deploymentStart(latest);
-        const ranges: Array<{ fromBlock: bigint; toBlock: bigint }> = [];
-        for (let start = fromBlock; start <= latest; start += 3_000n) {
-          ranges.push({
-            fromBlock: start,
-            toBlock: start + 2_999n > latest ? latest : start + 2_999n,
-          });
-        }
-        const [buyChunks, sellChunks] = await Promise.all([
-          Promise.all(
-            ranges.map((range) =>
-              publicClient.getLogs({
-                address: curve,
-                event: boughtEvent,
-                ...range,
-              }),
-            ),
-          ),
-          Promise.all(
-            ranges.map((range) =>
-              publicClient.getLogs({
-                address: curve,
-                event: soldEvent,
-                ...range,
-              }),
-            ),
-          ),
-        ]);
-        const buys = buyChunks.flat();
-        const sells = sellChunks.flat();
-        const logs = [...buys, ...sells];
-        const blockNumbers = [...new Set(logs.map((log) => log.blockNumber.toString()))];
-        const blocks = await Promise.all(
-          blockNumbers.map((block) =>
-            publicClient.getBlock({ blockNumber: BigInt(block) }),
-          ),
-        );
-        const timestamps = new Map(
-          blocks.map((block) => [block.number.toString(), Number(block.timestamp)]),
-        );
-        const buyPoints = buys.map((log): Point | null => {
-            const tokenWei = log.args.tokensOut;
-            const bnbWei = log.args.netBNB;
+        const response = await fetch(`/api/chain-data?curve=${curve}`);
+        if (!response.ok) throw new Error("chain data");
+        const data = await response.json() as { trades: Array<{ tokens: string; priceBNB: string; timestamp: number; bnb: string }> };
+        const next = data.trades.map((trade): Point | null => {
+            const tokenWei = BigInt(trade.tokens);
+            const bnbWei = BigInt(trade.priceBNB);
             if (!tokenWei || !bnbWei) return null;
             const tokens = Number(formatEther(tokenWei));
             const bnb = Number(formatEther(bnbWei));
             if (!tokens || !bnb) return null;
             return {
-              timestamp: timestamps.get(log.blockNumber.toString()) ?? 0,
+              timestamp: trade.timestamp,
               price: (bnb / tokens) * 1_000_000,
-              volume: bnb,
+              volume: Number(formatEther(BigInt(trade.bnb))),
             };
-          });
-        const sellPoints = sells.map((log): Point | null => {
-            const tokenWei = log.args.tokensIn;
-            const bnbWei = log.args.grossBNB;
-            if (!tokenWei || !bnbWei) return null;
-            const tokens = Number(formatEther(tokenWei));
-            const bnb = Number(formatEther(bnbWei));
-            if (!tokens || !bnb) return null;
-            return {
-              timestamp: timestamps.get(log.blockNumber.toString()) ?? 0,
-              price: (bnb / tokens) * 1_000_000,
-              volume: bnb,
-            };
-          });
-        const next = [...buyPoints, ...sellPoints]
+          })
           .filter((point): point is Point => Boolean(point?.timestamp))
           .sort((a, b) => a.timestamp - b.timestamp);
         if (!cancelled) {
@@ -170,7 +102,7 @@ export function BondingCurveChart({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [client, curve]);
+  }, [curve]);
 
   const candles = useMemo(() => aggregate(points, period), [period, points]);
   const latest = candles.at(-1);
