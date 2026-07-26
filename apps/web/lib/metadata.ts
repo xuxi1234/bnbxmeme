@@ -11,6 +11,7 @@ export type TokenMetadata = {
   telegram?: string;
   twitter?: string;
   debox?: string;
+  qq?: string;
 };
 
 const gateway =
@@ -59,6 +60,7 @@ function sanitizeMetadata(value: unknown): TokenMetadata | null {
     telegram: safeLink(source.telegram),
     twitter: safeLink(source.twitter),
     debox: safeLink(source.debox),
+    qq: safeLink(source.qq),
   };
 }
 
