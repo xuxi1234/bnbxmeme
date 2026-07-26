@@ -12,6 +12,8 @@ export const autoLiquidityFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS as
     | `0x${string}`
     | undefined) ?? "0xdf29818f29d319bb6d85e3931868646c98c303a5";
+export const testnetPancakeRouterAddress =
+  "0xD99D1c33F9fC3444f8101754aBC46c52416550D1" as const;
 
 export const queryClient = new QueryClient();
 
