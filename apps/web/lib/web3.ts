@@ -3,6 +3,11 @@ import { createConfig, http } from "wagmi";
 import { bscTestnet } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
+export const testnetFactoryAddress =
+  (process.env.NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as
+    | `0x${string}`
+    | undefined) ?? "0x4395a6b887e7be4b9f1828b3e4a005c63abfd67d";
+
 export const queryClient = new QueryClient();
 
 export const wagmiConfig = createConfig({
