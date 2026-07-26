@@ -8,6 +8,20 @@ import { IPancakeV2Factory, IPancakeV2Router } from "./interfaces/IPancakeV2.sol
 /// @title BNBX launch factory
 /// @notice Creates immutable zero-tax tokens and routes all internal trades.
 contract BNBXFactory {
+    struct CreateRequest {
+        string name;
+        string symbol;
+        uint8 graduationTargetBNB;
+        string metadataURI;
+        bytes32 vanitySalt;
+    }
+
+    struct BuyRequest {
+        uint256 minTokensOut;
+        uint256 deadline;
+        address refundRecipient;
+    }
+
     uint256 public constant CREATION_FEE = 0.001 ether;
     address public immutable feeRecipient;
     address public immutable pancakeV2Router;
@@ -24,6 +38,7 @@ contract BNBXFactory {
     error UnknownToken();
     error TransferFailed();
     error MetadataTooLong();
+    error InvalidVanitySalt();
 
     event TokenCreated(
         address indexed token,
@@ -55,6 +70,20 @@ contract BNBXFactory {
         return allTokens.length;
     }
 
+    function createVanityToken(CreateRequest calldata request)
+        external
+        payable
+        nonReentrant
+        returns (address tokenAddress, address curveAddress)
+    {
+        if (msg.value != CREATION_FEE) revert InvalidCreationValue();
+        (tokenAddress, curveAddress) = _create(request, msg.sender);
+        _sendBNB(feeRecipient, CREATION_FEE);
+        emit CreationFeePaid(msg.sender, CREATION_FEE);
+    }
+
+    /// @dev Compatibility entrypoint. The web app uses the tuple overload and
+    /// precomputes the salt off-chain to keep transaction gas predictable.
     function createToken(
         string calldata name,
         string calldata symbol,
@@ -62,20 +91,18 @@ contract BNBXFactory {
         string calldata metadataURI
     ) external payable nonReentrant returns (address tokenAddress, address curveAddress) {
         if (msg.value != CREATION_FEE) revert InvalidCreationValue();
-        (tokenAddress, curveAddress) =
-            _create(name, symbol, graduationTargetBNB, metadataURI, msg.sender);
+        bytes32 salt = _findLegacySalt(name, symbol);
+        (tokenAddress, curveAddress) = _create(
+            CreateRequest(name, symbol, graduationTargetBNB, metadataURI, salt),
+            msg.sender
+        );
         _sendBNB(feeRecipient, CREATION_FEE);
         emit CreationFeePaid(msg.sender, CREATION_FEE);
     }
 
-    function createTokenAndBuy(
-        string calldata name,
-        string calldata symbol,
-        uint8 graduationTargetBNB,
-        string calldata metadataURI,
-        uint256 minTokensOut,
-        uint256 deadline,
-        address refundRecipient
+    function createVanityTokenAndBuy(
+        CreateRequest calldata request,
+        BuyRequest calldata buyRequest
     )
         external
         payable
@@ -83,17 +110,21 @@ contract BNBXFactory {
         returns (address tokenAddress, address curveAddress, uint256 tokensOut)
     {
         if (msg.value <= CREATION_FEE) revert InvalidCreationValue();
-        if (refundRecipient == address(0)) revert InvalidAddress();
+        if (buyRequest.refundRecipient == address(0)) revert InvalidAddress();
 
-        (tokenAddress, curveAddress) =
-            _create(name, symbol, graduationTargetBNB, metadataURI, msg.sender);
+        (tokenAddress, curveAddress) = _create(request, msg.sender);
         _sendBNB(feeRecipient, CREATION_FEE);
         emit CreationFeePaid(msg.sender, CREATION_FEE);
 
         (tokensOut,) = BondingCurve(payable(curveAddress)).buy{
             value: msg.value - CREATION_FEE
-        }(msg.sender, refundRecipient, minTokensOut, deadline);
-        _graduateIfReady(curveAddress, deadline);
+        }(
+            msg.sender,
+            buyRequest.refundRecipient,
+            buyRequest.minTokensOut,
+            buyRequest.deadline
+        );
+        _graduateIfReady(curveAddress, buyRequest.deadline);
     }
 
     function buy(
@@ -119,39 +150,22 @@ contract BNBXFactory {
         );
     }
 
-    function _create(
-        string calldata name,
-        string calldata symbol,
-        uint8 graduationTargetBNB,
-        string calldata metadataURI,
-        address creator
-    ) internal returns (address tokenAddress, address curveAddress) {
-        if (bytes(metadataURI).length > 256) revert MetadataTooLong();
-        BNBXToken token = new BNBXToken(name, symbol, address(this));
+    function _create(CreateRequest memory request, address creator)
+        internal
+        returns (address tokenAddress, address curveAddress)
+    {
+        if (bytes(request.metadataURI).length > 256) revert MetadataTooLong();
+        BNBXToken token =
+            _deployVanityToken(request.name, request.symbol, request.vanitySalt);
         tokenAddress = address(token);
-        {
-            IPancakeV2Router router = IPancakeV2Router(pancakeV2Router);
-            address wbnb = router.WETH();
-            IPancakeV2Factory pancakeFactory = IPancakeV2Factory(router.factory());
-            address pair = pancakeFactory.getPair(tokenAddress, wbnb);
-            if (pair == address(0)) {
-                pair = pancakeFactory.createPair(tokenAddress, wbnb);
-            }
-            BondingCurve curve = new BondingCurve(
-                tokenAddress,
-                address(this),
-                feeRecipient,
-                creator,
-                graduationTargetBNB,
-                pair,
-                wbnb
-            );
-            curveAddress = address(curve);
-            token.configureLaunch(curveAddress, pair);
-        }
+        address pair;
+        (curveAddress, pair) = _deployCurve(
+            tokenAddress, creator, request.graduationTargetBNB
+        );
+        token.configureLaunch(curveAddress, pair);
 
         curveOf[tokenAddress] = curveAddress;
-        tokenMetadataURI[tokenAddress] = metadataURI;
+        tokenMetadataURI[tokenAddress] = request.metadataURI;
         allTokens.push(tokenAddress);
 
         if (!token.transfer(curveAddress, token.TOTAL_SUPPLY())) revert TransferFailed();
@@ -160,11 +174,124 @@ contract BNBXFactory {
             tokenAddress,
             curveAddress,
             creator,
-            name,
-            symbol,
-            graduationTargetBNB,
-            metadataURI
+            request.name,
+            request.symbol,
+            request.graduationTargetBNB,
+            request.metadataURI
         );
+    }
+
+    function _deployVanityToken(
+        string memory name,
+        string memory symbol,
+        bytes32 vanitySalt
+    ) internal returns (BNBXToken token) {
+        address predicted = predictTokenAddress(name, symbol, vanitySalt);
+        if (uint16(uint160(predicted)) != 0x1111 || predicted.code.length != 0) {
+            revert InvalidVanitySalt();
+        }
+        token = new BNBXToken{ salt: vanitySalt }(name, symbol, address(this));
+    }
+
+    function _deployCurve(
+        address tokenAddress,
+        address creator,
+        uint8 graduationTargetBNB
+    ) internal returns (address curveAddress, address pair) {
+        IPancakeV2Router router = IPancakeV2Router(pancakeV2Router);
+        address wbnb = router.WETH();
+        IPancakeV2Factory pancakeFactory = IPancakeV2Factory(router.factory());
+        pair = pancakeFactory.getPair(tokenAddress, wbnb);
+        if (pair == address(0)) {
+            pair = pancakeFactory.createPair(tokenAddress, wbnb);
+        }
+        curveAddress = address(
+            new BondingCurve(
+                tokenAddress,
+                address(this),
+                feeRecipient,
+                creator,
+                graduationTargetBNB,
+                pair,
+                wbnb
+            )
+        );
+    }
+
+    /// @notice Searches a bounded salt range without spending gas. Frontends
+    /// call this through eth_call before submitting the creation transaction.
+    function findVanitySalt(
+        string calldata name,
+        string calldata symbol,
+        uint256 start,
+        uint256 maxIterations
+    ) external view returns (bool found, bytes32 salt, address predicted) {
+        bytes32 initCodeHash = _tokenInitCodeHash(name, symbol);
+        for (uint256 i; i < maxIterations; ++i) {
+            salt = bytes32(start + i);
+            predicted = _create2Address(salt, initCodeHash);
+            if (uint16(uint160(predicted)) == 0x1111 && predicted.code.length == 0) {
+                return (true, salt, predicted);
+            }
+        }
+    }
+
+    function predictTokenAddress(
+        string memory name,
+        string memory symbol,
+        bytes32 salt
+    ) public view returns (address) {
+        return _create2Address(salt, _tokenInitCodeHash(name, symbol));
+    }
+
+    function _tokenInitCodeHash(string memory name, string memory symbol)
+        internal
+        view
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encodePacked(
+                type(BNBXToken).creationCode,
+                abi.encode(name, symbol, address(this))
+            )
+        );
+    }
+
+    function _create2Address(bytes32 salt, bytes32 initCodeHash)
+        internal
+        view
+        returns (address)
+    {
+        return address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff), address(this), salt, initCodeHash
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    function _findLegacySalt(string calldata name, string calldata symbol)
+        internal
+        view
+        returns (bytes32 salt)
+    {
+        bytes32 initCodeHash = _tokenInitCodeHash(name, symbol);
+        uint256 start = uint256(
+            keccak256(abi.encodePacked(msg.sender, allTokens.length, name, symbol))
+        );
+        for (uint256 i; i < 500_000; ++i) {
+            salt = bytes32(start + i);
+            address predicted = _create2Address(salt, initCodeHash);
+            if (uint16(uint160(predicted)) == 0x1111 && predicted.code.length == 0) {
+                return salt;
+            }
+        }
+        revert InvalidVanitySalt();
     }
 
     function _curve(address token) internal view returns (address curve) {
