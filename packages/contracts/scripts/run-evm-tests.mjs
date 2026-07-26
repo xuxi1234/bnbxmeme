@@ -49,7 +49,7 @@ const input = {
     entrypoints.map((path) => [path, { content: loadSource(path) }]),
   ),
   settings: {
-    optimizer: { enabled: true, runs: 100_000 },
+    optimizer: { enabled: true, runs: 200 },
     evmVersion: "shanghai",
     outputSelection: {
       "*": {
