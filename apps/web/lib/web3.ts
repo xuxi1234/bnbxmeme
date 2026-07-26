@@ -366,4 +366,35 @@ export const tokenAbi = [
     ],
     outputs: [{ type: "bool" }],
   },
+  {
+    type: "function",
+    name: "buyTaxes",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "burn", type: "uint16" },
+      { name: "liquidity", type: "uint16" },
+      { name: "marketing", type: "uint16" },
+      { name: "rewards", type: "uint16" },
+    ],
+  },
+  {
+    type: "function",
+    name: "sellTaxes",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "burn", type: "uint16" },
+      { name: "liquidity", type: "uint16" },
+      { name: "marketing", type: "uint16" },
+      { name: "rewards", type: "uint16" },
+    ],
+  },
+  {
+    type: "function",
+    name: "marketingWallet",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
 ] as const;
