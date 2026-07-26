@@ -7,6 +7,7 @@
     "lint": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
     "typecheck": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
     "test": "node scripts/run-evm-tests.mjs",
+    "export:web-artifact": "node scripts/export-web-artifact.mjs",
     "preflight:testnet": "node scripts/preflight-testnet.mjs",
     "deploy:testnet": "node scripts/deploy-testnet.mjs",
     "verify:testnet": "node scripts/verify-testnet.mjs",

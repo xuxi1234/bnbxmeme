@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { formatEther, parseEther } from "viem";
+import { FormEvent, useState } from "react";
+import { parseEther } from "viem";
 import {
   useAccount,
   useChainId,
@@ -51,13 +51,10 @@ export default function CreateTokenPage() {
   const factoryAddress = process.env
     .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
 
-  const fillValue = useMemo(
-    () => CREATION_FEE_WEI + grossForNet(parseEther(String(target))),
-    [target],
-  );
-
   function fillCurve() {
-    setInitialBuy(formatEther(fillValue - CREATION_FEE_WEI));
+    // A round, easy-to-understand buffer. The curve only keeps the exact
+    // principal required to graduate; the contract atomically refunds excess.
+    setInitialBuy(`${target}.1`);
   }
 
   async function uploadMetadata() {
@@ -136,6 +133,13 @@ export default function CreateTokenPage() {
   }
 
   const wrongChain = isConnected && chainId !== bscTestnet.id;
+  const graduationGross = grossForNet(parseEther(String(target)));
+  let fillsCurve = false;
+  try {
+    fillsCurve = parseEther(initialBuy || "0") >= graduationGross;
+  } catch {
+    // Validation below keeps submission disabled.
+  }
   const canSubmit =
     isConnected &&
     !wrongChain &&
@@ -258,12 +262,13 @@ export default function CreateTokenPage() {
                 onChange={(event) => setInitialBuy(event.target.value)}
               />
               <button type="button" onClick={fillCurve}>
-                一键买至毕业
+                填入 {target}.1 BNB 一键毕业
               </button>
             </div>
             <small>
               可填写 0 表示只创建、不首购。部署费 0.001 BNB，首购手续费
-              0.5%；超过毕业所需的 BNB 将由合约自动退回。
+              0.5%。例如毕业额度为 {target} BNB 时，一键填入 {target}.1
+              BNB；创建、买满、毕业和 LP 销毁在同一笔交易完成，超额由合约自动退回。
             </small>
           </label>
 
@@ -292,7 +297,9 @@ export default function CreateTokenPage() {
                 ? "正在上传到 IPFS…"
                 : isPending
                 ? "请在钱包确认…"
-                : Number(initialBuy) > 0
+                : fillsCurve
+                  ? `创建并一键打满 ${target} BNB 毕业`
+                  : Number(initialBuy) > 0
                   ? "创建代币并执行首购"
                   : "创建代币"}
             </button>
