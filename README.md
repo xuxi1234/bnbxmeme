@@ -46,7 +46,8 @@ packages/ui      shared UI components
 
 The web deployment requires a server-only `PINATA_JWT` environment variable
 for token image and metadata uploads. Never expose it through a
-`NEXT_PUBLIC_*` variable or commit it to this repository.
+`NEXT_PUBLIC_*` variable or commit it to this repository. Redeploy the web app
+after adding or rotating this runtime secret.
 
 ## Safety
 
