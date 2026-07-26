@@ -27,6 +27,7 @@ const messages: Record<Language, Record<string, string>> = {
     graduationPermission: "毕业解锁权限", pairStatus: "Pair 转账状态", abandoned: "已放弃",
     destroyed: "已销毁", curveOnly: "仅自动曲线", protected: "毕业前保护中", unlocked: "毕业后已开放",
     confirmed: "交易已确认。", txHash: "交易哈希",
+    searchPlaceholder: "输入合约地址搜索",
   },
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
@@ -49,6 +50,7 @@ const messages: Record<Language, Record<string, string>> = {
     graduationPermission: "Graduation authority", pairStatus: "Pair transfer status", abandoned: "Renounced",
     destroyed: "Burned", curveOnly: "Automatic curve only", protected: "Protected before graduation", unlocked: "Unlocked after graduation",
     confirmed: "Transaction confirmed.", txHash: "Transaction hash",
+    searchPlaceholder: "Search by contract address",
   },
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
@@ -71,6 +73,7 @@ const messages: Record<Language, Record<string, string>> = {
     graduationPermission: "졸업 권한", pairStatus: "Pair 전송 상태", abandoned: "권한 포기",
     destroyed: "소각됨", curveOnly: "자동 커브 전용", protected: "졸업 전 보호", unlocked: "졸업 후 개방",
     confirmed: "거래가 확인되었습니다.", txHash: "거래 해시",
+    searchPlaceholder: "컨트랙트 주소 검색",
   },
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
@@ -93,6 +96,7 @@ const messages: Record<Language, Record<string, string>> = {
     graduationPermission: "卒業権限", pairStatus: "Pair送金状態", abandoned: "放棄済み",
     destroyed: "バーン済み", curveOnly: "自動カーブのみ", protected: "卒業前保護", unlocked: "卒業後開放",
     confirmed: "取引が確認されました。", txHash: "取引ハッシュ",
+    searchPlaceholder: "コントラクトアドレスを検索",
   },
 };
 
