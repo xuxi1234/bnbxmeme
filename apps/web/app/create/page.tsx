@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { parseEther } from "viem";
+import { formatEther, parseEther } from "viem";
 import {
   useAccount,
   useChainId,
@@ -52,9 +52,7 @@ export default function CreateTokenPage() {
     .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
 
   function fillCurve() {
-    // A round, easy-to-understand buffer. The curve only keeps the exact
-    // principal required to graduate; the contract atomically refunds excess.
-    setInitialBuy(`${target}.1`);
+    setInitialBuy(formatEther(grossForNet(parseEther(String(target)))));
   }
 
   async function uploadMetadata() {
@@ -262,13 +260,13 @@ export default function CreateTokenPage() {
                 onChange={(event) => setInitialBuy(event.target.value)}
               />
               <button type="button" onClick={fillCurve}>
-                填入 {target}.1 BNB 一键毕业
+                精确填入一键毕业金额
               </button>
             </div>
             <small>
               可填写 0 表示只创建、不首购。部署费 0.001 BNB，首购手续费
-              0.5%。例如毕业额度为 {target} BNB 时，一键填入 {target}.1
-              BNB；创建、买满、毕业和 LP 销毁在同一笔交易完成，超额由合约自动退回。
+              0.5%。可手动填写任意首购金额；扣除手续费后的净买入达到剩余毕业额度时，
+              创建、买满、毕业和 LP 销毁会在同一笔交易完成，超额 BNB 自动退回。
             </small>
           </label>
 
