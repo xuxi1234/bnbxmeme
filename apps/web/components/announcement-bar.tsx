@@ -5,10 +5,10 @@ import { useLanguage } from "./language-provider";
 export function AnnouncementBar() {
   const { language } = useLanguage();
   const copy = {
-    zh: "固定 10 亿供应  ·  0% 代币税  ·  合约地址 1111 结尾  ·  达标自动迁移 PancakeSwap V2  ·  LP 永久销毁",
-    en: "FIXED 1B SUPPLY  ·  ZERO TOKEN TAX  ·  CONTRACTS END IN 1111  ·  AUTO PANCAKESWAP V2 MIGRATION  ·  LP PERMANENTLY BURNED",
-    ko: "10억 고정 공급  ·  토큰 세금 0%  ·  1111 주소  ·  PancakeSwap V2 자동 이전  ·  LP 영구 소각",
-    ja: "10億固定供給  ·  トークン税率0%  ·  アドレス末尾1111  ·  PancakeSwap V2自動移行  ·  LP永久バーン",
+    zh: "BNBX.MEME是一个全新的内盘发射平台，更低的费用，更高的收益，BNBX是你在BSC链发行MEME代币的首选平台。",
+    en: "BNBX.MEME is a new bonding-curve launchpad with lower fees and greater potential. BNBX is your first choice for launching MEME tokens on BSC.",
+    ko: "BNBX.MEME는 더 낮은 수수료와 더 높은 잠재력을 제공하는 새로운 본딩 커브 런치패드입니다. BSC에서 MEME 토큰을 발행할 때 BNBX를 선택하세요.",
+    ja: "BNBX.MEMEは、より低い手数料と高い可能性を提供する新しいボンディングカーブ型ローンチパッドです。BSCでMEMEトークンを発行するならBNBX。",
   }[language];
   return (
     <div className="announcement-bar" aria-label="BNBX protocol">
