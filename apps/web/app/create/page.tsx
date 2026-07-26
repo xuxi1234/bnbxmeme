@@ -11,7 +11,7 @@ import {
 } from "wagmi";
 import { bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
-import { factoryAbi } from "@/lib/web3";
+import { factoryAbi, testnetFactoryAddress } from "@/lib/web3";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 const BPS = 10_000n;
@@ -48,8 +48,7 @@ export default function CreateTokenPage() {
   const { data: hash, error, isPending, writeContract } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
-  const factoryAddress = process.env
-    .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
+  const factoryAddress = testnetFactoryAddress;
 
   function fillCurve() {
     setInitialBuy(formatEther(grossForNet(parseEther(String(target)))));
