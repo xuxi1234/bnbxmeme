@@ -42,6 +42,11 @@ export function SiteHeader() {
         </span>
         <WalletButton />
       </div>
+      <nav className="mobile-nav" aria-label="移动端导航">
+        {navigation.slice(0, 3).map(([label, href]) => (
+          <Link key={label} href={href}>{label}</Link>
+        ))}
+      </nav>
     </header>
   );
 }
