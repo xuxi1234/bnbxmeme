@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "build": "solcjs --base-path . --include-path . --optimize --bin --abi -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
-    "lint": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
-    "typecheck": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BondingCurve.sol src/BNBXFactory.sol",
+    "build": "solcjs --base-path . --include-path . --optimize --bin --abi -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXAutoLiquidityFactory.sol src/libraries/TemplateConfig.sol",
+    "lint": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXAutoLiquidityFactory.sol src/libraries/TemplateConfig.sol",
+    "typecheck": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXAutoLiquidityFactory.sol src/libraries/TemplateConfig.sol",
     "test": "node scripts/run-evm-tests.mjs",
     "export:web-artifact": "node scripts/export-web-artifact.mjs",
     "preflight:testnet": "node scripts/preflight-testnet.mjs",
