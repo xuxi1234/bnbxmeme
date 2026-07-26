@@ -63,16 +63,43 @@ const factoryAbi = [
   },
   {
     type: "function",
-    name: "createTokenAndBuy",
-    stateMutability: "payable",
+    name: "findVanitySalt",
+    stateMutability: "view",
     inputs: [
       { type: "string" },
       { type: "string" },
-      { type: "uint8" },
-      { type: "string" },
       { type: "uint256" },
       { type: "uint256" },
+    ],
+    outputs: [
+      { type: "bool" },
+      { type: "bytes32" },
       { type: "address" },
+    ],
+  },
+  {
+    type: "function",
+    name: "createVanityTokenAndBuy",
+    stateMutability: "payable",
+    inputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "graduationTargetBNB", type: "uint8" },
+          { name: "metadataURI", type: "string" },
+          { name: "vanitySalt", type: "bytes32" },
+        ],
+      },
+      {
+        type: "tuple",
+        components: [
+          { name: "minTokensOut", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "refundRecipient", type: "address" },
+        ],
+      },
     ],
     outputs: [
       { type: "address" },
@@ -141,19 +168,36 @@ const countBefore = await publicClient.readContract({
   abi: factoryAbi,
   functionName: "tokenCount",
 });
+let vanitySalt;
+let vanityStart = 0n;
+while (!vanitySalt) {
+  const [found, salt] = await publicClient.readContract({
+    address: deployment.factory,
+    abi: factoryAbi,
+    functionName: "findVanitySalt",
+    args: ["BNBX Testnet Smoke", "BNBXTEST", vanityStart, 20_000n],
+  });
+  if (found) vanitySalt = salt;
+  vanityStart += 20_000n;
+}
 const latest = await publicClient.getBlock();
 const hash = await walletClient.writeContract({
   address: deployment.factory,
   abi: factoryAbi,
-  functionName: "createTokenAndBuy",
+  functionName: "createVanityTokenAndBuy",
   args: [
-    "BNBX Testnet Smoke",
-    "BNBXTEST",
-    1,
-    "",
-    parseEther("800000000"),
-    latest.timestamp + 1_200n,
-    account.address,
+    {
+      name: "BNBX Testnet Smoke",
+      symbol: "BNBXTEST",
+      graduationTargetBNB: 1,
+      metadataURI: "",
+      vanitySalt,
+    },
+    {
+      minTokensOut: parseEther("800000000"),
+      deadline: latest.timestamp + 1_200n,
+      refundRecipient: account.address,
+    },
   ],
   value: requiredValue,
 });
@@ -172,6 +216,7 @@ const curve = await publicClient.readContract({
   functionName: "curveOf",
   args: [token],
 });
+check(token.toLowerCase().endsWith("1111"), "Token address is not a 1111 vanity address");
 const [state, principal, pair, userTokens] = await Promise.all([
   publicClient.readContract({
     address: curve,
