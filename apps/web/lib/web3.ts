@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createConfig, http } from "wagmi";
+import { createConfig, fallback, http } from "wagmi";
 import { bscTestnet } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
@@ -14,7 +14,10 @@ export const wagmiConfig = createConfig({
   chains: [bscTestnet],
   connectors: [injected()],
   transports: {
-    [bscTestnet.id]: http(),
+    [bscTestnet.id]: fallback([
+      http("https://bnb-testnet.api.onfinality.io/public"),
+      http(),
+    ]),
   },
   ssr: true,
 });
