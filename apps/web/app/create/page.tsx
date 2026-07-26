@@ -1,7 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { createPublicClient, http, isAddress, parseEther } from "viem";
+import {
+  encodeDeployData,
+  getCreate2Address,
+  isAddress,
+  keccak256,
+  parseEther,
+  toHex,
+} from "viem";
 import {
   useAccount,
   useChainId,
@@ -16,23 +23,20 @@ import {
   autoLiquidityFactoryAddress,
   factoryAbi,
   testnetFactoryAddress,
+  testnetPancakeRouterAddress,
 } from "@/lib/web3";
 import { useLanguage } from "@/components/language-provider";
+import {
+  autoLiquidityTokenCreationAbi,
+  autoLiquidityTokenCreationBytecode,
+  standardTokenCreationAbi,
+  standardTokenCreationBytecode,
+} from "@/lib/token-creation-bytecode";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 const MAX_SIDE_TAX = 25;
-const VANITY_SEARCH_CHUNK = 2_500n;
-const VANITY_SEARCH_ROUNDS = 67;
-const vanityClients = [
-  "https://bsc-testnet-rpc.publicnode.com",
-  "https://bsc-testnet.drpc.org",
-  "https://data-seed-prebsc-1-s1.bnbchain.org:8545",
-].map((url) =>
-  createPublicClient({
-    chain: bscTestnet,
-    transport: http(url, { timeout: 12_000 }),
-  }),
-);
+const VANITY_SEARCH_LIMIT = 500_000;
+const VANITY_YIELD_INTERVAL = 2_000;
 
 type TemplateId = "standard" | "liquidity" | "holders" | "lp";
 type TaxKey = "burn" | "liquidity" | "marketing" | "rewards";
@@ -76,6 +80,7 @@ export default function CreateTokenPage() {
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isFindingVanity, setIsFindingVanity] = useState(false);
+  const [vanityProgress, setVanityProgress] = useState(0);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -131,65 +136,60 @@ export default function CreateTokenPage() {
   }
 
   async function findVanitySalt() {
+    if (!address) throw new Error("请先连接钱包");
     const tokenName = name.trim();
     const tokenSymbol = symbol.trim().toUpperCase();
     const start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
-    const parallelWidth = BigInt(vanityClients.length);
     const marketing =
       marketingWallet.trim() === "" ? address : marketingWallet.trim();
     if (template === "liquidity" && (!marketing || !isAddress(marketing))) {
       throw new Error("营销钱包地址格式错误");
     }
     const marketingAddress = marketing as `0x${string}`;
-
-    for (let round = 0; round < VANITY_SEARCH_ROUNDS; round += 1) {
-      const roundStart =
-        start +
-        BigInt(round) * VANITY_SEARCH_CHUNK * parallelWidth;
-      const results = await Promise.allSettled(
-        vanityClients.map((client, index) => {
-          const batchStart =
-            roundStart + BigInt(index) * VANITY_SEARCH_CHUNK;
-          if (template === "liquidity") {
-            if (!autoLiquidityFactoryAddress || !marketingAddress) {
-              throw new Error("自动回流测试网 Factory 尚未配置");
-            }
-            return client.readContract({
-              address: autoLiquidityFactoryAddress,
-              abi: autoLiquidityFactoryAbi,
-              functionName: "findVanitySalt",
-              args: [
-                tokenName,
-                tokenSymbol,
-                marketingAddress,
-                configuredTaxes(),
-                batchStart,
-                VANITY_SEARCH_CHUNK,
-              ],
-            });
-          }
-          return client.readContract({
-            address: testnetFactoryAddress,
-            abi: factoryAbi,
-            functionName: "findVanitySalt",
-            args: [
-              tokenName,
-              tokenSymbol,
-              batchStart,
-              VANITY_SEARCH_CHUNK,
-            ],
-          });
-        }),
-      );
-      let successfulCalls = 0;
-      for (const result of results) {
-        if (result.status !== "fulfilled") continue;
-        successfulCalls += 1;
-        const [found, salt] = result.value;
-        if (found) return salt;
+    let initCode: `0x${string}`;
+    let deployingFactory: `0x${string}`;
+    if (template === "liquidity") {
+      if (!autoLiquidityFactoryAddress) {
+        throw new Error("自动回流测试网 Factory 尚未配置");
       }
-      if (successfulCalls === 0) {
-        throw new Error("测试网 RPC 当前繁忙，请稍后重新提交");
+      deployingFactory = autoLiquidityFactoryAddress;
+      initCode = encodeDeployData({
+        abi: autoLiquidityTokenCreationAbi,
+        bytecode: autoLiquidityTokenCreationBytecode,
+        args: [
+          tokenName,
+          tokenSymbol,
+          autoLiquidityFactoryAddress,
+          testnetPancakeRouterAddress,
+          marketingAddress,
+          configuredTaxes(),
+        ],
+      });
+    } else {
+      deployingFactory = testnetFactoryAddress;
+      initCode = encodeDeployData({
+        abi: standardTokenCreationAbi,
+        bytecode: standardTokenCreationBytecode,
+        args: [tokenName, tokenSymbol, testnetFactoryAddress],
+      });
+    }
+    const bytecodeHash = keccak256(initCode);
+    setVanityProgress(0);
+    for (let index = 0; index < VANITY_SEARCH_LIMIT; index += 1) {
+      const salt = toHex(start + BigInt(index), { size: 32 });
+      const predicted = getCreate2Address({
+        from: deployingFactory,
+        salt,
+        bytecodeHash,
+      });
+      if (predicted.toLowerCase().endsWith("1111")) return salt;
+      if (index > 0 && index % VANITY_YIELD_INTERVAL === 0) {
+        setVanityProgress(
+          Math.round((index / VANITY_SEARCH_LIMIT) * 100),
+        );
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
       }
     }
     throw new Error("暂未找到 1111 靓号，请重新提交");
@@ -205,8 +205,10 @@ export default function CreateTokenPage() {
       const metadataURI = await uploadMetadata();
       setIsUploading(false);
       setIsFindingVanity(true);
+      setVanityProgress(0);
       const vanitySalt = await findVanitySalt();
       setIsFindingVanity(false);
+      setVanityProgress(0);
       const initialBuyWei = parseEther(initialBuy || "0");
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
       if (template === "liquidity") {
@@ -300,6 +302,7 @@ export default function CreateTokenPage() {
     } finally {
       setIsUploading(false);
       setIsFindingVanity(false);
+      setVanityProgress(0);
     }
   }
 
@@ -641,7 +644,7 @@ export default function CreateTokenPage() {
               {isUploading
                 ? "正在上传到 IPFS…"
                 : isFindingVanity
-                ? "正在生成 1111 靓号地址…"
+                ? `正在本地生成 1111 地址… ${vanityProgress}%`
                 : isPending
                 ? "请在钱包确认…"
                 : t("createToken")}
