@@ -12,6 +12,7 @@ type Trade = {
   tokens: bigint;
   blockNumber: bigint;
   transactionHash: `0x${string}`;
+  timestamp: number;
 };
 
 type Holder = {
@@ -26,13 +27,16 @@ function shortAddress(address: string) {
 export function TokenActivity({
   token,
   curve,
+  refreshKey,
 }: {
   token: `0x${string}`;
   curve: `0x${string}`;
+  refreshKey?: `0x${string}`;
 }) {
   const { t } = useLanguage();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [holders, setHolders] = useState<Holder[]>([]);
+  const [bnbUsd, setBnbUsd] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,6 +53,7 @@ export function TokenActivity({
         const data = await response.json() as {
           trades: Array<Omit<Trade, "bnb" | "tokens" | "blockNumber"> & { bnb: string; tokens: string; blockNumber: string }>;
           holders: Array<{ address: `0x${string}`; balance: string }>;
+          bnbUsd?: number;
         };
         const activity = data.trades.map((trade) => ({
           ...trade,
@@ -60,6 +65,7 @@ export function TokenActivity({
           .slice(0, 50);
         setTrades(activity);
         setHolders(data.holders.map((holder) => ({ ...holder, balance: BigInt(holder.balance) })));
+        setBnbUsd(Number(data.bnbUsd ?? 0));
       } catch {
         if (!controller.signal.aborted) {
           setTrades([]);
@@ -76,7 +82,7 @@ export function TokenActivity({
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [curve, token]);
+  }, [curve, refreshKey, token]);
 
   return (
     <section className="activity-layout">
@@ -94,6 +100,15 @@ export function TokenActivity({
           <p className="activity-empty">{t("noTrades")}</p>
         ) : (
           <div className="activity-table">
+            <div className="activity-table-head">
+              <span>方向</span>
+              <span>账户</span>
+              <span>USD</span>
+              <span>BNB</span>
+              <span>代币</span>
+              <span>日期</span>
+              <span>TXN</span>
+            </div>
             {trades.map((trade) => (
               <a
                 key={trade.id}
@@ -105,8 +120,11 @@ export function TokenActivity({
                   {t(trade.side)}
                 </strong>
                 <span>{shortAddress(trade.account)}</span>
-                <span>{Number(formatEther(trade.bnb)).toFixed(4)} BNB</span>
-                <span>{Number(formatEther(trade.tokens)).toLocaleString()} 枚</span>
+                <span>${(Number(formatEther(trade.bnb)) * bnbUsd).toFixed(2)}</span>
+                <span>{Number(formatEther(trade.bnb)).toFixed(4)}</span>
+                <span>{Number(formatEther(trade.tokens)).toLocaleString()}</span>
+                <span>{new Date(trade.timestamp * 1000).toLocaleString()}</span>
+                <strong>↗</strong>
               </a>
             ))}
           </div>
