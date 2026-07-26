@@ -24,7 +24,6 @@ import { TokenActivity } from "@/components/token-activity";
 import { BondingCurveChart } from "@/components/bonding-curve-chart";
 import { useLanguage } from "@/components/language-provider";
 
-const states = ["内盘交易", "准备毕业", "PancakeSwap V2"];
 const SLIPPAGE_BPS = 100n;
 const BPS = 10_000n;
 
@@ -247,7 +246,7 @@ export default function TokenTradingPage() {
       </header>
 
       <section className="token-heading">
-        <p className="eyebrow">{states[Number(state.data ?? 0)]}</p>
+        <p className="eyebrow">{[t("curveTrading"), t("preparing"), t("pancake")][Number(state.data ?? 0)]}</p>
         <div className="token-identity">
           {metadata?.image && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -260,10 +259,10 @@ export default function TokenTradingPage() {
               className="copy-address"
               type="button"
               onClick={copyTokenAddress}
-              title="复制代币合约地址"
+              title={t("copy")}
             >
               <span>{tokenAddress}</span>
-              <strong>{copied ? "已复制 ✓" : "复制"}</strong>
+              <strong>{copied ? t("copied") : t("copy")}</strong>
             </button>
           </div>
         </div>
@@ -316,7 +315,7 @@ export default function TokenTradingPage() {
 
       <section className="trade-layout">
         <article className="card progress-card">
-          <span>毕业进度</span>
+          <span>{t("progress")}</span>
           <strong>{progress.toFixed(2)}%</strong>
           <div className="progress-track">
             <div style={{ width: `${progress}%` }} />
@@ -324,28 +323,28 @@ export default function TokenTradingPage() {
           <span>
             {formatEther(principal.data ?? 0n)} / {formatEther(target.data ?? 0n)} BNB
           </span>
-          <span>我的余额：{formatEther(balance.data ?? 0n)} 枚</span>
+          <span>{t("myBalance")}：{formatEther(balance.data ?? 0n)}</span>
           <div className="security-facts">
             <div>
-              <span>固定总供应量</span>
+              <span>{t("supply")}</span>
               <strong>
                 {Number(formatEther(totalSupply.data ?? 0n)).toLocaleString()} 枚
               </strong>
             </div>
             <div>
-              <span>Factory 配置权限</span>
+              <span>{t("factoryPermission")}</span>
               <strong>
-                {launchManager.data === zeroAddress ? "已放弃" : "检查中"}
+                {launchManager.data === zeroAddress ? t("abandoned") : t("loading")}
               </strong>
             </div>
             <div>
-              <span>毕业解锁权限</span>
+              <span>{t("graduationPermission")}</span>
               <strong>
                 {graduationAuthority.data === zeroAddress
-                  ? "已销毁"
+                  ? t("destroyed")
                   : graduationAuthority.data === curveAddress
-                    ? "仅自动曲线"
-                    : "检查中"}
+                    ? t("curveOnly")
+                    : t("loading")}
               </strong>
             </div>
             <div>
@@ -360,13 +359,13 @@ export default function TokenTradingPage() {
                   {liquidityPair.data.slice(-4)} ↗
                 </a>
               ) : (
-                <strong>读取中</strong>
+                <strong>{t("loading")}</strong>
               )}
             </div>
             <div>
-              <span>Pair 转账状态</span>
+              <span>{t("pairStatus")}</span>
               <strong>
-                {pairUnlocked.data ? "毕业后已开放" : "毕业前保护中"}
+                {pairUnlocked.data ? t("unlocked") : t("protected")}
               </strong>
             </div>
           </div>
@@ -437,7 +436,7 @@ export default function TokenTradingPage() {
                 />
               </label>
               <div className="amount-presets">
-                {[25n, 50n, 75n, 100n].map((percent) => (
+                {[25n, 50n, 100n].map((percent) => (
                   <button key={percent.toString()} type="button" onClick={() => setSellPercent(percent)}>
                     {percent.toString()}%
                   </button>
@@ -475,8 +474,8 @@ export default function TokenTradingPage() {
             </>
           )}
 
-          {tradeWrite.data && <p className="notice">交易哈希：{tradeWrite.data}</p>}
-          {receipt.isSuccess && <p className="success">交易已确认。</p>}
+          {tradeWrite.data && <p className="notice">{t("txHash")}：{tradeWrite.data}</p>}
+          {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
           {(tradeWrite.error || approvalWrite.error) && (
             <p className="error">{(tradeWrite.error ?? approvalWrite.error)?.message}</p>
           )}
