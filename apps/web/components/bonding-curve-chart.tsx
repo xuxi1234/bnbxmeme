@@ -87,20 +87,35 @@ export function BondingCurveChart({
       try {
         const latest = await publicClient.getBlockNumber();
         const fromBlock = deploymentStart(latest);
-        const [buys, sells] = await Promise.all([
-          publicClient.getLogs({
-            address: curve,
-            event: boughtEvent,
-            fromBlock,
-            toBlock: "latest",
-          }),
-          publicClient.getLogs({
-            address: curve,
-            event: soldEvent,
-            fromBlock,
-            toBlock: "latest",
-          }),
+        const ranges: Array<{ fromBlock: bigint; toBlock: bigint }> = [];
+        for (let start = fromBlock; start <= latest; start += 3_000n) {
+          ranges.push({
+            fromBlock: start,
+            toBlock: start + 2_999n > latest ? latest : start + 2_999n,
+          });
+        }
+        const [buyChunks, sellChunks] = await Promise.all([
+          Promise.all(
+            ranges.map((range) =>
+              publicClient.getLogs({
+                address: curve,
+                event: boughtEvent,
+                ...range,
+              }),
+            ),
+          ),
+          Promise.all(
+            ranges.map((range) =>
+              publicClient.getLogs({
+                address: curve,
+                event: soldEvent,
+                ...range,
+              }),
+            ),
+          ),
         ]);
+        const buys = buyChunks.flat();
+        const sells = sellChunks.flat();
         const logs = [...buys, ...sells];
         const blockNumbers = [...new Set(logs.map((log) => log.blockNumber.toString()))];
         const blocks = await Promise.all(
