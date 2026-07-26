@@ -281,6 +281,19 @@ export default function TokenTradingPage() {
     }
   }, [approvalReceipt.isSuccess, continueAfterApproval]);
 
+  useEffect(() => {
+    if (!receipt.isSuccess) return;
+    void Promise.all([
+      balance.refetch(),
+      allowance.refetch(),
+      principal.refetch(),
+      target.refetch(),
+      state.refetch(),
+      buyQuote.refetch(),
+      sellQuote.refetch(),
+    ]);
+  }, [receipt.isSuccess]);
+
   function setSellPercent(percent: bigint) {
     setSellAmount(formatEther(((balance.data ?? 0n) * percent) / 100n));
   }
@@ -395,6 +408,7 @@ export default function TokenTradingPage() {
         <BondingCurveChart
           curve={curveAddress}
           symbol={symbol.data ?? "TOKEN"}
+          refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
         />
       )}
 
@@ -559,7 +573,17 @@ export default function TokenTradingPage() {
             </>
           )}
 
-          {tradeWrite.data && <p className="notice">{t("txHash")}：{tradeWrite.data}</p>}
+          {tradeWrite.data && (
+            <a
+              className="trade-tx-link"
+              href={`https://testnet.bscscan.com/tx/${tradeWrite.data}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span>{t("txHash")}</span>
+              <strong>{tradeWrite.data.slice(0, 10)}…{tradeWrite.data.slice(-8)} ↗</strong>
+            </a>
+          )}
           {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
           {(tradeWrite.error || approvalWrite.error) && (
             <p className="error">{(tradeWrite.error ?? approvalWrite.error)?.message}</p>
@@ -569,7 +593,11 @@ export default function TokenTradingPage() {
       </section>
       <a className="mobile-trade-dock" href="#trade">{t("buy")} / {t("sell")}</a>
       {tokenAddress !== zeroAddress && curveAddress !== zeroAddress && (
-        <TokenActivity token={tokenAddress} curve={curveAddress} />
+        <TokenActivity
+          token={tokenAddress}
+          curve={curveAddress}
+          refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
+        />
       )}
     </main>
   );
