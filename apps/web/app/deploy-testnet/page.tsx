@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAccount, useChainId, useDeployContract, useSwitchChain } from "wagmi";
 import { useWaitForTransactionReceipt } from "wagmi";
 import { bscTestnet } from "wagmi/chains";
@@ -8,12 +9,19 @@ import {
   factoryDeploymentAbi,
   factoryDeploymentBytecode,
 } from "@/lib/factory-deployment";
+import {
+  autoLiquidityFactoryDeploymentAbi,
+  autoLiquidityFactoryDeploymentBytecode,
+} from "@/lib/auto-liquidity-factory-deployment";
 
 const FEE_RECIPIENT = "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6";
 const PANCAKE_V2_TESTNET_ROUTER =
   "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
 
 export default function DeployTestnetPage() {
+  const [factoryType, setFactoryType] = useState<"standard" | "liquidity">(
+    "liquidity",
+  );
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -23,6 +31,16 @@ export default function DeployTestnetPage() {
 
   function deploy() {
     if (!address) return;
+    if (factoryType === "liquidity") {
+      deployContract({
+        abi: autoLiquidityFactoryDeploymentAbi,
+        bytecode: autoLiquidityFactoryDeploymentBytecode,
+        args: [FEE_RECIPIENT, PANCAKE_V2_TESTNET_ROUTER],
+        chainId: bscTestnet.id,
+        account: address,
+      });
+      return;
+    }
     deployContract({
       abi: factoryDeploymentAbi,
       bytecode: factoryDeploymentBytecode,
@@ -48,6 +66,18 @@ export default function DeployTestnetPage() {
           已固定，MetaMask 会在发送前显示 Gas 费用。
         </p>
         <div className="launch-form">
+          <label>
+            Factory 类型
+            <select
+              value={factoryType}
+              onChange={(event) =>
+                setFactoryType(event.target.value as "standard" | "liquidity")
+              }
+            >
+              <option value="liquidity">自动回流 V2 Factory</option>
+              <option value="standard">标准 0 税 Factory</option>
+            </select>
+          </label>
           <p className="notice">
             Fee Recipient：{FEE_RECIPIENT}
             <br />
@@ -74,7 +104,9 @@ export default function DeployTestnetPage() {
                 ? "请在 MetaMask 确认部署…"
                 : receipt.isLoading
                   ? "等待测试网确认…"
-                  : "部署测试网 Factory"}
+                  : factoryType === "liquidity"
+                    ? "部署自动回流 V2 Factory"
+                    : "部署标准 0 税 Factory"}
             </button>
           )}
           {hash && <p className="notice">部署交易：{hash}</p>}
