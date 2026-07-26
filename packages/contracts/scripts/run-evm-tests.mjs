@@ -15,6 +15,9 @@ const entrypoints = [
   "test/BNBXToken.t.sol",
   "test/FeeMath.t.sol",
   "test/FactoryIntegration.t.sol",
+  "test/TemplateConfig.t.sol",
+  "test/BNBXAutoLiquidityToken.t.sol",
+  "test/AutoLiquidityFactoryIntegration.t.sol",
 ];
 
 function loadSource(path) {
@@ -123,6 +126,37 @@ const suites = [
     tests: ["testFiveBNBFillGrossAmount", "testFeeRoundsUp"],
   },
   {
+    source: "test/TemplateConfig.t.sol",
+    contract: "TemplateConfigTest",
+    tests: [
+      "testStandardTemplateAcceptsZeroTax",
+      "testStandardTemplateRejectsAnyTax",
+      "testAdvancedTemplateAllowsExactlyTwentyFivePercentPerSide",
+      "testRejectsBuyTaxAboveTwentyFivePercent",
+      "testRejectsSellTaxAboveTwentyFivePercent",
+    ],
+  },
+  {
+    source: "test/BNBXAutoLiquidityToken.t.sol",
+    contract: "BNBXAutoLiquidityTokenTest",
+    tests: [
+      "testFixedSupplyAndImmutableConfiguration",
+      "testBondingCurveTransfersStayTaxFreeBeforeGraduation",
+      "testGraduationSeedTransferIsTaxExempt",
+      "testBuyTaxActivatesOnlyAfterGraduation",
+      "testSellUsesIndependentSellTax",
+      "testRejectsTaxAboveTwentyFivePercent",
+    ],
+  },
+  {
+    source: "test/AutoLiquidityFactoryIntegration.t.sol",
+    contract: "AutoLiquidityFactoryIntegrationTest",
+    tests: [
+      "testCreateWithoutBuyKeepsCurveTaxFree",
+      "testAtomicFillGraduatesAndActivatesTax",
+    ],
+  },
+  {
     source: "test/FactoryIntegration.t.sol",
     contract: "FactoryIntegrationTest",
     tests: [
@@ -145,7 +179,15 @@ const suites = [
   },
 ];
 
-for (const suite of suites) {
+const suiteFilter = process.env.TEST_SUITE;
+const selectedSuites = suiteFilter
+  ? suites.filter((suite) => suite.contract === suiteFilter)
+  : suites;
+if (selectedSuites.length === 0) {
+  throw new Error(`Unknown TEST_SUITE: ${suiteFilter}`);
+}
+
+for (const suite of selectedSuites) {
   const artifact = output.contracts[suite.source][suite.contract];
   const deploymentHash = await walletClient.deployContract({
     abi: artifact.abi,
@@ -220,6 +262,11 @@ for (const suite of suites) {
     }
     console.log(`PASS ${suite.contract}.${testName}`);
   }
+}
+
+if (suiteFilter) {
+  console.log(`PASS filtered suite ${suiteFilter}`);
+  process.exit(0);
 }
 
 const integrationArtifacts = output.contracts["test/FactoryIntegration.t.sol"];
