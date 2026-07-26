@@ -613,6 +613,70 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   -webkit-appearance: menulist;
 }
 .launch-form small, .notice { color: var(--muted); font-weight: 400; line-height: 1.5; }
+.template-picker, .tax-config {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.template-picker legend, .tax-config legend {
+  padding: 0 8px;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 900;
+}
+.template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.template-card {
+  display: grid;
+  min-height: 142px;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #090c08;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.template-card:hover, .template-card.selected {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+}
+.template-card > span {
+  color: var(--brand);
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.template-card strong { font-size: 17px; }
+.template-card small { align-self: end; }
+.field-help { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.tax-side {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+.tax-heading { display: flex; align-items: center; justify-content: space-between; }
+.tax-heading b { color: var(--brand); font-family: monospace; font-size: 12px; }
+.tax-heading b.over-limit { color: var(--danger); }
+.tax-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tax-grid label { color: var(--muted); font-size: 12px; }
+.tax-grid input { min-height: 46px; }
+.preview-lock {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--brand);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
 .social-fields { display: grid; gap: 10px; margin: 0; padding: 18px; border: 1px solid var(--line); }
 .social-fields legend { padding: 0 7px; color: var(--brand); font-size: 12px; font-weight: 800; }
 .input-action { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
@@ -936,6 +1000,8 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   .market-tabs { max-width: 100%; overflow-x: auto; padding-bottom: 2px; }
   .market-tabs button { flex: 0 0 auto; }
   .launch-form { padding: 20px; }
+  .template-grid, .tax-grid { grid-template-columns: 1fr; }
+  .template-card { min-height: 118px; }
   .input-action, .trade-layout { grid-template-columns: 1fr; }
   .token-identity { align-items: flex-start; }
   .token-identity > img { width: 64px; height: 64px; }
