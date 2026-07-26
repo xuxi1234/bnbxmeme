@@ -44,17 +44,26 @@ export async function GET(request: NextRequest) {
         : latest > 100_000n
           ? latest - 100_000n
           : 0n;
-    const [buys, sells, transfers] = await Promise.all([
+    const [latestBlock, buys, sells, transfers, priceResponse] = await Promise.all([
+      client.getBlock({ blockNumber: latest }),
       client.getLogs({ address: curveAddress, event: boughtEvent, fromBlock, toBlock: latest }),
       client.getLogs({ address: curveAddress, event: soldEvent, fromBlock, toBlock: latest }),
       tokenAddress
         ? client.getLogs({ address: tokenAddress, event: transferEvent, fromBlock, toBlock: latest })
         : Promise.resolve([]),
+      fetch("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT", {
+        next: { revalidate: 60 },
+      }).catch(() => null),
     ]);
-    // BSC's current block cadence is sub-second. Using block position for
-    // candle bucketing avoids one RPC request per trade on rate-limited nodes.
+    const priceData = priceResponse?.ok
+      ? await priceResponse.json() as { price?: string }
+      : null;
+    const bnbUsd = Number(priceData?.price ?? 0);
+    // Approximate older trade timestamps from the latest canonical block.
+    // This avoids one RPC call per trade on rate-limited public endpoints.
     const estimatedTimestamp = (blockNumber: bigint) =>
-      Math.floor(Number(blockNumber) * 0.45);
+      Number(latestBlock.timestamp) -
+      Math.floor(Number(latest - blockNumber) * 0.45);
     const trades = [
       ...buys.map((log) => ({
         id: `${log.transactionHash}-${log.logIndex}`,
@@ -95,7 +104,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => (BigInt(a.balance) > BigInt(b.balance) ? -1 : 1))
       .slice(0, 50);
     return NextResponse.json(
-      { trades, holders },
+      { trades, holders, bnbUsd },
       { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } },
     );
   } catch (error) {
