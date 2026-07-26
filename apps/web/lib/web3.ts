@@ -8,6 +8,11 @@ export const testnetFactoryAddress =
     | `0x${string}`
     | undefined) ?? "0x576b09d5672d0ca4d0fb4d65895157ee4c32c4b4";
 
+export const autoLiquidityFactoryAddress = process.env
+  .NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS as
+  | `0x${string}`
+  | undefined;
+
 export const queryClient = new QueryClient();
 
 export const wagmiConfig = createConfig({
@@ -125,6 +130,91 @@ export const factoryAbi = [
           { name: "metadataURI", type: "string" },
           { name: "vanitySalt", type: "bytes32" },
         ],
+      },
+      {
+        name: "buyRequest",
+        type: "tuple",
+        components: [
+          { name: "minTokensOut", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "refundRecipient", type: "address" },
+        ],
+      },
+    ],
+    outputs: [
+      { name: "tokenAddress", type: "address" },
+      { name: "curveAddress", type: "address" },
+      { name: "tokensOut", type: "uint256" },
+    ],
+  },
+] as const;
+
+const taxSideComponents = [
+  { name: "burn", type: "uint16" },
+  { name: "liquidity", type: "uint16" },
+  { name: "marketing", type: "uint16" },
+  { name: "rewards", type: "uint16" },
+] as const;
+
+const taxesComponents = [
+  { name: "buy", type: "tuple", components: taxSideComponents },
+  { name: "sell", type: "tuple", components: taxSideComponents },
+] as const;
+
+const autoLiquidityCreateComponents = [
+  { name: "name", type: "string" },
+  { name: "symbol", type: "string" },
+  { name: "graduationTargetBNB", type: "uint8" },
+  { name: "metadataURI", type: "string" },
+  { name: "vanitySalt", type: "bytes32" },
+  { name: "marketingWallet", type: "address" },
+  { name: "taxes", type: "tuple", components: taxesComponents },
+] as const;
+
+export const autoLiquidityFactoryAbi = [
+  {
+    type: "function",
+    name: "findVanitySalt",
+    stateMutability: "view",
+    inputs: [
+      { name: "name", type: "string" },
+      { name: "symbol", type: "string" },
+      { name: "marketingWallet", type: "address" },
+      { name: "taxes", type: "tuple", components: taxesComponents },
+      { name: "start", type: "uint256" },
+      { name: "maxIterations", type: "uint256" },
+    ],
+    outputs: [
+      { name: "found", type: "bool" },
+      { name: "salt", type: "bytes32" },
+      { name: "predicted", type: "address" },
+    ],
+  },
+  {
+    type: "function",
+    name: "createVanityToken",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "request",
+        type: "tuple",
+        components: autoLiquidityCreateComponents,
+      },
+    ],
+    outputs: [
+      { name: "tokenAddress", type: "address" },
+      { name: "curveAddress", type: "address" },
+    ],
+  },
+  {
+    type: "function",
+    name: "createVanityTokenAndBuy",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "request",
+        type: "tuple",
+        components: autoLiquidityCreateComponents,
       },
       {
         name: "buyRequest",
