@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { formatEther, parseEther } from "viem";
+import { parseEther } from "viem";
 import {
   useAccount,
   useChainId,
@@ -14,12 +14,6 @@ import { WalletButton } from "@/components/wallet-button";
 import { factoryAbi, testnetFactoryAddress } from "@/lib/web3";
 
 const CREATION_FEE_WEI = parseEther("0.001");
-const BPS = 10_000n;
-const NET_BPS = 9_950n;
-
-function grossForNet(net: bigint) {
-  return (net * BPS + NET_BPS - 1n) / NET_BPS;
-}
 
 function safeInitialBuy(value: string) {
   try {
@@ -39,7 +33,7 @@ export default function CreateTokenPage() {
   const [twitter, setTwitter] = useState("");
   const [debox, setDebox] = useState("");
   const [target, setTarget] = useState(5);
-  const [initialBuy, setInitialBuy] = useState("0");
+  const [initialBuy, setInitialBuy] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const { address, isConnected } = useAccount();
@@ -49,10 +43,6 @@ export default function CreateTokenPage() {
   const receipt = useWaitForTransactionReceipt({ hash });
 
   const factoryAddress = testnetFactoryAddress;
-
-  function fillCurve() {
-    setInitialBuy(formatEther(grossForNet(parseEther(String(target)))));
-  }
 
   async function uploadMetadata() {
     if (!description && !image && !website && !telegram && !twitter && !debox) {
@@ -130,13 +120,6 @@ export default function CreateTokenPage() {
   }
 
   const wrongChain = isConnected && chainId !== bscTestnet.id;
-  const graduationGross = grossForNet(parseEther(String(target)));
-  let fillsCurve = false;
-  try {
-    fillsCurve = parseEther(initialBuy || "0") >= graduationGross;
-  } catch {
-    // Validation below keeps submission disabled.
-  }
   const canSubmit =
     isConnected &&
     !wrongChain &&
@@ -249,23 +232,19 @@ export default function CreateTokenPage() {
           </label>
 
           <label>
-            创建者原子首购
-            <div className="input-action">
-              <input
-                min="0"
-                step="0.000000001"
-                inputMode="decimal"
-                value={initialBuy}
-                onChange={(event) => setInitialBuy(event.target.value)}
-              />
-              <button type="button" onClick={fillCurve}>
-                精确填入一键毕业金额
-              </button>
-            </div>
+            创建者首购（选填）
+            <input
+              min="0"
+              step="0.000000001"
+              inputMode="decimal"
+              placeholder="输入 BNB 金额"
+              value={initialBuy}
+              onChange={(event) => setInitialBuy(event.target.value)}
+            />
             <small>
-              可填写 0 表示只创建、不首购。部署费 0.001 BNB，首购手续费
-              0.5%。可手动填写任意首购金额；扣除手续费后的净买入达到剩余毕业额度时，
-              创建、买满、毕业和 LP 销毁会在同一笔交易完成，超额 BNB 自动退回。
+              留空或填写 0 表示只创建、不首购。部署费 0.001 BNB，首购手续费
+              0.5%。首购与创建在同一笔交易完成，可避免创建后被抢跑。若扣除手续费后的
+              净买入达到毕业额度，合约会自动毕业并销毁 LP，超额 BNB 自动退回。
             </small>
           </label>
 
@@ -294,11 +273,7 @@ export default function CreateTokenPage() {
                 ? "正在上传到 IPFS…"
                 : isPending
                 ? "请在钱包确认…"
-                : fillsCurve
-                  ? `创建并一键打满 ${target} BNB 毕业`
-                  : Number(initialBuy) > 0
-                  ? "创建代币并执行首购"
-                  : "创建代币"}
+                : "创建代币"}
             </button>
           )}
 
