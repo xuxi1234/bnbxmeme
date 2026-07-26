@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useLanguage } from "./language-provider";
 
 const slides = [
   {
@@ -26,6 +27,7 @@ const slides = [
 
 export function HomeBanner() {
   const [active, setActive] = useState(0);
+  const { language, t } = useLanguage();
 
   useEffect(() => {
     const timer = window.setInterval(
@@ -35,7 +37,27 @@ export function HomeBanner() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const slide = slides[active];
+  const translatedSlides = language === "zh" ? slides : [
+    {
+      eyebrow: "BNBX · BNB CHAIN LAUNCHPAD",
+      title: language === "ko" ? "다음 BNB\n트렌드를 시작하세요." : language === "ja" ? "次のBNB\nトレンドを発射。" : "Launch the next\nBNB trend.",
+      description: language === "ko" ? "10억 고정 공급, 본딩 커브 거래 후 PancakeSwap V2로 자동 이전됩니다." : language === "ja" ? "10億の固定供給。ボンディングカーブ完了後、PancakeSwap V2へ自動移行。" : "Fixed 1B supply, bonding-curve trading and automatic PancakeSwap V2 migration.",
+      badge: "FAIR LAUNCH",
+    },
+    {
+      eyebrow: "1111 VANITY CONTRACT",
+      title: language === "ko" ? "모든 토큰에\nBNBX 시그니처." : language === "ja" ? "すべてのトークンに\nBNBXの印。" : "Every token bears\nthe BNBX signature.",
+      description: language === "ko" ? "모든 토큰 주소는 1111로 끝나며 세금은 영구적으로 0%입니다." : language === "ja" ? "全トークンのアドレスは1111で終わり、税率は永久に0%です。" : "Every token address ends in 1111 and remains permanently zero-tax.",
+      badge: "ENDS IN 1111",
+    },
+    {
+      eyebrow: "ATOMIC GRADUATION",
+      title: language === "ko" ? "목표 달성 즉시\n자동 졸업." : language === "ja" ? "目標達成と同時に\n自動卒業。" : "Hit the target.\nGraduate atomically.",
+      description: language === "ko" ? "목표 달성 시 자동으로 유동성을 추가하고 LP를 소각 주소로 보냅니다." : language === "ja" ? "目標達成時に流動性を自動追加し、LPをバーンアドレスへ送ります。" : "At the target, liquidity is added automatically and LP is sent to the burn address.",
+      badge: "LP BURNED",
+    },
+  ];
+  const slide = translatedSlides[active];
   return (
     <section className="home-banner" aria-label="BNBX 平台横幅">
       <div className="banner-grid" aria-hidden="true" />
@@ -45,8 +67,8 @@ export function HomeBanner() {
         <h1>{slide.title.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
         <p>{slide.description}</p>
         <div className="banner-actions">
-          <Link className="button" href="/create">部署代币</Link>
-          <a className="banner-outline" href="#market">浏览内盘</a>
+          <Link className="button" href="/create">{t("deploy")}</Link>
+          <a className="banner-outline" href="#market">{t("browse")}</a>
         </div>
       </div>
       <div className="banner-emblem" aria-hidden="true">
@@ -63,7 +85,7 @@ export function HomeBanner() {
           ‹
         </button>
         <div>
-          {slides.map((item, index) => (
+          {translatedSlides.map((item, index) => (
             <button
               className={index === active ? "active" : ""}
               key={item.eyebrow}
