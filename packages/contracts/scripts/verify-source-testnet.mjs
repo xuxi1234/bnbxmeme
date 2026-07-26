@@ -35,7 +35,7 @@ const compilerInput = {
   language: "Solidity",
   sources,
   settings: {
-    optimizer: { enabled: true, runs: 100_000 },
+    optimizer: { enabled: true, runs: 200 },
     evmVersion: "shanghai",
     outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
   },
