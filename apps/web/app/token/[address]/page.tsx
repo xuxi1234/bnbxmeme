@@ -306,6 +306,7 @@ export default function TokenTradingPage() {
         </div>
       </section>
 
+      <section className="token-workspace">
       {curveAddress !== zeroAddress && (
         <BondingCurveChart
           curve={curveAddress}
@@ -313,7 +314,7 @@ export default function TokenTradingPage() {
         />
       )}
 
-      <section className="trade-layout">
+      <section className="trade-layout" id="trade">
         <article className="card progress-card">
           <span>{t("progress")}</span>
           <strong>{progress.toFixed(2)}%</strong>
@@ -481,6 +482,8 @@ export default function TokenTradingPage() {
           )}
         </article>
       </section>
+      </section>
+      <a className="mobile-trade-dock" href="#trade">{t("buy")} / {t("sell")}</a>
       {tokenAddress !== zeroAddress && curveAddress !== zeroAddress && (
         <TokenActivity token={tokenAddress} curve={curveAddress} />
       )}
