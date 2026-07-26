@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createPublicClient,
+  fallback,
   http,
   isAddress,
   parseAbiItem,
@@ -10,11 +11,21 @@ import { bscTestnet } from "viem/chains";
 
 export const dynamic = "force-dynamic";
 
+const configuredRpc = process.env.BSC_LOG_RPC_URL;
 const client = createPublicClient({
   chain: bscTestnet,
-  transport: http(
-    process.env.BSC_LOG_RPC_URL ??
-      "https://bnb-testnet.api.onfinality.io/public",
+  transport: fallback(
+    [
+      http("https://bsc-testnet-rpc.publicnode.com", { timeout: 12_000 }),
+      http("https://bsc-testnet.drpc.org", { timeout: 12_000 }),
+      ...(configuredRpc
+        ? [http(configuredRpc, { timeout: 12_000 })]
+        : []),
+      http("https://data-seed-prebsc-1-s1.bnbchain.org:8545", {
+        timeout: 12_000,
+      }),
+    ],
+    { rank: false },
   ),
 });
 const boughtEvent = parseAbiItem(
