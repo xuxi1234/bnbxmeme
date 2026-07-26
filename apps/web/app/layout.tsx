@@ -17,6 +17,18 @@ export default function RootLayout({
       <body>
         <Providers>
           <SiteHeader />
+          <div className="announcement-bar" aria-label="BNBX 公告">
+            <div>
+              <span>BNBX · BNB CHAIN 公平发射</span>
+              <span>所有平台代币地址统一以 1111 结尾</span>
+              <span>固定 10 亿供应 · 永久 0 税</span>
+              <span>达到阈值自动进入 PancakeSwap V2</span>
+              <span>LP 永久销毁</span>
+              <span>BNBX · BNB CHAIN 公平发射</span>
+              <span>所有平台代币地址统一以 1111 结尾</span>
+              <span>固定 10 亿供应 · 永久 0 税</span>
+            </div>
+          </div>
           {children}
           <footer className="site-footer">
             <div>
@@ -26,6 +38,11 @@ export default function RootLayout({
             <p>
               数字资产具有高度风险。平台不保证任何代币的价值或盈利能力，请独立研究并谨慎交易。
             </p>
+            <nav className="footer-socials" aria-label="BNBX 官方社区">
+              <a href="https://t.me/bnbxmeme" target="_blank" rel="noreferrer">Telegram ↗</a>
+              <a href="https://x.com/bnbxmeme" target="_blank" rel="noreferrer">X / Twitter ↗</a>
+              <a href="https://m.debox.pro/group?id=6wsohe3g&amp;code=57h6sfxd" target="_blank" rel="noreferrer">DeBox ↗</a>
+            </nav>
             <small>© 2026 BNBX</small>
           </footer>
         </Providers>
