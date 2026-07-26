@@ -51,15 +51,10 @@ export async function GET(request: NextRequest) {
         ? client.getLogs({ address: tokenAddress, event: transferEvent, fromBlock, toBlock: latest })
         : Promise.resolve([]),
     ]);
-    const blockNumbers = [
-      ...new Set([...buys, ...sells].map((log) => log.blockNumber.toString())),
-    ];
-    const blocks = await Promise.all(
-      blockNumbers.map((block) => client.getBlock({ blockNumber: BigInt(block) })),
-    );
-    const timestamps = new Map(
-      blocks.map((block) => [block.number.toString(), Number(block.timestamp)]),
-    );
+    // BSC's current block cadence is sub-second. Using block position for
+    // candle bucketing avoids one RPC request per trade on rate-limited nodes.
+    const estimatedTimestamp = (blockNumber: bigint) =>
+      Math.floor(Number(blockNumber) * 0.45);
     const trades = [
       ...buys.map((log) => ({
         id: `${log.transactionHash}-${log.logIndex}`,
@@ -68,7 +63,7 @@ export async function GET(request: NextRequest) {
         bnb: (log.args.grossBNB ?? 0n).toString(),
         priceBNB: (log.args.netBNB ?? 0n).toString(),
         tokens: (log.args.tokensOut ?? 0n).toString(),
-        timestamp: timestamps.get(log.blockNumber.toString()) ?? 0,
+        timestamp: estimatedTimestamp(log.blockNumber),
         blockNumber: log.blockNumber.toString(),
         transactionHash: log.transactionHash,
       })),
@@ -79,7 +74,7 @@ export async function GET(request: NextRequest) {
         bnb: (log.args.netBNB ?? 0n).toString(),
         priceBNB: (log.args.grossBNB ?? 0n).toString(),
         tokens: (log.args.tokensIn ?? 0n).toString(),
-        timestamp: timestamps.get(log.blockNumber.toString()) ?? 0,
+        timestamp: estimatedTimestamp(log.blockNumber),
         blockNumber: log.blockNumber.toString(),
         transactionHash: log.transactionHash,
       })),
