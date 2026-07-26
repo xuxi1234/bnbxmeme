@@ -6,7 +6,7 @@ import { injected } from "wagmi/connectors";
 export const testnetFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as
     | `0x${string}`
-    | undefined) ?? "0x4395a6b887e7be4b9f1828b3e4a005c63abfd67d";
+    | undefined) ?? "0x576b09d5672d0ca4d0fb4d65895157ee4c32c4b4";
 
 export const queryClient = new QueryClient();
 
@@ -43,17 +43,40 @@ export const factoryAbi = [
   },
   {
     type: "function",
-    name: "createToken",
+    name: "createVanityToken",
     stateMutability: "payable",
     inputs: [
-      { name: "name", type: "string" },
-      { name: "symbol", type: "string" },
-      { name: "graduationTargetBNB", type: "uint8" },
-      { name: "metadataURI", type: "string" },
+      {
+        name: "request",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "graduationTargetBNB", type: "uint8" },
+          { name: "metadataURI", type: "string" },
+          { name: "vanitySalt", type: "bytes32" },
+        ],
+      },
     ],
     outputs: [
       { name: "tokenAddress", type: "address" },
       { name: "curveAddress", type: "address" },
+    ],
+  },
+  {
+    type: "function",
+    name: "findVanitySalt",
+    stateMutability: "view",
+    inputs: [
+      { name: "name", type: "string" },
+      { name: "symbol", type: "string" },
+      { name: "start", type: "uint256" },
+      { name: "maxIterations", type: "uint256" },
+    ],
+    outputs: [
+      { name: "found", type: "bool" },
+      { name: "salt", type: "bytes32" },
+      { name: "predicted", type: "address" },
     ],
   },
   {
@@ -89,16 +112,29 @@ export const factoryAbi = [
   },
   {
     type: "function",
-    name: "createTokenAndBuy",
+    name: "createVanityTokenAndBuy",
     stateMutability: "payable",
     inputs: [
-      { name: "name", type: "string" },
-      { name: "symbol", type: "string" },
-      { name: "graduationTargetBNB", type: "uint8" },
-      { name: "metadataURI", type: "string" },
-      { name: "minTokensOut", type: "uint256" },
-      { name: "deadline", type: "uint256" },
-      { name: "refundRecipient", type: "address" },
+      {
+        name: "request",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "graduationTargetBNB", type: "uint8" },
+          { name: "metadataURI", type: "string" },
+          { name: "vanitySalt", type: "bytes32" },
+        ],
+      },
+      {
+        name: "buyRequest",
+        type: "tuple",
+        components: [
+          { name: "minTokensOut", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "refundRecipient", type: "address" },
+        ],
+      },
     ],
     outputs: [
       { name: "tokenAddress", type: "address" },
