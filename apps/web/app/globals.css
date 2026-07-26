@@ -689,6 +689,33 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .token-identity > img { width: 82px; height: 82px; object-fit: cover; border: 1px solid #5d4b16; background: var(--surface); }
 .token-identity h1 { margin-bottom: 8px; }
 .token-identity .lead { margin: 0; font-family: monospace; font-size: 13px; }
+.tax-template-card {
+  margin-top: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface));
+  padding: 18px;
+}
+.tax-template-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.tax-template-heading > div { display: grid; gap: 5px; }
+.tax-template-heading strong { font-size: 20px; }
+.tax-template-heading > span { color: var(--accent); font-weight: 800; }
+.tax-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 14px;
+}
+.tax-breakdown > div { display: grid; gap: 6px; min-width: 0; }
+.tax-breakdown > div:last-child { grid-column: 1 / -1; }
+.tax-breakdown span { color: var(--muted); font-size: 12px; }
+.tax-breakdown strong { overflow-wrap: anywhere; font-size: 13px; }
 .token-description { max-width: 760px; color: var(--muted); line-height: 1.7; }
 .project-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .project-links a { padding: 8px 11px; border: 1px solid var(--line); color: #d5d9d1; font-size: 11px; font-weight: 750; text-decoration: none; }
@@ -1006,6 +1033,9 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   .token-identity { align-items: flex-start; }
   .token-identity > img { width: 64px; height: 64px; }
   .token-heading { margin-bottom: 24px; }
+  .tax-template-heading { align-items: flex-start; flex-direction: column; }
+  .tax-breakdown { grid-template-columns: 1fr; }
+  .tax-breakdown > div:last-child { grid-column: auto; }
   .project-links { display: grid; grid-template-columns: 1fr 1fr; }
   .project-links a { display: flex; min-height: 44px; align-items: center; justify-content: center; text-align: center; }
   .card { padding: 18px; }
