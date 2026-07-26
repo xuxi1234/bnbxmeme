@@ -13,6 +13,7 @@ import {
 import { bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
 import { factoryAbi, testnetFactoryAddress } from "@/lib/web3";
+import { useLanguage } from "@/components/language-provider";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 
@@ -25,6 +26,7 @@ function safeInitialBuy(value: string) {
 }
 
 export default function CreateTokenPage() {
+  const { language, t } = useLanguage();
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [description, setDescription] = useState("");
@@ -176,15 +178,20 @@ export default function CreateTokenPage() {
 
       <section className="form-shell">
         <p className="eyebrow">02 / CONFIGURE · BNB TESTNET</p>
-        <h1 className="form-title">配置代币</h1>
+        <h1 className="form-title">{t("createTitle")}</h1>
         <p className="lead">
-          零代码创建固定 10 亿供应的干净代币。永久 0 税、无增发权限，
-          创建者首笔买入可与部署在同一笔交易内完成。
+          {language === "zh"
+            ? "零代码创建固定 10 亿供应的干净代币。永久 0 税、无增发权限，创建者首笔买入可与部署在同一笔交易内完成。"
+            : language === "ko"
+              ? "코딩 없이 10억 고정 공급, 영구 0% 세금 토큰을 생성합니다. 생성과 최초 구매를 한 거래에서 처리할 수 있습니다."
+              : language === "ja"
+                ? "コード不要で10億固定供給・永久税率0%のトークンを作成。作成と初回購入を同一取引で実行できます。"
+                : "Create a fixed 1B supply, permanently zero-tax token without code. Creation and the initial buy can run atomically."}
         </p>
 
         <form className="launch-form" onSubmit={submit}>
           <label>
-            代币名称
+            {t("tokenName")}
             <input
               required
               maxLength={40}
@@ -195,7 +202,7 @@ export default function CreateTokenPage() {
           </label>
 
           <label>
-            代币符号
+            {t("tokenSymbol")}
             <input
               required
               maxLength={10}
@@ -206,7 +213,7 @@ export default function CreateTokenPage() {
           </label>
 
           <label>
-            代币简介
+            {t("tokenIntro")}
             <textarea
               maxLength={500}
               value={description}
@@ -217,7 +224,7 @@ export default function CreateTokenPage() {
           </label>
 
           <label>
-            代币 Logo
+            {t("tokenLogo")}
             <input
               accept="image/png,image/jpeg,image/webp,image/gif"
               type="file"
@@ -227,7 +234,7 @@ export default function CreateTokenPage() {
           </label>
 
           <fieldset className="social-fields">
-            <legend>社区链接（选填）</legend>
+            <legend>{t("socialLinks")}</legend>
             <input
               type="url"
               value={website}
@@ -261,8 +268,10 @@ export default function CreateTokenPage() {
           </fieldset>
 
           <label>
-            毕业额度
+            {t("graduationTarget")}
             <select
+              className="graduation-select"
+              aria-label={t("graduationTarget")}
               value={target}
               onChange={(event) => setTarget(Number(event.target.value))}
             >
@@ -275,7 +284,7 @@ export default function CreateTokenPage() {
           </label>
 
           <label>
-            创建者首购（选填）
+            {t("creatorBuy")}
             <input
               min="0"
               step="0.000000001"
@@ -318,7 +327,7 @@ export default function CreateTokenPage() {
                 ? "正在生成 1111 靓号地址…"
                 : isPending
                 ? "请在钱包确认…"
-                : "创建代币"}
+                : t("createToken")}
             </button>
           )}
 
