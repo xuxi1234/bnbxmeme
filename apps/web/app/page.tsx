@@ -1,18 +1,13 @@
+"use client";
+
 import { HomeBanner } from "@/components/home-banner";
 import { TokenMarket } from "@/components/token-market";
+import { useLanguage } from "@/components/language-provider";
 
 const facts = [
   ["10 亿", "固定供应 · 永不增发"],
   ["8 亿 / 2 亿", "联合曲线 / Pancake V2"],
   ["1–18 BNB", "创建者选择毕业额度"],
-  ["0.5%", "内盘买入与卖出手续费"],
-];
-
-const migration = [
-  ["01", "8 亿内盘售出"],
-  ["02", "停止内盘交易"],
-  ["03", "2 亿 + BNB 加入 V2"],
-  ["04", "LP 永久销毁"],
 ];
 
 const assurances = [
@@ -22,6 +17,7 @@ const assurances = [
 ];
 
 export default function Home() {
+  const { t } = useLanguage();
   return (
     <main className="home">
       <HomeBanner />
@@ -49,31 +45,10 @@ export default function Home() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">PROJECT LIST</p>
-            <h2>实时项目</h2>
-          </div>
-          <div className="market-tabs">
-            <button className="active">热门</button>
-            <button>最新</button>
-            <button>即将毕业</button>
+            <h2>{t("projects")}</h2>
           </div>
         </div>
         <TokenMarket />
-      </section>
-
-      <section className="migration" id="graduated">
-        <div>
-          <p className="eyebrow">AUTOMATIC MIGRATION</p>
-          <h2>打满即毕业，流动性永久销毁。</h2>
-        </div>
-        <div className="migration-flow">
-          {migration.map(([index, label], position) => (
-            <article key={label}>
-              <small>{index}</small>
-              <strong>{label}</strong>
-              {position < migration.length - 1 && <span>→</span>}
-            </article>
-          ))}
-        </div>
       </section>
     </main>
   );
