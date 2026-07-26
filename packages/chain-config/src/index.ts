@@ -20,7 +20,7 @@ export const deployments: Partial<
   Record<97 | 56, DeploymentAddresses>
 > = {
   97: {
-    factory: "0x4395a6b887e7be4b9f1828b3e4a005c63abfd67d",
+    factory: "0x576b09d5672d0ca4d0fb4d65895157ee4c32c4b4",
     pancakeV2Factory: "0x6725F303b657a9451d8BA641348b6761A6CC7a17",
     pancakeV2Router: "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
     wbnb: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
