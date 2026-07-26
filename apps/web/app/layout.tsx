@@ -17,18 +17,6 @@ export default function RootLayout({
       <body>
         <Providers>
           <SiteHeader />
-          <div className="announcement-bar" aria-label="BNBX 公告">
-            <div>
-              <span>BNBX · BNB CHAIN 公平发射</span>
-              <span>所有平台代币地址统一以 1111 结尾</span>
-              <span>固定 10 亿供应 · 永久 0 税</span>
-              <span>达到阈值自动进入 PancakeSwap V2</span>
-              <span>LP 永久销毁</span>
-              <span>BNBX · BNB CHAIN 公平发射</span>
-              <span>所有平台代币地址统一以 1111 结尾</span>
-              <span>固定 10 亿供应 · 永久 0 税</span>
-            </div>
-          </div>
           {children}
           <footer className="site-footer">
             <div>
