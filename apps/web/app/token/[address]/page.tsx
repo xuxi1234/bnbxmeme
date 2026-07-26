@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
-import { formatEther, isAddress, parseEther, zeroAddress } from "viem";
+import { useEffect, useRef, useState } from "react";
+import { formatEther, isAddress, maxUint256, parseEther, zeroAddress } from "viem";
 import {
   useAccount,
   useChainId,
@@ -22,6 +22,7 @@ import {
 import { useTokenMetadata } from "@/lib/metadata";
 import { TokenActivity } from "@/components/token-activity";
 import { BondingCurveChart } from "@/components/bonding-curve-chart";
+import { useLanguage } from "@/components/language-provider";
 
 const states = ["内盘交易", "准备毕业", "PancakeSwap V2"];
 const SLIPPAGE_BPS = 100n;
@@ -48,9 +49,15 @@ export default function TokenTradingPage() {
   const { switchChain } = useSwitchChain();
   const [buyAmount, setBuyAmount] = useState("0.01");
   const [sellAmount, setSellAmount] = useState("0");
+  const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
   const [copied, setCopied] = useState(false);
-  const { data: hash, error, isPending, writeContract } = useWriteContract();
-  const receipt = useWaitForTransactionReceipt({ hash });
+  const [continueAfterApproval, setContinueAfterApproval] = useState(false);
+  const autoSellStarted = useRef(false);
+  const tradeWrite = useWriteContract();
+  const approvalWrite = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash: tradeWrite.data });
+  const approvalReceipt = useWaitForTransactionReceipt({ hash: approvalWrite.data });
+  const { t } = useLanguage();
 
   const curveQuery = useReadContract({
     address: factoryAddress,
@@ -177,7 +184,7 @@ export default function TokenTradingPage() {
 
   function buy() {
     if (!user) return;
-    writeContract({
+    tradeWrite.writeContract({
       address: factoryAddress,
       abi: factoryAbi,
       functionName: "buy",
@@ -186,22 +193,44 @@ export default function TokenTradingPage() {
     });
   }
 
-  function approve() {
-    writeContract({
-      address: tokenAddress,
-      abi: tokenAbi,
-      functionName: "approve",
-      args: [curveAddress, sellWei],
-    });
-  }
-
-  function sell() {
-    writeContract({
+  function executeSell() {
+    tradeWrite.writeContract({
       address: factoryAddress,
       abi: factoryAbi,
       functionName: "sell",
       args: [tokenAddress, sellWei, minimumAfterSlippage(quotedSellBNB), deadline()],
     });
+  }
+
+  function sell() {
+    if (needsApproval) {
+      autoSellStarted.current = false;
+      setContinueAfterApproval(true);
+      approvalWrite.writeContract({
+      address: tokenAddress,
+      abi: tokenAbi,
+      functionName: "approve",
+        args: [curveAddress, maxUint256],
+      });
+      return;
+    }
+    executeSell();
+  }
+
+  useEffect(() => {
+    if (
+      continueAfterApproval &&
+      approvalReceipt.isSuccess &&
+      !autoSellStarted.current
+    ) {
+      autoSellStarted.current = true;
+      setContinueAfterApproval(false);
+      executeSell();
+    }
+  }, [approvalReceipt.isSuccess, continueAfterApproval]);
+
+  function setSellPercent(percent: bigint) {
+    setSellAmount(formatEther(((balance.data ?? 0n) * percent) / 100n));
   }
 
   async function copyTokenAddress() {
@@ -344,106 +373,113 @@ export default function TokenTradingPage() {
         </article>
 
         <article className="launch-form trade-box">
-          <label>
-            使用 BNB 买入
-            <input
-              min="0.000000001"
-              step="0.000000001"
-              value={buyAmount}
-              onChange={(event) => setBuyAmount(event.target.value)}
-            />
-          </label>
-          <div className="quote-row">
-            <span>预计获得</span>
-            <strong>{formatEther(quotedTokens)} {symbol.data ?? "TOKEN"}</strong>
-          </div>
-          <div className="quote-row">
-            <span>交易手续费</span>
-            <strong>{formatEther(buyQuote.data?.[1] ?? 0n)} BNB</strong>
-          </div>
-          {user && chainId !== bscTestnet.id ? (
+          <div className="trade-tabs">
             <button
-              className="button wide"
+              className={tradeMode === "buy" ? "active buy" : ""}
               type="button"
-              onClick={() => switchChain({ chainId: bscTestnet.id })}
-            >
-              切换到 BNB 测试网
-            </button>
-          ) : (
-          <button
-            className="button wide"
-            type="button"
-            disabled={
-              !user ||
-              factoryAddress === zeroAddress ||
-              curveAddress === zeroAddress ||
-              buyWei === 0n ||
-              quotedTokens === 0n ||
-              isPending ||
-              Number(state.data ?? 0) !== 0
-            }
-            onClick={buy}
-          >
-            买入
-          </button>
-          )}
+              onClick={() => setTradeMode("buy")}
+            >{t("buy")}</button>
+            <button
+              className={tradeMode === "sell" ? "active sell" : ""}
+              type="button"
+              onClick={() => setTradeMode("sell")}
+            >{t("sell")}</button>
+          </div>
 
-          <label>
-            卖出代币
-            <input
-              min="0"
-              step="0.000000001"
-              value={sellAmount}
-              onChange={(event) => setSellAmount(event.target.value)}
-            />
-          </label>
-          <div className="quote-row">
-            <span>预计收到</span>
-            <strong>{formatEther(quotedSellBNB)} BNB</strong>
-          </div>
-          <div className="quote-row">
-            <span>交易手续费</span>
-            <strong>{formatEther(sellQuote.data?.[1] ?? 0n)} BNB</strong>
-          </div>
-          {needsApproval ? (
-            <button
-              className="button secondary wide"
-              type="button"
-              disabled={
-                !user ||
-                curveAddress === zeroAddress ||
-                sellWei === 0n ||
-                quotedSellBNB === 0n ||
-                isPending ||
-                Number(state.data ?? 0) !== 0
-              }
-              onClick={approve}
-            >
-              授权本次卖出数量
-            </button>
+          {tradeMode === "buy" ? (
+            <>
+              <label>
+                {t("buyWith")}
+                <input
+                  min="0.000000001"
+                  step="0.000000001"
+                  value={buyAmount}
+                  onChange={(event) => setBuyAmount(event.target.value)}
+                />
+              </label>
+              <div className="amount-presets">
+                {["0.1", "0.5", "1"].map((amount) => (
+                  <button key={amount} type="button" onClick={() => setBuyAmount(amount)}>
+                    {amount} BNB
+                  </button>
+                ))}
+              </div>
+              <div className="quote-row">
+                <span>{t("expectedGet")}</span>
+                <strong>{formatEther(quotedTokens)} {symbol.data ?? "TOKEN"}</strong>
+              </div>
+              <div className="quote-row">
+                <span>{t("fee")}</span>
+                <strong>{formatEther(buyQuote.data?.[1] ?? 0n)} BNB</strong>
+              </div>
+              {user && chainId !== bscTestnet.id ? (
+                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bscTestnet.id })}>
+                  {t("switchNetwork")}
+                </button>
+              ) : (
+                <button
+                  className="button wide trade-submit buy"
+                  type="button"
+                  disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || buyWei === 0n || quotedTokens === 0n || tradeWrite.isPending || Number(state.data ?? 0) !== 0}
+                  onClick={buy}
+                >{t("buy")}</button>
+              )}
+            </>
           ) : (
+            <>
+              <label>
+                {t("sellToken")}
+                <input
+                  min="0"
+                  step="0.000000001"
+                  value={sellAmount}
+                  onChange={(event) => setSellAmount(event.target.value)}
+                />
+              </label>
+              <div className="amount-presets">
+                {[25n, 50n, 75n, 100n].map((percent) => (
+                  <button key={percent.toString()} type="button" onClick={() => setSellPercent(percent)}>
+                    {percent.toString()}%
+                  </button>
+                ))}
+              </div>
+              <div className="trade-balance">{t("balance")}: {formatEther(balance.data ?? 0n)} {symbol.data ?? "TOKEN"}</div>
+              <div className="quote-row">
+                <span>{t("expectedReceive")}</span>
+                <strong>{formatEther(quotedSellBNB)} BNB</strong>
+              </div>
+              <div className="quote-row">
+                <span>{t("fee")}</span>
+                <strong>{formatEther(sellQuote.data?.[1] ?? 0n)} BNB</strong>
+              </div>
+              {user && chainId !== bscTestnet.id ? (
+                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bscTestnet.id })}>
+                  {t("switchNetwork")}
+                </button>
+              ) : (
             <button
-              className="button secondary wide"
+                  className="button wide trade-submit sell"
               type="button"
-              disabled={
-                !user ||
-                factoryAddress === zeroAddress ||
-                curveAddress === zeroAddress ||
-                sellWei === 0n ||
-                quotedSellBNB === 0n ||
-                isPending ||
-                Number(state.data ?? 0) !== 0
-              }
+                  disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || sellWei === 0n || quotedSellBNB === 0n || tradeWrite.isPending || approvalWrite.isPending || approvalReceipt.isLoading || Number(state.data ?? 0) !== 0}
               onClick={sell}
             >
-              卖出
+                  {approvalWrite.isPending || approvalReceipt.isLoading
+                    ? t("approving")
+                    : tradeWrite.isPending
+                      ? t("selling")
+                      : needsApproval
+                        ? t("firstApproveSell")
+                        : t("sell")}
             </button>
+              )}
+            </>
           )}
 
-          <small>内盘买卖手续费均为 0.5%，默认滑点保护为 1%。</small>
-          {hash && <p className="notice">交易哈希：{hash}</p>}
+          {tradeWrite.data && <p className="notice">交易哈希：{tradeWrite.data}</p>}
           {receipt.isSuccess && <p className="success">交易已确认。</p>}
-          {error && <p className="error">{error.message}</p>}
+          {(tradeWrite.error || approvalWrite.error) && (
+            <p className="error">{(tradeWrite.error ?? approvalWrite.error)?.message}</p>
+          )}
         </article>
       </section>
       {tokenAddress !== zeroAddress && curveAddress !== zeroAddress && (
