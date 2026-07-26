@@ -17,6 +17,21 @@ import {
 const FEE_RECIPIENT = "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6";
 const PANCAKE_V2_TESTNET_ROUTER =
   "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
+const DEPLOYMENT_GAS_LIMIT = 8_000_000n;
+
+function deploymentErrorMessage(error: Error) {
+  const message = error.message.toLowerCase();
+  if (message.includes("user rejected") || message.includes("user denied")) {
+    return "你已在 MetaMask 取消部署。";
+  }
+  if (message.includes("insufficient funds")) {
+    return "测试钱包的 tBNB 不足以支付部署 Gas。";
+  }
+  if (message.includes("max code size exceeded")) {
+    return "Factory 代码超过 BSC 合约大小限制，请使用最新部署页面后重试。";
+  }
+  return "部署交易未成功发送。请确认 MetaMask 位于 BSC Testnet，刷新页面后重试。";
+}
 
 export default function DeployTestnetPage() {
   const [factoryType, setFactoryType] = useState<"standard" | "liquidity">(
@@ -38,6 +53,7 @@ export default function DeployTestnetPage() {
         args: [FEE_RECIPIENT, PANCAKE_V2_TESTNET_ROUTER],
         chainId: bscTestnet.id,
         account: address,
+        gas: DEPLOYMENT_GAS_LIMIT,
       });
       return;
     }
@@ -47,6 +63,7 @@ export default function DeployTestnetPage() {
       args: [FEE_RECIPIENT, PANCAKE_V2_TESTNET_ROUTER],
       chainId: bscTestnet.id,
       account: address,
+      gas: DEPLOYMENT_GAS_LIMIT,
     });
   }
 
@@ -115,7 +132,7 @@ export default function DeployTestnetPage() {
               Factory 部署成功：{receipt.data.contractAddress}
             </p>
           )}
-          {error && <p className="error">{error.message}</p>}
+          {error && <p className="error">{deploymentErrorMessage(error)}</p>}
         </div>
       </section>
     </main>
