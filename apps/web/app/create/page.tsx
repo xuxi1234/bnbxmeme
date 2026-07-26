@@ -5,6 +5,7 @@ import { parseEther } from "viem";
 import {
   useAccount,
   useChainId,
+  usePublicClient,
   useSwitchChain,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -32,20 +33,23 @@ export default function CreateTokenPage() {
   const [telegram, setTelegram] = useState("");
   const [twitter, setTwitter] = useState("");
   const [debox, setDebox] = useState("");
+  const [qq, setQq] = useState("");
   const [target, setTarget] = useState(5);
   const [initialBuy, setInitialBuy] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isFindingVanity, setIsFindingVanity] = useState(false);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
+  const publicClient = usePublicClient({ chainId: bscTestnet.id });
   const { data: hash, error, isPending, writeContract } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
   const factoryAddress = testnetFactoryAddress;
 
   async function uploadMetadata() {
-    if (!description && !image && !website && !telegram && !twitter && !debox) {
+    if (!description && !image && !website && !telegram && !twitter && !debox && !qq) {
       return "";
     }
 
@@ -57,6 +61,7 @@ export default function CreateTokenPage() {
     form.set("telegram", telegram.trim());
     form.set("twitter", twitter.trim());
     form.set("debox", debox.trim());
+    form.set("qq", qq.trim());
     if (image) form.set("image", image);
 
     const response = await fetch("/api/metadata", { method: "POST", body: form });
@@ -70,6 +75,25 @@ export default function CreateTokenPage() {
     return result.metadataURI;
   }
 
+  async function findVanitySalt() {
+    if (!publicClient) throw new Error("测试网 RPC 尚未连接");
+    const tokenName = name.trim();
+    const tokenSymbol = symbol.trim().toUpperCase();
+    const chunk = 20_000n;
+    let start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const [found, salt] = await publicClient.readContract({
+        address: factoryAddress,
+        abi: factoryAbi,
+        functionName: "findVanitySalt",
+        args: [tokenName, tokenSymbol, start, chunk],
+      });
+      if (found) return salt;
+      start += chunk;
+    }
+    throw new Error("暂未找到 1111 靓号，请重新提交");
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!address || !factoryAddress) return;
@@ -78,14 +102,24 @@ export default function CreateTokenPage() {
     setIsUploading(true);
     try {
       const metadataURI = await uploadMetadata();
+      setIsUploading(false);
+      setIsFindingVanity(true);
+      const vanitySalt = await findVanitySalt();
+      setIsFindingVanity(false);
       const initialBuyWei = parseEther(initialBuy || "0");
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
       if (initialBuyWei === 0n) {
         writeContract({
           address: factoryAddress,
           abi: factoryAbi,
-          functionName: "createToken",
-          args: [name.trim(), symbol.trim().toUpperCase(), target, metadataURI],
+          functionName: "createVanityToken",
+          args: [{
+            name: name.trim(),
+            symbol: symbol.trim().toUpperCase(),
+            graduationTargetBNB: target,
+            metadataURI,
+            vanitySalt,
+          }],
           value: CREATION_FEE_WEI,
           chain: bscTestnet,
           account: address,
@@ -96,16 +130,18 @@ export default function CreateTokenPage() {
       writeContract({
         address: factoryAddress,
         abi: factoryAbi,
-        functionName: "createTokenAndBuy",
-        args: [
-          name.trim(),
-          symbol.trim().toUpperCase(),
-          target,
+        functionName: "createVanityTokenAndBuy",
+        args: [{
+          name: name.trim(),
+          symbol: symbol.trim().toUpperCase(),
+          graduationTargetBNB: target,
           metadataURI,
-          0n,
+          vanitySalt,
+        }, {
+          minTokensOut: 0n,
           deadline,
-          address,
-        ],
+          refundRecipient: address,
+        }],
         value: CREATION_FEE_WEI + initialBuyWei,
         chain: bscTestnet,
         account: address,
@@ -116,6 +152,7 @@ export default function CreateTokenPage() {
       );
     } finally {
       setIsUploading(false);
+      setIsFindingVanity(false);
     }
   }
 
@@ -215,6 +252,12 @@ export default function CreateTokenPage() {
               placeholder="DeBox https://debox.pro/"
               onChange={(event) => setDebox(event.target.value)}
             />
+            <input
+              type="url"
+              value={qq}
+              placeholder="QQ 群 https://qm.qq.com/"
+              onChange={(event) => setQq(event.target.value)}
+            />
           </fieldset>
 
           <label>
@@ -267,10 +310,12 @@ export default function CreateTokenPage() {
             <button
               className="button wide"
               type="submit"
-              disabled={!canSubmit || isPending || isUploading}
+              disabled={!canSubmit || isPending || isUploading || isFindingVanity}
             >
               {isUploading
                 ? "正在上传到 IPFS…"
+                : isFindingVanity
+                ? "正在生成 1111 靓号地址…"
                 : isPending
                 ? "请在钱包确认…"
                 : "创建代币"}
