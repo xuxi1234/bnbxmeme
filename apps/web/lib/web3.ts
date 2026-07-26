@@ -8,10 +8,10 @@ export const testnetFactoryAddress =
     | `0x${string}`
     | undefined) ?? "0x576b09d5672d0ca4d0fb4d65895157ee4c32c4b4";
 
-export const autoLiquidityFactoryAddress = process.env
-  .NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS as
-  | `0x${string}`
-  | undefined;
+export const autoLiquidityFactoryAddress =
+  (process.env.NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS as
+    | `0x${string}`
+    | undefined) ?? "0xdf29818f29d319bb6d85e3931868646c98c303a5";
 
 export const queryClient = new QueryClient();
 
