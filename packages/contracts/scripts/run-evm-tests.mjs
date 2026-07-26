@@ -249,19 +249,39 @@ for (let target = 1; target <= 18; target += 1) {
   const targetWei = parseEther(String(target));
   const grossBuy = grossForExactNet(targetWei);
   const block = await publicClient.getBlock();
+  const tokenName = `Target ${target}`;
+  const tokenSymbol = `T${target}`;
+  let vanitySalt;
+  let vanityStart = BigInt(target) * 500_000n;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const [found, candidate] = await publicClient.readContract({
+      address: launchFactoryAddress,
+      abi: launchFactoryArtifact.abi,
+      functionName: "findVanitySalt",
+      args: [tokenName, tokenSymbol, vanityStart, 20_000n],
+    });
+    if (found) {
+      vanitySalt = candidate;
+      break;
+    }
+    vanityStart += 20_000n;
+  }
+  if (!vanitySalt) throw new Error(`Target ${target}: vanity salt not found`);
   const hash = await walletClient.writeContract({
     address: launchFactoryAddress,
     abi: launchFactoryArtifact.abi,
-    functionName: "createTokenAndBuy",
-    args: [
-      `Target ${target}`,
-      `T${target}`,
-      target,
-      "",
-      eightHundredMillion,
-      block.timestamp + 1_200n,
-      account,
-    ],
+    functionName: "createVanityTokenAndBuy",
+    args: [{
+      name: tokenName,
+      symbol: tokenSymbol,
+      graduationTargetBNB: target,
+      metadataURI: "",
+      vanitySalt,
+    }, {
+      minTokensOut: eightHundredMillion,
+      deadline: block.timestamp + 1_200n,
+      refundRecipient: account,
+    }],
     value: parseEther("0.001") + grossBuy,
     gas: 28_000_000n,
   });
@@ -288,16 +308,18 @@ for (let target = 1; target <= 18; target += 1) {
         account,
         address: launchFactoryAddress,
         abi: launchFactoryArtifact.abi,
-        functionName: "createTokenAndBuy",
-        args: [
-          `Target ${target}`,
-          `T${target}`,
-          target,
-          "",
-          eightHundredMillion,
-          block.timestamp + 1_200n,
-          account,
-        ],
+        functionName: "createVanityTokenAndBuy",
+        args: [{
+          name: tokenName,
+          symbol: tokenSymbol,
+          graduationTargetBNB: target,
+          metadataURI: "",
+          vanitySalt,
+        }, {
+          minTokensOut: eightHundredMillion,
+          deadline: block.timestamp + 1_200n,
+          refundRecipient: account,
+        }],
         value: parseEther("0.001") + grossBuy,
       });
     } catch (error) {
