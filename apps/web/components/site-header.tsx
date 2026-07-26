@@ -1,15 +1,18 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { WalletButton } from "./wallet-button";
-
-const navigation = [
-  ["市场", "/"],
-  ["创建代币", "/create"],
-  ["今日毕业", "/#graduated"],
-  ["历史毕业", "/#graduated"],
-];
+import { useLanguage, type Language } from "./language-provider";
 
 export function SiteHeader() {
+  const { language, setLanguage, t } = useLanguage();
+  const navigation = [
+    [t("market"), "/#market"],
+    [t("create"), "/create"],
+    [t("today"), "/#market"],
+    [t("history"), "/#market"],
+  ];
   return (
     <header className="site-header">
       <Link className="site-brand" href="/" aria-label="BNBX 首页">
@@ -36,6 +39,17 @@ export function SiteHeader() {
       </nav>
 
       <div className="header-actions">
+        <select
+          className="language-select"
+          aria-label="Language"
+          value={language}
+          onChange={(event) => setLanguage(event.target.value as Language)}
+        >
+          <option value="zh">中文</option>
+          <option value="en">EN</option>
+          <option value="ko">한국어</option>
+          <option value="ja">日本語</option>
+        </select>
         <span className="network-chip">
           <i />
           TESTNET
