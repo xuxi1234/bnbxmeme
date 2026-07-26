@@ -39,9 +39,9 @@ packages/ui      shared UI components
 
 ## BSC Testnet deployment
 
-- Factory: `0x4395a6b887e7be4b9f1828b3e4a005c63abfd67d`
+- Factory: `0x576b09d5672d0ca4d0fb4d65895157ee4c32c4b4`
 - Chain ID: `97`
-- Deployment block: `121325056`
+- Deployment block: `121342299`
 - PancakeSwap V2 Router: `0xD99D1c33F9fC3444f8101754aBC46c52416550D1`
 
 The web deployment requires a server-only `PINATA_JWT` environment variable
