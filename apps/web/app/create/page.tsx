@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { parseEther } from "viem";
+import { isAddress, parseEther } from "viem";
 import {
   useAccount,
   useChainId,
@@ -12,10 +12,29 @@ import {
 } from "wagmi";
 import { bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
-import { factoryAbi, testnetFactoryAddress } from "@/lib/web3";
+import {
+  autoLiquidityFactoryAbi,
+  autoLiquidityFactoryAddress,
+  factoryAbi,
+  testnetFactoryAddress,
+} from "@/lib/web3";
 import { useLanguage } from "@/components/language-provider";
 
 const CREATION_FEE_WEI = parseEther("0.001");
+const MAX_SIDE_TAX = 25;
+
+type TemplateId = "standard" | "liquidity" | "holders" | "lp";
+type TaxKey = "burn" | "liquidity" | "marketing" | "rewards";
+type TaxSide = Record<TaxKey, number>;
+
+const emptyTaxes: TaxSide = {
+  burn: 0,
+  liquidity: 0,
+  marketing: 0,
+  rewards: 0,
+};
+
+const templateIds: TemplateId[] = ["standard", "liquidity", "holders", "lp"];
 
 function safeInitialBuy(value: string) {
   try {
@@ -38,6 +57,11 @@ export default function CreateTokenPage() {
   const [qq, setQq] = useState("");
   const [target, setTarget] = useState(5);
   const [initialBuy, setInitialBuy] = useState("");
+  const [template, setTemplate] = useState<TemplateId>("standard");
+  const [buyTaxes, setBuyTaxes] = useState<TaxSide>({ ...emptyTaxes });
+  const [sellTaxes, setSellTaxes] = useState<TaxSide>({ ...emptyTaxes });
+  const [marketingWallet, setMarketingWallet] = useState("");
+  const [rewardToken, setRewardToken] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isFindingVanity, setIsFindingVanity] = useState(false);
@@ -48,7 +72,26 @@ export default function CreateTokenPage() {
   const { data: hash, error, isPending, writeContract } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
-  const factoryAddress = testnetFactoryAddress;
+  const factoryAddress =
+    template === "liquidity"
+      ? autoLiquidityFactoryAddress
+      : testnetFactoryAddress;
+
+  function taxSideToBps(side: TaxSide) {
+    return {
+      burn: Math.round(side.burn * 100),
+      liquidity: Math.round(side.liquidity * 100),
+      marketing: Math.round(side.marketing * 100),
+      rewards: 0,
+    };
+  }
+
+  function configuredTaxes() {
+    return {
+      buy: taxSideToBps(buyTaxes),
+      sell: taxSideToBps(sellTaxes),
+    };
+  }
 
   async function uploadMetadata() {
     if (!description && !image && !website && !telegram && !twitter && !debox && !qq) {
@@ -84,8 +127,32 @@ export default function CreateTokenPage() {
     const chunk = 20_000n;
     let start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
     for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (template === "liquidity") {
+        if (!autoLiquidityFactoryAddress || !address) {
+          throw new Error("自动回流测试网 Factory 尚未配置");
+        }
+        const marketing =
+          marketingWallet.trim() === "" ? address : marketingWallet.trim();
+        if (!isAddress(marketing)) throw new Error("营销钱包地址格式错误");
+        const [found, salt] = await publicClient.readContract({
+          address: autoLiquidityFactoryAddress,
+          abi: autoLiquidityFactoryAbi,
+          functionName: "findVanitySalt",
+          args: [
+            tokenName,
+            tokenSymbol,
+            marketing,
+            configuredTaxes(),
+            start,
+            chunk,
+          ],
+        });
+        if (found) return salt;
+        start += chunk;
+        continue;
+      }
       const [found, salt] = await publicClient.readContract({
-        address: factoryAddress,
+        address: testnetFactoryAddress,
         abi: factoryAbi,
         functionName: "findVanitySalt",
         args: [tokenName, tokenSymbol, start, chunk],
@@ -110,6 +177,52 @@ export default function CreateTokenPage() {
       setIsFindingVanity(false);
       const initialBuyWei = parseEther(initialBuy || "0");
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
+      if (template === "liquidity") {
+        if (!autoLiquidityFactoryAddress) {
+          throw new Error("自动回流测试网 Factory 尚未配置");
+        }
+        const marketing =
+          marketingWallet.trim() === "" ? address : marketingWallet.trim();
+        if (!isAddress(marketing)) throw new Error("营销钱包地址格式错误");
+        const request = {
+          name: name.trim(),
+          symbol: symbol.trim().toUpperCase(),
+          graduationTargetBNB: target,
+          metadataURI,
+          vanitySalt,
+          marketingWallet: marketing,
+          taxes: configuredTaxes(),
+        };
+        if (initialBuyWei === 0n) {
+          writeContract({
+            address: autoLiquidityFactoryAddress,
+            abi: autoLiquidityFactoryAbi,
+            functionName: "createVanityToken",
+            args: [request],
+            value: CREATION_FEE_WEI,
+            chain: bscTestnet,
+            account: address,
+          });
+        } else {
+          writeContract({
+            address: autoLiquidityFactoryAddress,
+            abi: autoLiquidityFactoryAbi,
+            functionName: "createVanityTokenAndBuy",
+            args: [
+              request,
+              {
+                minTokensOut: 0n,
+                deadline,
+                refundRecipient: address,
+              },
+            ],
+            value: CREATION_FEE_WEI + initialBuyWei,
+            chain: bscTestnet,
+            account: address,
+          });
+        }
+        return;
+      }
       if (initialBuyWei === 0n) {
         writeContract({
           address: factoryAddress,
@@ -159,9 +272,20 @@ export default function CreateTokenPage() {
   }
 
   const wrongChain = isConnected && chainId !== bscTestnet.id;
+  const advancedTemplate = template !== "standard";
+  const unavailableTemplate =
+    template === "holders" ||
+    template === "lp" ||
+    (template === "liquidity" && !autoLiquidityFactoryAddress);
+  const buyTaxTotal = Object.values(buyTaxes).reduce((sum, value) => sum + value, 0);
+  const sellTaxTotal = Object.values(sellTaxes).reduce((sum, value) => sum + value, 0);
+  const taxInvalid =
+    buyTaxTotal > MAX_SIDE_TAX || sellTaxTotal > MAX_SIDE_TAX;
   const canSubmit =
     isConnected &&
     !wrongChain &&
+    !unavailableTemplate &&
+    !taxInvalid &&
     Boolean(factoryAddress) &&
     name.trim().length > 0 &&
     symbol.trim().length > 0 &&
@@ -190,6 +314,159 @@ export default function CreateTokenPage() {
         </p>
 
         <form className="launch-form" onSubmit={submit}>
+          <fieldset className="template-picker">
+            <legend>{language === "zh" ? "选择代币模板" : "Token template"}</legend>
+            <div className="template-grid">
+              {templateIds.map((id) => {
+                const content = {
+                  standard: {
+                    name: language === "zh" ? "标准 0 税" : "Standard 0% Tax",
+                    text:
+                      language === "zh"
+                        ? "固定供应、无增发、无黑名单，推荐默认选择。"
+                        : "Fixed supply with no mint, blacklist, or token tax.",
+                  },
+                  liquidity: {
+                    name: language === "zh" ? "自动回流" : "Auto Liquidity",
+                    text:
+                      language === "zh"
+                        ? "可配置销毁、自动加池和营销税。"
+                        : "Configurable burn, auto-liquidity, and marketing tax.",
+                  },
+                  holders: {
+                    name: language === "zh" ? "持币分红" : "Holder Rewards",
+                    text:
+                      language === "zh"
+                        ? "按合格持币数量分配指定奖励代币。"
+                        : "Distribute a selected reward token to eligible holders.",
+                  },
+                  lp: {
+                    name: language === "zh" ? "LP 分红" : "LP Rewards",
+                    text:
+                      language === "zh"
+                        ? "毕业后按 Pancake LP 持仓分配奖励。"
+                        : "Reward qualifying Pancake LP holders after graduation.",
+                  },
+                }[id];
+                const preview = id !== "standard";
+                return (
+                  <button
+                    aria-pressed={template === id}
+                    className={`template-card ${template === id ? "selected" : ""}`}
+                    key={id}
+                    onClick={() => {
+                      setTemplate(id);
+                      if (id === "standard") {
+                        setBuyTaxes({ ...emptyTaxes });
+                        setSellTaxes({ ...emptyTaxes });
+                      }
+                    }}
+                    type="button"
+                  >
+                    <span>{preview ? "V2 TESTNET PREVIEW" : "LIVE"}</span>
+                    <strong>{content.name}</strong>
+                    <small>{content.text}</small>
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {advancedTemplate && (
+            <fieldset className="tax-config">
+              <legend>
+                {language === "zh" ? "毕业后的代币税配置" : "Post-graduation taxes"}
+              </legend>
+              <p className="field-help">
+                {language === "zh"
+                  ? "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 25%。"
+                  : "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 25% after Pancake V2 migration."}
+              </p>
+              {(["buy", "sell"] as const).map((side) => {
+                const values = side === "buy" ? buyTaxes : sellTaxes;
+                const update = side === "buy" ? setBuyTaxes : setSellTaxes;
+                const total = side === "buy" ? buyTaxTotal : sellTaxTotal;
+                return (
+                  <section className="tax-side" key={side}>
+                    <div className="tax-heading">
+                      <strong>
+                        {side === "buy"
+                          ? language === "zh" ? "买入税" : "Buy tax"
+                          : language === "zh" ? "卖出税" : "Sell tax"}
+                      </strong>
+                      <b className={total > MAX_SIDE_TAX ? "over-limit" : ""}>
+                        {total.toFixed(2)}% / {MAX_SIDE_TAX}%
+                      </b>
+                    </div>
+                    <div className="tax-grid">
+                      {(Object.keys(values) as TaxKey[]).map((key) => {
+                        const hidden =
+                          (template === "liquidity" && key === "rewards") ||
+                          (template === "holders" && key === "liquidity") ||
+                          (template === "lp" && key === "liquidity");
+                        if (hidden) return null;
+                        const labels: Record<TaxKey, string> = {
+                          burn: language === "zh" ? "销毁" : "Burn",
+                          liquidity: language === "zh" ? "自动加池" : "Liquidity",
+                          marketing: language === "zh" ? "营销" : "Marketing",
+                          rewards: language === "zh" ? "分红" : "Rewards",
+                        };
+                        return (
+                          <label key={key}>
+                            {labels[key]} %
+                            <input
+                              inputMode="decimal"
+                              max="25"
+                              min="0"
+                              step="0.01"
+                              type="number"
+                              value={values[key]}
+                              onChange={(event) =>
+                                update({
+                                  ...values,
+                                  [key]: Math.max(0, Number(event.target.value) || 0),
+                                })
+                              }
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+              <label>
+                {language === "zh" ? "营销钱包" : "Marketing wallet"}
+                <input
+                  value={marketingWallet}
+                  placeholder={
+                    address
+                      ? `${address} (${language === "zh" ? "默认创建者" : "creator default"})`
+                      : "0x..."
+                  }
+                  onChange={(event) => setMarketingWallet(event.target.value)}
+                />
+              </label>
+              {(template === "holders" || template === "lp") && (
+                <label>
+                  {language === "zh" ? "分红代币地址" : "Reward token address"}
+                  <input
+                    value={rewardToken}
+                    placeholder="0x..."
+                    onChange={(event) => setRewardToken(event.target.value)}
+                  />
+                </label>
+              )}
+              {unavailableTemplate && (
+                <p className="preview-lock">
+                  {language === "zh"
+                    ? "工程预览：对应 V2 Factory 完成测试网部署并配置地址前不会允许真实创建，避免误部署。"
+                    : "Engineering preview: creation stays locked until its V2 Factory is deployed and configured on testnet."}
+                </p>
+              )}
+            </fieldset>
+          )}
+
           <label>
             {t("tokenName")}
             <input
@@ -304,6 +581,14 @@ export default function CreateTokenPage() {
             <p className="notice">
               测试网 Factory 合约地址尚未配置。完成合约部署和验证后，
               创建按钮将自动解锁。
+            </p>
+          )}
+
+          {taxInvalid && (
+            <p className="error">
+              {language === "zh"
+                ? "买入税或卖出税合计超过 25%，请降低税率。"
+                : "Buy or sell tax exceeds the 25% maximum."}
             </p>
           )}
 
