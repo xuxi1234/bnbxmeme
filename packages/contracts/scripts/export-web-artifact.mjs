@@ -31,10 +31,18 @@ const input = {
     },
   },
   settings: {
-    optimizer: { enabled: true, runs: 100_000 },
+    // Favor deployable runtime size. Factory contracts embed child creation
+    // bytecode and must stay below EIP-170's 24,576-byte runtime limit.
+    optimizer: { enabled: true, runs: 200 },
     evmVersion: "shanghai",
     outputSelection: {
-      "*": { "*": ["abi", "evm.bytecode.object"] },
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object",
+        ],
+      },
     },
   },
 };
@@ -58,6 +66,13 @@ console.log(`Wrote ${destination}`);
 
 const autoLiquidityArtifact =
   output.contracts["src/BNBXAutoLiquidityFactory.sol"].BNBXAutoLiquidityFactory;
+const autoLiquidityRuntimeBytes =
+  autoLiquidityArtifact.evm.deployedBytecode.object.length / 2;
+if (autoLiquidityRuntimeBytes > 24_576) {
+  throw new Error(
+    `BNBXAutoLiquidityFactory runtime is ${autoLiquidityRuntimeBytes} bytes; EIP-170 allows 24576`,
+  );
+}
 const autoLiquidityDestination = resolve(
   workspace,
   "apps/web/lib/auto-liquidity-factory-deployment.ts",
