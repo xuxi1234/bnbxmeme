@@ -13,7 +13,12 @@ import {
 } from "wagmi";
 import { bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
-import { curveAbi, factoryAbi, tokenAbi } from "@/lib/web3";
+import {
+  curveAbi,
+  factoryAbi,
+  testnetFactoryAddress,
+  tokenAbi,
+} from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
 import { TokenActivity } from "@/components/token-activity";
 
@@ -36,9 +41,7 @@ function safeParseEther(value: string) {
 export default function TokenTradingPage() {
   const params = useParams<{ address: string }>();
   const tokenAddress = isAddress(params.address) ? params.address : zeroAddress;
-  const factoryAddress =
-    (process.env.NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined) ??
-    zeroAddress;
+  const factoryAddress = testnetFactoryAddress ?? zeroAddress;
   const { address: user } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
