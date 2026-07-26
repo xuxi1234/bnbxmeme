@@ -70,6 +70,7 @@ function TokenCard({ entry, factory }: { entry: Entry; factory: `0x${string}` })
 
 export function TokenMarket() {
   const [filter, setFilter] = useState<MarketFilter>("hot");
+  const [query, setQuery] = useState("");
   const [scores, setScores] = useState<Record<string, Pick<Entry, "volume" | "activity" | "lastBlock">>>({});
   const { t } = useLanguage();
   const factory = testnetFactoryAddress ?? zeroAddress;
@@ -146,7 +147,9 @@ export function TokenMarket() {
   }, [curves.join(","), tokens.join(",")]);
 
   const ranked = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
     const visible = entries.filter((entry) => {
+      if (normalizedQuery && !entry.token.toLowerCase().includes(normalizedQuery)) return false;
       const progress = entry.target > 0n ? Number((entry.principal * 10_000n) / entry.target) / 100 : 0;
       if (filter === "graduating") return entry.state < 2 && progress < 100;
       if (filter === "graduated") return entry.state === 2;
@@ -166,7 +169,7 @@ export function TokenMarket() {
       const bScore = b.volume + BigInt(b.activity) * 10_000_000_000_000_000n;
       return aScore === bScore ? b.creationIndex - a.creationIndex : aScore > bScore ? -1 : 1;
     });
-  }, [entries, filter]);
+  }, [entries, filter, query]);
 
   if (factory === zeroAddress) return <MarketEmpty title={t("loading")} message="Factory unavailable" />;
   if (count.isLoading || tokenResults.isLoading) return <MarketEmpty title={t("loading")} message="BNB Testnet" />;
@@ -174,13 +177,24 @@ export function TokenMarket() {
 
   return (
     <>
-      <div className="market-tabs" role="tablist">
-        {(["hot", "latest", "graduating", "graduated"] as MarketFilter[]).map((item) => (
-          <button className={filter === item ? "active" : ""} key={item} type="button"
-            aria-pressed={filter === item} onClick={() => setFilter(item)}>
-            {t(item)}
-          </button>
-        ))}
+      <div className="market-toolbar">
+        <label className="market-search">
+          <span aria-hidden="true">⌕</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("searchPlaceholder")}
+          />
+        </label>
+        <div className="market-tabs" role="tablist">
+          {(["hot", "latest", "graduating", "graduated"] as MarketFilter[]).map((item) => (
+            <button className={filter === item ? "active" : ""} key={item} type="button"
+              aria-pressed={filter === item} onClick={() => setFilter(item)}>
+              {t(item)}
+            </button>
+          ))}
+        </div>
       </div>
       {ranked.length === 0 ? (
         <div className="market-no-results">{t("noMatch")}</div>
