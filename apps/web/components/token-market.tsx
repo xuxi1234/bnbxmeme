@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
-import { useReadContract, useReadContracts } from "wagmi";
-import { curveAbi, factoryAbi, testnetFactoryAddress, tokenAbi } from "@/lib/web3";
+import { useReadContracts } from "wagmi";
+import {
+  autoLiquidityFactoryAddress,
+  curveAbi,
+  factoryAbi,
+  testnetFactoryAddress,
+  tokenAbi,
+} from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
 import { useLanguage } from "./language-provider";
 
@@ -12,6 +18,7 @@ const MAX_VISIBLE_TOKENS = 24;
 type MarketFilter = "hot" | "latest" | "graduating" | "graduated";
 type Entry = {
   token: `0x${string}`;
+  factory: `0x${string}`;
   curve: `0x${string}`;
   creationIndex: number;
   principal: bigint;
@@ -22,13 +29,13 @@ type Entry = {
   lastBlock: bigint;
 };
 
-function TokenCard({ entry, factory }: { entry: Entry; factory: `0x${string}` }) {
+function TokenCard({ entry }: { entry: Entry }) {
   const { t } = useLanguage();
   const details = useReadContracts({
     contracts: [
       { address: entry.token, abi: tokenAbi, functionName: "name" },
       { address: entry.token, abi: tokenAbi, functionName: "symbol" },
-      { address: factory, abi: factoryAbi, functionName: "tokenMetadataURI", args: [entry.token] },
+      { address: entry.factory, abi: factoryAbi, functionName: "tokenMetadataURI", args: [entry.token] },
     ],
   });
   const name = details.data?.[0]?.result as string | undefined;
@@ -73,26 +80,42 @@ export function TokenMarket() {
   const [query, setQuery] = useState("");
   const [scores, setScores] = useState<Record<string, Pick<Entry, "volume" | "activity" | "lastBlock">>>({});
   const { t } = useLanguage();
-  const factory = testnetFactoryAddress ?? zeroAddress;
-  const count = useReadContract({
-    address: factory,
-    abi: factoryAbi,
-    functionName: "tokenCount",
-    query: { enabled: factory !== zeroAddress, refetchInterval: 12_000 },
+  const factories = [testnetFactoryAddress, autoLiquidityFactoryAddress]
+    .filter((factory): factory is `0x${string}` => Boolean(factory));
+  const counts = useReadContracts({
+    contracts: factories.map((factory) => ({
+      address: factory,
+      abi: factoryAbi,
+      functionName: "tokenCount" as const,
+    })),
+    query: { enabled: factories.length > 0, refetchInterval: 12_000 },
   });
-  const visibleCount = Math.min(Number(count.data ?? 0n), MAX_VISIBLE_TOKENS);
-  const indexes = Array.from({ length: visibleCount }, (_, index) => visibleCount - index - 1);
+  const tokenSlots = factories.flatMap((factory, factoryPosition) => {
+    const count = Number(counts.data?.[factoryPosition]?.result ?? 0n);
+    const visibleCount = Math.min(count, MAX_VISIBLE_TOKENS);
+    return Array.from({ length: visibleCount }, (_, position) => ({
+      factory,
+      index: visibleCount - position - 1,
+      creationIndex: count - position - 1,
+      factoryPosition,
+    }));
+  });
   const tokenResults = useReadContracts({
-    contracts: indexes.map((index) => ({
+    contracts: tokenSlots.map(({ factory, index }) => ({
       address: factory, abi: factoryAbi, functionName: "allTokens" as const, args: [BigInt(index)] as const,
     })),
-    query: { enabled: factory !== zeroAddress && visibleCount > 0 },
+    query: { enabled: tokenSlots.length > 0 },
   });
-  const tokens = (tokenResults.data ?? [])
-    .map((item) => item.result)
-    .filter((address): address is `0x${string}` => typeof address === "string");
+  const tokenRecords = (tokenResults.data ?? []).flatMap((item, position) => {
+    const token = item.result;
+    const slot = tokenSlots[position];
+    return typeof token === "string" && slot
+      ? [{ token, ...slot }]
+      : [];
+  });
+  const tokens = tokenRecords.map(({ token }) => token);
   const curveResults = useReadContracts({
-    contracts: tokens.map((token) => ({
+    contracts: tokenRecords.map(({ token, factory }) => ({
       address: factory, abi: factoryAbi, functionName: "curveOf" as const, args: [token] as const,
     })),
     query: { enabled: tokens.length > 0 },
@@ -109,17 +132,18 @@ export function TokenMarket() {
     query: { enabled: curves.length > 0 && curves.every((curve) => curve !== zeroAddress) },
   });
 
-  const entries = useMemo<Entry[]>(() => tokens.map((token, position) => ({
-    token,
+  const entries = useMemo<Entry[]>(() => tokenRecords.map((record, position) => ({
+    token: record.token,
+    factory: record.factory,
     curve: curves[position] ?? zeroAddress,
-    creationIndex: indexes[position] ?? 0,
+    creationIndex: record.creationIndex,
     principal: (curveStats.data?.[position * 3]?.result as bigint | undefined) ?? 0n,
     target: (curveStats.data?.[position * 3 + 1]?.result as bigint | undefined) ?? 0n,
     state: Number(curveStats.data?.[position * 3 + 2]?.result ?? 0),
-    volume: scores[token]?.volume ?? 0n,
-    activity: scores[token]?.activity ?? 0,
-    lastBlock: scores[token]?.lastBlock ?? 0n,
-  })), [curveStats.data, curves, indexes, scores, tokens]);
+    volume: scores[record.token]?.volume ?? 0n,
+    activity: scores[record.token]?.activity ?? 0,
+    lastBlock: scores[record.token]?.lastBlock ?? 0n,
+  })), [curveStats.data, curves, scores, tokenRecords]);
 
   useEffect(() => {
     if (entries.length === 0) return;
@@ -171,8 +195,8 @@ export function TokenMarket() {
     });
   }, [entries, filter, query]);
 
-  if (factory === zeroAddress) return <MarketEmpty title={t("loading")} message="Factory unavailable" />;
-  if (count.isLoading || tokenResults.isLoading) return <MarketEmpty title={t("loading")} message="BNB Testnet" />;
+  if (factories.length === 0) return <MarketEmpty title={t("loading")} message="Factory unavailable" />;
+  if (counts.isLoading || tokenResults.isLoading) return <MarketEmpty title={t("loading")} message="BNB Testnet" />;
   if (tokens.length === 0) return <MarketEmpty title={t("noMatch")} message="" />;
 
   return (
@@ -200,7 +224,7 @@ export function TokenMarket() {
         <div className="market-no-results">{t("noMatch")}</div>
       ) : (
         <div className="token-grid">
-          {ranked.map((entry) => <TokenCard key={entry.token} entry={entry} factory={factory} />)}
+          {ranked.map((entry) => <TokenCard key={entry.token} entry={entry} />)}
         </div>
       )}
     </>
