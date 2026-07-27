@@ -47,7 +47,9 @@ contract BNBXAutoLiquidityTokenTest {
             address(this),
             address(new AutoLiquidityRouterStub()),
             MARKETING,
-            taxes()
+            taxes(),
+            TemplateConfig.Template.AutoLiquidity,
+            0
         );
         token.configureLaunch(address(this), address(pair));
     }
@@ -125,7 +127,9 @@ contract BNBXAutoLiquidityTokenTest {
             address(this),
             address(new AutoLiquidityRouterStub()),
             MARKETING,
-            configured
+            configured,
+            TemplateConfig.Template.AutoLiquidity,
+            0
         );
     }
 }

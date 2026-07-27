@@ -36,14 +36,34 @@ internal curve trade or graduation.
 
 ### Holder Rewards
 
-Adds a reward allocation distributed to qualifying token holders. Processing
-must be gas-bounded and batched so the holder count cannot block transfers.
-The curve, pair, burn address, factory, and reward distributor are excluded.
+Adds a BNB reward allocation distributed to qualifying token holders. Each
+holder claims from a pull-based cumulative reward vault, so transfers never
+loop over the holder list. The creator selects the minimum eligible token
+balance. The curve, pair, burn address, launch manager, marketing wallet,
+token contract, and reward vault are permanently excluded.
 
 ### LP Rewards
 
-Adds a reward allocation distributed to qualifying Pancake V2 LP holders.
-Reward accounting begins only after graduation and must be gas-bounded.
+Adds a BNB reward allocation distributed to qualifying Pancake V2 LP holders.
+Users stake LP tokens in the per-token reward vault and may withdraw them at
+any time. Custodied LP is the reward share, eliminating stale-wallet-balance
+and snapshot manipulation. The initial graduation LP is sent to the burn
+address and can never enter the vault, so only LP that users add later can earn
+rewards. Reward accounting begins only after graduation and never loops over
+LP holders.
+
+## Reward accounting
+
+- Reward tax is collected only on post-graduation Pancake buys and sells.
+- Swap-back converts the configured reward allocation to BNB and deposits it
+  into the per-token reward vault.
+- Rewards deposited before any eligible shares exist remain queued.
+- Adding tokens or LP after a deposit cannot claim rewards from an earlier
+  accounting period.
+- Claims are initiated by the beneficiary; a failed payout reverts only that
+  claim and cannot block transfers.
+- Buy-side and sell-side burn, liquidity, marketing, and rewards allocations
+  are independently configurable, but each side's total remains capped at 25%.
 
 ## Release gate
 

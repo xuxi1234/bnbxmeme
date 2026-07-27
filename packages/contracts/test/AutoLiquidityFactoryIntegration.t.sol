@@ -3,6 +3,8 @@ pragma solidity 0.8.30;
 
 import { BNBXAutoLiquidityFactory } from "../src/BNBXAutoLiquidityFactory.sol";
 import { BNBXAutoLiquidityToken } from "../src/BNBXAutoLiquidityToken.sol";
+import { BNBXAdvancedTokenDeployer } from "../src/BNBXAdvancedTokenDeployer.sol";
+import { BNBXRewardVault } from "../src/BNBXRewardVault.sol";
 import { BondingCurve } from "../src/BondingCurve.sol";
 import { TemplateConfig } from "../src/libraries/TemplateConfig.sol";
 import {
@@ -35,8 +37,12 @@ contract AutoLiquidityFactoryIntegrationTest {
         pancakeFactory = new MockPancakeFactory();
         wbnb = new MockWBNB();
         router = new MockPancakeRouter(address(pancakeFactory), address(wbnb));
-        factory =
-            new BNBXAutoLiquidityFactory(FEE_RECIPIENT, address(router));
+        BNBXAdvancedTokenDeployer deployer =
+            new BNBXAdvancedTokenDeployer(address(this));
+        factory = new BNBXAutoLiquidityFactory(
+            FEE_RECIPIENT, address(router), address(deployer)
+        );
+        deployer.configureManager(address(factory));
     }
 
     function taxes()
@@ -61,6 +67,8 @@ contract AutoLiquidityFactoryIntegrationTest {
             symbol,
             address(this),
             launchTaxes,
+            TemplateConfig.Template.AutoLiquidity,
+            0,
             0,
             500_000
         );
@@ -72,7 +80,47 @@ contract AutoLiquidityFactoryIntegrationTest {
             "ipfs://auto-liquidity",
             salt,
             address(this),
-            launchTaxes
+            launchTaxes,
+            TemplateConfig.Template.AutoLiquidity,
+            0
+        );
+    }
+
+    function rewardRequest(
+        string memory name,
+        string memory symbol,
+        TemplateConfig.Template template
+    )
+        internal
+        view
+        returns (BNBXAutoLiquidityFactory.CreateRequest memory configured)
+    {
+        TemplateConfig.Taxes memory launchTaxes = TemplateConfig.Taxes(
+            TemplateConfig.SideTaxes(0, 100, 100, 100),
+            TemplateConfig.SideTaxes(0, 100, 100, 200)
+        );
+        uint256 minimumShare = 10_000 ether;
+        (bool found, bytes32 salt,) = factory.findVanitySalt(
+            name,
+            symbol,
+            address(this),
+            launchTaxes,
+            template,
+            minimumShare,
+            0,
+            500_000
+        );
+        require(found, "VANITY_NOT_FOUND");
+        configured = BNBXAutoLiquidityFactory.CreateRequest(
+            name,
+            symbol,
+            5,
+            "ipfs://rewards",
+            salt,
+            address(this),
+            launchTaxes,
+            template,
+            minimumShare
         );
     }
 
@@ -118,5 +166,46 @@ contract AutoLiquidityFactoryIntegrationTest {
             uint256(curve.state()) == uint256(BondingCurve.State.Graduated)
         );
         assert(pair.liquidityBalance(DEAD) > 0);
+    }
+
+    function testCreatesHolderRewardsTemplateWithExcludedCurveAndPair() public {
+        (address tokenAddress, address curveAddress) =
+            factory.createVanityToken{ value: 0.001 ether }(
+                rewardRequest(
+                    "Holder Rewards",
+                    "HOLD",
+                    TemplateConfig.Template.HolderRewards
+                )
+            );
+        BNBXAutoLiquidityToken token =
+            BNBXAutoLiquidityToken(payable(tokenAddress));
+        BNBXRewardVault vault = token.rewardVault();
+        assert(
+            uint8(vault.mode())
+                == uint8(BNBXRewardVault.Mode.Holder)
+        );
+        assert(vault.isExcluded(curveAddress));
+        assert(vault.isExcluded(token.liquidityPair()));
+        assert(token.minimumRewardShare() == 10_000 ether);
+    }
+
+    function testCreatesLPRewardsTemplateAndConfiguresPairAsset() public {
+        (address tokenAddress,) =
+            factory.createVanityToken{ value: 0.001 ether }(
+                rewardRequest(
+                    "LP Rewards",
+                    "LPRE",
+                    TemplateConfig.Template.LPRewards
+                )
+            );
+        BNBXAutoLiquidityToken token =
+            BNBXAutoLiquidityToken(payable(tokenAddress));
+        BNBXRewardVault vault = token.rewardVault();
+        assert(
+            uint8(vault.mode())
+                == uint8(BNBXRewardVault.Mode.LiquidityProvider)
+        );
+        assert(vault.shareAsset() == token.liquidityPair());
+        assert(vault.isExcluded(vault.DEAD()));
     }
 }

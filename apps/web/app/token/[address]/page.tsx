@@ -17,6 +17,8 @@ import {
   curveAbi,
   factoryAbi,
   autoLiquidityFactoryAddress,
+  rewardVaultAbi,
+  rewardsFactoryAddress,
   testnetFactoryAddress,
   tokenAbi,
 } from "@/lib/web3";
@@ -49,13 +51,20 @@ export default function TokenTradingPage() {
   const [buyAmount, setBuyAmount] = useState("0.01");
   const [sellAmount, setSellAmount] = useState("0");
   const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
+  const [lpAmount, setLPAmount] = useState("0");
   const [copied, setCopied] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
   const autoSellStarted = useRef(false);
   const tradeWrite = useWriteContract();
   const approvalWrite = useWriteContract();
+  const rewardWrite = useWriteContract();
+  const lpApprovalWrite = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash: tradeWrite.data });
   const approvalReceipt = useWaitForTransactionReceipt({ hash: approvalWrite.data });
+  const rewardReceipt = useWaitForTransactionReceipt({ hash: rewardWrite.data });
+  const lpApprovalReceipt = useWaitForTransactionReceipt({
+    hash: lpApprovalWrite.data,
+  });
   const { t } = useLanguage();
 
   const launchManager = useReadContract({
@@ -64,8 +73,9 @@ export default function TokenTradingPage() {
     functionName: "launchManager",
     query: { enabled: tokenAddress !== zeroAddress },
   });
-  // launchManager is deliberately renounced during token creation. Probe both
-  // supported factories and use the one that owns a non-zero curve.
+  // `launchManager` is deliberately renounced during token creation, so it
+  // cannot be used to discover the originating Factory after deployment.
+  // Probe both supported factories and use the one that owns a non-zero curve.
   const standardCurveQuery = useReadContract({
     address: testnetFactoryAddress,
     abi: factoryAbi,
@@ -80,6 +90,17 @@ export default function TokenTradingPage() {
     args: [tokenAddress],
     query: { enabled: tokenAddress !== zeroAddress },
   });
+  const configuredRewardsFactory = rewardsFactoryAddress ?? zeroAddress;
+  const rewardsCurveQuery = useReadContract({
+    address: configuredRewardsFactory,
+    abi: factoryAbi,
+    functionName: "curveOf",
+    args: [tokenAddress],
+    query: {
+      enabled:
+        configuredRewardsFactory !== zeroAddress && tokenAddress !== zeroAddress,
+    },
+  });
   const standardCurve =
     standardCurveQuery.data && standardCurveQuery.data !== zeroAddress
       ? standardCurveQuery.data
@@ -88,17 +109,28 @@ export default function TokenTradingPage() {
     autoCurveQuery.data && autoCurveQuery.data !== zeroAddress
       ? autoCurveQuery.data
       : zeroAddress;
+  const rewardsCurve =
+    rewardsCurveQuery.data && rewardsCurveQuery.data !== zeroAddress
+      ? rewardsCurveQuery.data
+      : zeroAddress;
   const factoryAddress =
     standardCurve !== zeroAddress
       ? testnetFactoryAddress
       : autoCurve !== zeroAddress
         ? autoLiquidityFactoryAddress
-        : zeroAddress;
+        : rewardsCurve !== zeroAddress
+          ? configuredRewardsFactory
+          : zeroAddress;
   const curveAddress =
-    standardCurve !== zeroAddress ? standardCurve : autoCurve;
-  const isAutoLiquidityTemplate =
+    standardCurve !== zeroAddress
+      ? standardCurve
+      : autoCurve !== zeroAddress
+        ? autoCurve
+        : rewardsCurve;
+  const isAdvancedTemplate =
     factoryAddress !== zeroAddress &&
-    factoryAddress.toLowerCase() === autoLiquidityFactoryAddress.toLowerCase();
+    (factoryAddress.toLowerCase() === autoLiquidityFactoryAddress.toLowerCase() ||
+      factoryAddress.toLowerCase() === configuredRewardsFactory.toLowerCase());
   const metadataURI = useReadContract({
     address: factoryAddress,
     abi: factoryAbi,
@@ -180,19 +212,78 @@ export default function TokenTradingPage() {
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "buyTaxes",
-    query: { enabled: tokenAddress !== zeroAddress && isAutoLiquidityTemplate },
+    query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
   const sellTaxes = useReadContract({
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "sellTaxes",
-    query: { enabled: tokenAddress !== zeroAddress && isAutoLiquidityTemplate },
+    query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
   const marketingWallet = useReadContract({
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "marketingWallet",
-    query: { enabled: tokenAddress !== zeroAddress && isAutoLiquidityTemplate },
+    query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
+  });
+  const template = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "template",
+    query: { enabled: tokenAddress !== zeroAddress && rewardsCurve !== zeroAddress },
+  });
+  const rewardVault = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "rewardVault",
+    query: { enabled: tokenAddress !== zeroAddress && rewardsCurve !== zeroAddress },
+  });
+  const minimumRewardShare = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "minimumRewardShare",
+    query: { enabled: tokenAddress !== zeroAddress && rewardsCurve !== zeroAddress },
+  });
+  const rewardVaultAddress = rewardVault.data ?? zeroAddress;
+  const isHolderRewards = Number(template.data ?? 0) === 2;
+  const isLPRewards = Number(template.data ?? 0) === 3;
+  const claimableRewards = useReadContract({
+    address: rewardVaultAddress,
+    abi: rewardVaultAbi,
+    functionName: "claimable",
+    args: [user ?? zeroAddress],
+    query: { enabled: Boolean(user) && rewardVaultAddress !== zeroAddress },
+  });
+  const rewardShares = useReadContract({
+    address: rewardVaultAddress,
+    abi: rewardVaultAbi,
+    functionName: "shares",
+    args: [user ?? zeroAddress],
+    query: { enabled: Boolean(user) && rewardVaultAddress !== zeroAddress },
+  });
+  const lpTokenAddress = useReadContract({
+    address: rewardVaultAddress,
+    abi: rewardVaultAbi,
+    functionName: "shareAsset",
+    query: { enabled: isLPRewards && rewardVaultAddress !== zeroAddress },
+  });
+  const lpBalance = useReadContract({
+    address: lpTokenAddress.data ?? zeroAddress,
+    abi: tokenAbi,
+    functionName: "balanceOf",
+    args: [user ?? zeroAddress],
+    query: {
+      enabled: Boolean(user) && isLPRewards && Boolean(lpTokenAddress.data),
+    },
+  });
+  const lpAllowance = useReadContract({
+    address: lpTokenAddress.data ?? zeroAddress,
+    abi: tokenAbi,
+    functionName: "allowance",
+    args: [user ?? zeroAddress, rewardVaultAddress],
+    query: {
+      enabled: Boolean(user) && isLPRewards && Boolean(lpTokenAddress.data),
+    },
   });
   const taxPercent = (value: number | undefined) =>
     `${((value ?? 0) / 100).toFixed(2)}%`;
@@ -233,6 +324,7 @@ export default function TokenTradingPage() {
       ? Math.min(100, Number(((principal.data ?? 0n) * 10_000n) / target.data) / 100)
       : 0;
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
+  const lpWei = safeParseEther(lpAmount);
 
   function buy() {
     if (!user) return;
@@ -294,8 +386,57 @@ export default function TokenTradingPage() {
     ]);
   }, [receipt.isSuccess]);
 
+  useEffect(() => {
+    if (!rewardReceipt.isSuccess && !lpApprovalReceipt.isSuccess) return;
+    void Promise.all([
+      claimableRewards.refetch(),
+      rewardShares.refetch(),
+      lpBalance.refetch(),
+      lpAllowance.refetch(),
+    ]);
+  }, [rewardReceipt.isSuccess, lpApprovalReceipt.isSuccess]);
+
   function setSellPercent(percent: bigint) {
     setSellAmount(formatEther(((balance.data ?? 0n) * percent) / 100n));
+  }
+
+  function claimRewards() {
+    if (!user || rewardVaultAddress === zeroAddress) return;
+    rewardWrite.writeContract({
+      address: rewardVaultAddress,
+      abi: rewardVaultAbi,
+      functionName: "claim",
+      args: [user],
+    });
+  }
+
+  function approveLP() {
+    if (!lpTokenAddress.data || rewardVaultAddress === zeroAddress) return;
+    lpApprovalWrite.writeContract({
+      address: lpTokenAddress.data,
+      abi: tokenAbi,
+      functionName: "approve",
+      args: [rewardVaultAddress, maxUint256],
+    });
+  }
+
+  function stakeLP() {
+    rewardWrite.writeContract({
+      address: rewardVaultAddress,
+      abi: rewardVaultAbi,
+      functionName: "stakeLP",
+      args: [lpWei],
+    });
+  }
+
+  function withdrawLP() {
+    if (!user) return;
+    rewardWrite.writeContract({
+      address: rewardVaultAddress,
+      abi: rewardVaultAbi,
+      functionName: "withdrawLP",
+      args: [lpWei, user],
+    });
   }
 
   async function copyTokenAddress() {
@@ -335,12 +476,24 @@ export default function TokenTradingPage() {
         {metadata?.description && (
           <p className="token-description">{metadata.description}</p>
         )}
-        {isAutoLiquidityTemplate && (
+        {isAdvancedTemplate && (
           <section className="tax-template-card">
             <div className="tax-template-heading">
               <div>
-                <span className="eyebrow">AUTO LIQUIDITY TEMPLATE</span>
-                <strong>自动回流代币</strong>
+                <span className="eyebrow">
+                  {isHolderRewards
+                    ? "HOLDER REWARDS TEMPLATE"
+                    : isLPRewards
+                      ? "LP REWARDS TEMPLATE"
+                      : "AUTO LIQUIDITY TEMPLATE"}
+                </span>
+                <strong>
+                  {isHolderRewards
+                    ? "持币分红代币"
+                    : isLPRewards
+                      ? "添加 LP 分红代币"
+                      : "自动回流代币"}
+                </strong>
               </div>
               <span>买入税 {taxPercent(buyTaxTotal)} · 卖出税 {taxPercent(sellTaxTotal)}</span>
             </div>
@@ -363,6 +516,126 @@ export default function TokenTradingPage() {
                 <span>营销钱包</span>
                 <strong>{marketingWallet.data ?? "读取中…"}</strong>
               </div>
+            </div>
+          </section>
+        )}
+        {(isHolderRewards || isLPRewards) && (
+          <section className="tax-template-card">
+            <div className="tax-template-heading">
+              <div>
+                <span className="eyebrow">BNB REWARD VAULT</span>
+                <strong>
+                  {isHolderRewards ? "持币分红金库" : "LP 质押分红金库"}
+                </strong>
+              </div>
+              <span>
+                可领取 {formatEther(claimableRewards.data ?? 0n)} BNB
+              </span>
+            </div>
+            <div className="tax-breakdown">
+              <div>
+                <span>我的分红权重</span>
+                <strong>{formatEther(rewardShares.data ?? 0n)}</strong>
+              </div>
+              {isHolderRewards && (
+                <div>
+                  <span>最低持币门槛</span>
+                  <strong>
+                    {formatEther(minimumRewardShare.data ?? 0n)}{" "}
+                    {symbol.data ?? "TOKEN"}
+                  </strong>
+                </div>
+              )}
+              {isLPRewards && (
+                <>
+                  <div>
+                    <span>钱包可用 LP</span>
+                    <strong>{formatEther(lpBalance.data ?? 0n)} LP</strong>
+                  </div>
+                  <label>
+                    质押或取回 LP 数量
+                    <input
+                      min="0"
+                      step="0.000000001"
+                      value={lpAmount}
+                      onChange={(event) => setLPAmount(event.target.value)}
+                    />
+                  </label>
+                  <div className="amount-presets">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLPAmount(formatEther(lpBalance.data ?? 0n))
+                      }
+                    >
+                      全部可用 LP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLPAmount(formatEther(rewardShares.data ?? 0n))
+                      }
+                    >
+                      全部已质押 LP
+                    </button>
+                  </div>
+                  {(lpAllowance.data ?? 0n) < lpWei ? (
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={
+                        !user ||
+                        lpWei === 0n ||
+                        lpApprovalWrite.isPending ||
+                        lpApprovalReceipt.isLoading
+                      }
+                      onClick={approveLP}
+                    >
+                      授权 LP
+                    </button>
+                  ) : (
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={!user || lpWei === 0n || rewardWrite.isPending}
+                      onClick={stakeLP}
+                    >
+                      质押 LP
+                    </button>
+                  )}
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={
+                      !user ||
+                      lpWei === 0n ||
+                      lpWei > (rewardShares.data ?? 0n) ||
+                      rewardWrite.isPending
+                    }
+                    onClick={withdrawLP}
+                  >
+                    取回 LP
+                  </button>
+                </>
+              )}
+              <button
+                className="button"
+                type="button"
+                disabled={
+                  !user ||
+                  (claimableRewards.data ?? 0n) === 0n ||
+                  rewardWrite.isPending ||
+                  rewardReceipt.isLoading
+                }
+                onClick={claimRewards}
+              >
+                领取 BNB 分红
+              </button>
+              {(rewardWrite.error || lpApprovalWrite.error) && (
+                <p className="error">
+                  {(rewardWrite.error ?? lpApprovalWrite.error)?.message}
+                </p>
+              )}
             </div>
           </section>
         )}

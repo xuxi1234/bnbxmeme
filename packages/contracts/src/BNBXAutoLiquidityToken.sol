@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import { IPancakeV2Router } from "./interfaces/IPancakeV2.sol";
+import { BNBXRewardVault } from "./BNBXRewardVault.sol";
 import { TemplateConfig } from "./libraries/TemplateConfig.sol";
 
 /// @title BNBX fixed-supply automatic-liquidity token
@@ -24,6 +25,9 @@ contract BNBXAutoLiquidityToken {
 
     IPancakeV2Router public immutable router;
     address public immutable marketingWallet;
+    TemplateConfig.Template public immutable template;
+    uint256 public immutable minimumRewardShare;
+    BNBXRewardVault public immutable rewardVault;
     TemplateConfig.SideTaxes public buyTaxes;
     TemplateConfig.SideTaxes public sellTaxes;
 
@@ -36,6 +40,7 @@ contract BNBXAutoLiquidityToken {
 
     uint256 public tokensForLiquidity;
     uint256 public tokensForMarketing;
+    uint256 public tokensForRewards;
     uint256 public pendingMarketingBNB;
 
     mapping(address account => bool exempt) public isTaxExempt;
@@ -47,7 +52,7 @@ contract BNBXAutoLiquidityToken {
     error OnlyGraduationAuthority();
     error LaunchAlreadyConfigured();
     error LiquidityPairLocked();
-    error UnsupportedRewardsTax();
+    error InvalidRewardsConfiguration();
     error RouterCallFailed();
     error OnlyMarketingWallet();
     error TransferFailed();
@@ -75,15 +80,32 @@ contract BNBXAutoLiquidityToken {
         address launchManager_,
         address router_,
         address marketingWallet_,
-        TemplateConfig.Taxes memory taxes_
+        TemplateConfig.Taxes memory taxes_,
+        TemplateConfig.Template template_,
+        uint256 minimumRewardShare_
     ) {
         if (
             launchManager_ == address(0) || router_ == address(0)
                 || marketingWallet_ == address(0)
         ) revert InvalidReceiver();
-        TemplateConfig.validate(TemplateConfig.Template.AutoLiquidity, taxes_);
-        if (taxes_.buy.rewards != 0 || taxes_.sell.rewards != 0) {
-            revert UnsupportedRewardsTax();
+        TemplateConfig.validate(template_, taxes_);
+        bool hasRewards =
+            taxes_.buy.rewards != 0 || taxes_.sell.rewards != 0;
+        if (
+            (template_ == TemplateConfig.Template.AutoLiquidity && hasRewards)
+                || (
+                    template_ != TemplateConfig.Template.AutoLiquidity
+                        && template_ != TemplateConfig.Template.HolderRewards
+                        && template_ != TemplateConfig.Template.LPRewards
+                )
+                || (
+                    (
+                        template_ == TemplateConfig.Template.HolderRewards
+                            || template_ == TemplateConfig.Template.LPRewards
+                    ) && (!hasRewards || minimumRewardShare_ == 0)
+                )
+        ) {
+            revert InvalidRewardsConfiguration();
         }
 
         name = name_;
@@ -91,13 +113,35 @@ contract BNBXAutoLiquidityToken {
         launchManager = launchManager_;
         router = IPancakeV2Router(router_);
         marketingWallet = marketingWallet_;
+        template = template_;
+        minimumRewardShare = minimumRewardShare_;
         buyTaxes = taxes_.buy;
         sellTaxes = taxes_.sell;
+
+        if (hasRewards) {
+            BNBXRewardVault.Mode mode =
+                template_ == TemplateConfig.Template.HolderRewards
+                    ? BNBXRewardVault.Mode.Holder
+                    : BNBXRewardVault.Mode.LiquidityProvider;
+            BNBXRewardVault vault = new BNBXRewardVault(mode, address(this));
+            rewardVault = vault;
+            if (mode == BNBXRewardVault.Mode.Holder) {
+                vault.configureShareAsset(address(this));
+            }
+        } else {
+            rewardVault = BNBXRewardVault(payable(address(0)));
+        }
 
         isTaxExempt[launchManager_] = true;
         isTaxExempt[address(this)] = true;
         isTaxExempt[marketingWallet_] = true;
         isTaxExempt[LP_BURN_ADDRESS] = true;
+        if (address(rewardVault) != address(0)) {
+            isTaxExempt[address(rewardVault)] = true;
+            rewardVault.setExcluded(launchManager_, true);
+            rewardVault.setExcluded(address(this), true);
+            rewardVault.setExcluded(marketingWallet_, true);
+        }
 
         totalSupply = TOTAL_SUPPLY;
         balanceOf[launchManager_] = TOTAL_SUPPLY;
@@ -122,6 +166,13 @@ contract BNBXAutoLiquidityToken {
         graduationAuthority = graduationAuthority_;
         liquidityPair = liquidityPair_;
         isTaxExempt[graduationAuthority_] = true;
+        if (address(rewardVault) != address(0)) {
+            rewardVault.setExcluded(graduationAuthority_, true);
+            rewardVault.setExcluded(liquidityPair_, true);
+            if (template == TemplateConfig.Template.LPRewards) {
+                rewardVault.configureShareAsset(liquidityPair_);
+            }
+        }
         launchManager = address(0);
         emit LaunchConfigured(graduationAuthority_, liquidityPair_);
     }
@@ -204,32 +255,42 @@ contract BNBXAutoLiquidityToken {
         uint256 burnAmount = amount * taxes.burn / BPS;
         uint256 liquidityAmount = amount * taxes.liquidity / BPS;
         uint256 marketingAmount = amount * taxes.marketing / BPS;
-        uint256 totalTax = burnAmount + liquidityAmount + marketingAmount;
+        uint256 rewardsAmount = amount * taxes.rewards / BPS;
+        uint256 totalTax =
+            burnAmount + liquidityAmount + marketingAmount + rewardsAmount;
 
         _rawTransfer(from, to, amount - totalTax);
         if (burnAmount != 0) _rawTransfer(from, LP_BURN_ADDRESS, burnAmount);
-        if (liquidityAmount + marketingAmount != 0) {
-            _rawTransfer(from, address(this), liquidityAmount + marketingAmount);
+        if (liquidityAmount + marketingAmount + rewardsAmount != 0) {
+            _rawTransfer(
+                from,
+                address(this),
+                liquidityAmount + marketingAmount + rewardsAmount
+            );
             tokensForLiquidity += liquidityAmount;
             tokensForMarketing += marketingAmount;
+            tokensForRewards += rewardsAmount;
         }
     }
 
     function _swapBack() internal {
-        uint256 tracked = tokensForLiquidity + tokensForMarketing;
+        uint256 tracked =
+            tokensForLiquidity + tokensForMarketing + tokensForRewards;
         uint256 contractBalance = balanceOf[address(this)];
         if (tracked == 0 || contractBalance == 0) return;
 
         uint256 process = contractBalance < tracked ? contractBalance : tracked;
         if (process > MAX_SWAP_AMOUNT) process = MAX_SWAP_AMOUNT;
         uint256 liquidityTokens = process * tokensForLiquidity / tracked;
-        uint256 marketingTokens = process - liquidityTokens;
+        uint256 rewardsTokens = process * tokensForRewards / tracked;
+        uint256 marketingTokens = process - liquidityTokens - rewardsTokens;
         uint256 tokensToLiquidity = liquidityTokens / 2;
         uint256 tokensToSwap = process - tokensToLiquidity;
         if (tokensToSwap == 0) return;
 
         tokensForLiquidity -= liquidityTokens;
         tokensForMarketing -= marketingTokens;
+        tokensForRewards -= rewardsTokens;
         swapping = true;
 
         allowance[address(this)][address(router)] = tokensToSwap;
@@ -247,6 +308,9 @@ contract BNBXAutoLiquidityToken {
         uint256 liquidityBNB =
             tokensToSwap == 0 ? 0 : receivedBNB * liquiditySwapTokens / tokensToSwap;
         uint256 marketingBNB = receivedBNB - liquidityBNB;
+        uint256 rewardsBNB =
+            tokensToSwap == 0 ? 0 : receivedBNB * rewardsTokens / tokensToSwap;
+        marketingBNB -= rewardsBNB;
 
         if (tokensToLiquidity != 0 && liquidityBNB != 0) {
             allowance[address(this)][address(router)] = tokensToLiquidity;
@@ -271,6 +335,9 @@ contract BNBXAutoLiquidityToken {
                 emit MarketingPaymentDeferred(marketingBNB);
             }
         }
+        if (rewardsBNB != 0) {
+            rewardVault.depositRewards{ value: rewardsBNB }();
+        }
         swapping = false;
         emit SwapBack(tokensToSwap, tokensToLiquidity, liquidityBNB, marketingBNB);
     }
@@ -281,5 +348,19 @@ contract BNBXAutoLiquidityToken {
             balanceOf[to] += amount;
         }
         emit Transfer(from, to, amount);
+        _syncHolderShare(from);
+        _syncHolderShare(to);
+    }
+
+    function _syncHolderShare(address account) internal {
+        if (
+            address(rewardVault) == address(0)
+                || template != TemplateConfig.Template.HolderRewards
+                || isTaxExempt[account]
+        ) return;
+        uint256 balance = balanceOf[account];
+        rewardVault.setHolderShare(
+            account, balance >= minimumRewardShare ? balance : 0
+        );
     }
 }
