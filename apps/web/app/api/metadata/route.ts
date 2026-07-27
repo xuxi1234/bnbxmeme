@@ -25,32 +25,13 @@ function safeUrl(value: string) {
   }
 }
 
-function safeQQUrl(value: string) {
+function safeQQGroupNumber(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "";
-
-  if (/^\d{5,12}$/.test(trimmed)) {
-    const params = new URLSearchParams({
-      src_type: "internal",
-      version: "1",
-      uin: trimmed,
-      card_type: "group",
-      source: "external",
-    });
-    return `mqqapi://card/show_pslcard?${params.toString()}`;
+  if (!/^\d{5,12}$/.test(trimmed)) {
+    throw new Error("QQ群号仅允许填写 5–12 位数字");
   }
-
-  if (trimmed.startsWith("mqqapi://card/show_pslcard?")) {
-    try {
-      const url = new URL(trimmed);
-      const groupNumber = url.searchParams.get("uin") ?? "";
-      return /^\d{5,12}$/.test(groupNumber) ? url.toString() : "";
-    } catch {
-      return "";
-    }
-  }
-
-  return safeUrl(trimmed);
+  return trimmed;
 }
 
 async function pinImage(image: File, jwt: string) {
@@ -112,7 +93,7 @@ export async function POST(request: Request) {
       telegram: safeUrl(text(form, "telegram", 200)),
       twitter: safeUrl(text(form, "twitter", 200)),
       debox: safeUrl(text(form, "debox", 200)),
-      qq: safeQQUrl(text(form, "qq", 200)),
+      qqGroupNumber: safeQQGroupNumber(text(form, "qqGroupNumber", 12)),
       createdBy: "BNBX",
       chainId: 97,
     };
