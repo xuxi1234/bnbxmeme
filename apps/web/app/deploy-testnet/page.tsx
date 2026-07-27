@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { isAddress, zeroAddress } from "viem";
 import {
   useAccount,
@@ -10,7 +11,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { bscTestnet } from "wagmi/chains";
+import { bsc, bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
 import {
   factoryDeploymentAbi,
@@ -30,15 +31,19 @@ import {
 const FEE_RECIPIENT = "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6";
 const PANCAKE_V2_TESTNET_ROUTER =
   "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
+const PANCAKE_V2_MAINNET_ROUTER =
+  "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 const DEPLOYMENT_GAS_LIMIT = 8_000_000n;
 
-function deploymentErrorMessage(error: Error) {
+function deploymentErrorMessage(error: Error, isMainnet: boolean) {
   const message = error.message.toLowerCase();
   if (message.includes("user rejected") || message.includes("user denied")) {
     return "你已在 MetaMask 取消部署。";
   }
   if (message.includes("insufficient funds")) {
-    return "测试钱包的 tBNB 不足以支付部署 Gas。";
+    return isMainnet
+      ? "主网钱包的 BNB 不足以支付部署 Gas。"
+      : "测试钱包的 tBNB 不足以支付部署 Gas。";
   }
   if (message.includes("max code size exceeded")) {
     return "Factory 代码超过 BSC 合约大小限制，请使用最新部署页面后重试。";
@@ -47,6 +52,12 @@ function deploymentErrorMessage(error: Error) {
 }
 
 export default function DeployTestnetPage() {
+  const pathname = usePathname();
+  const isMainnet = pathname.includes("mainnet");
+  const activeChain = isMainnet ? bsc : bscTestnet;
+  const pancakeRouter = isMainnet
+    ? PANCAKE_V2_MAINNET_ROUTER
+    : PANCAKE_V2_TESTNET_ROUTER;
   const [factoryType, setFactoryType] = useState<
     "standard" | "liquidity" | "rewards"
   >("rewards");
@@ -77,7 +88,7 @@ export default function DeployTestnetPage() {
     tokenDeployerReceipt.data?.contractAddress ?? resumedTokenDeployer;
   const rewardsFactoryAddress =
     rewardsFactoryReceipt.data?.contractAddress ?? resumedRewardsFactory;
-  const wrongChain = isConnected && chainId !== bscTestnet.id;
+  const wrongChain = isConnected && chainId !== activeChain.id;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -93,22 +104,11 @@ export default function DeployTestnetPage() {
 
   function deployLegacyFactory() {
     if (!address) return;
-    if (factoryType === "liquidity") {
-      legacyDeployment.deployContract({
-        abi: autoLiquidityFactoryDeploymentAbi,
-        bytecode: autoLiquidityFactoryDeploymentBytecode,
-        args: [FEE_RECIPIENT, PANCAKE_V2_TESTNET_ROUTER],
-        chainId: bscTestnet.id,
-        account: address,
-        gas: DEPLOYMENT_GAS_LIMIT,
-      });
-      return;
-    }
     legacyDeployment.deployContract({
       abi: factoryDeploymentAbi,
       bytecode: factoryDeploymentBytecode,
-      args: [FEE_RECIPIENT, PANCAKE_V2_TESTNET_ROUTER],
-      chainId: bscTestnet.id,
+      args: [FEE_RECIPIENT, pancakeRouter],
+      chainId: activeChain.id,
       account: address,
       gas: DEPLOYMENT_GAS_LIMIT,
     });
@@ -120,7 +120,7 @@ export default function DeployTestnetPage() {
       abi: advancedTokenDeployerDeploymentAbi,
       bytecode: advancedTokenDeployerDeploymentBytecode,
       args: [address],
-      chainId: bscTestnet.id,
+      chainId: activeChain.id,
       account: address,
       gas: DEPLOYMENT_GAS_LIMIT,
     });
@@ -129,14 +129,20 @@ export default function DeployTestnetPage() {
   function deployRewardsFactory() {
     if (!address || !tokenDeployerAddress) return;
     rewardsFactoryDeployment.deployContract({
-      abi: rewardsFactoryDeploymentAbi,
-      bytecode: rewardsFactoryDeploymentBytecode,
+      abi:
+        factoryType === "liquidity"
+          ? autoLiquidityFactoryDeploymentAbi
+          : rewardsFactoryDeploymentAbi,
+      bytecode:
+        factoryType === "liquidity"
+          ? autoLiquidityFactoryDeploymentBytecode
+          : rewardsFactoryDeploymentBytecode,
       args: [
         FEE_RECIPIENT,
-        PANCAKE_V2_TESTNET_ROUTER,
+        pancakeRouter,
         tokenDeployerAddress,
       ],
-      chainId: bscTestnet.id,
+      chainId: activeChain.id,
       account: address,
       gas: DEPLOYMENT_GAS_LIMIT,
     });
@@ -150,12 +156,14 @@ export default function DeployTestnetPage() {
       address: tokenDeployerAddress,
       functionName: "configureManager",
       args: [rewardsFactoryAddress],
+      chainId: activeChain.id,
+      account: address,
       gas: 150_000n,
     });
   }
 
   const currentError =
-    factoryType === "rewards" && rewardsFactoryAddress
+    factoryType !== "standard" && rewardsFactoryAddress
       ? managerConfiguration.error
       : legacyDeployment.error ??
         tokenDeployerDeployment.error ??
@@ -170,11 +178,21 @@ export default function DeployTestnetPage() {
         <WalletButton />
       </header>
       <section className="form-shell">
-        <p className="eyebrow">TESTNET / FACTORY DEPLOYMENT</p>
-        <h1 className="form-title">部署 BNBX 测试网 Factory</h1>
+        <p className="eyebrow">
+          {isMainnet
+            ? "MAINNET CANARY / FACTORY DEPLOYMENT"
+            : "TESTNET / FACTORY DEPLOYMENT"}
+        </p>
+        <h1 className="form-title">
+          部署 BNBX {isMainnet ? "主网小额灰度" : "测试网"} Factory
+        </h1>
         <p className="lead">
-          仅部署到 BSC Testnet。部署费接收地址和 Pancake V2 测试网 Router
-          已固定，MetaMask 会在发送前显示 Gas 费用。
+          仅部署到{" "}
+          {isMainnet
+            ? "BSC Mainnet；毕业档位为 0.01–0.18 BNB"
+            : "BSC Testnet"}
+          。部署费接收地址和 Pancake V2 Router 已固定，MetaMask
+          会在发送前显示 Gas 费用。
         </p>
         <div className="launch-form">
           <label>
@@ -198,22 +216,24 @@ export default function DeployTestnetPage() {
           <p className="notice">
             Fee Recipient：{FEE_RECIPIENT}
             <br />
-            Pancake Router：{PANCAKE_V2_TESTNET_ROUTER}
+            Pancake Router：{pancakeRouter}
           </p>
           {!isConnected ? (
-            <p className="notice">请先连接持有 tBNB 的部署钱包。</p>
+            <p className="notice">
+              请先连接持有 {isMainnet ? "BNB" : "tBNB"} 的部署钱包。
+            </p>
           ) : wrongChain ? (
             <button
               className="button wide"
               type="button"
-              onClick={() => switchChain({ chainId: bscTestnet.id })}
+              onClick={() => switchChain({ chainId: activeChain.id })}
             >
-              切换到 BNB 测试网
+              切换到 BNB {isMainnet ? "主网" : "测试网"}
             </button>
-          ) : factoryType === "rewards" ? (
+          ) : factoryType !== "standard" ? (
             <div className="stack">
               <p className="notice">
-                高级模板需依次完成三笔链上操作。每一步确认后才会开放下一步。
+                自动回流及分红模板需依次完成三笔链上操作。每一步确认后才会开放下一步。
               </p>
               <button
                 className="button wide"
@@ -250,7 +270,9 @@ export default function DeployTestnetPage() {
                     ? "请确认步骤 2…"
                     : rewardsFactoryReceipt.isLoading
                       ? "等待步骤 2 上链…"
-                      : "步骤 2：部署分红 Factory"}
+                      : factoryType === "liquidity"
+                        ? "步骤 2：部署自动回流 V2 Factory"
+                        : "步骤 2：部署分红 Factory"}
               </button>
               <button
                 className="button wide"
@@ -284,9 +306,7 @@ export default function DeployTestnetPage() {
               {legacyDeployment.isPending
                 ? "请在 MetaMask 确认部署…"
                 : legacyReceipt.isLoading
-                  ? "等待测试网确认…"
-                  : factoryType === "liquidity"
-                    ? "部署自动回流 V2 Factory"
+                  ? `等待${isMainnet ? "主网" : "测试网"}确认…`
                     : "部署标准 0 税 Factory"}
             </button>
           )}
@@ -302,7 +322,10 @@ export default function DeployTestnetPage() {
             <p className="notice">高级代币部署器：{tokenDeployerAddress}</p>
           )}
           {rewardsFactoryAddress && (
-            <p className="notice">分红 Factory：{rewardsFactoryAddress}</p>
+            <p className="notice">
+              {factoryType === "liquidity" ? "自动回流" : "分红"} Factory：
+              {rewardsFactoryAddress}
+            </p>
           )}
           {managerReceipt.isSuccess && rewardsFactoryAddress && (
             <p className="success">
@@ -311,7 +334,9 @@ export default function DeployTestnetPage() {
             </p>
           )}
           {currentError && (
-            <p className="error">{deploymentErrorMessage(currentError)}</p>
+            <p className="error">
+              {deploymentErrorMessage(currentError, isMainnet)}
+            </p>
           )}
         </div>
       </section>

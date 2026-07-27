@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createConfig, fallback, http } from "wagmi";
 import { createPublicClient } from "viem";
-import { bscTestnet } from "wagmi/chains";
+import { bsc, bscTestnet } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
 export const testnetFactoryAddress =
@@ -28,16 +28,22 @@ const testnetTransport = fallback([
     timeout: 12_000,
   }),
 ]);
+const mainnetTransport = fallback([
+  http("https://bsc-rpc.publicnode.com", { timeout: 12_000 }),
+  http("https://bsc.drpc.org", { timeout: 12_000 }),
+  http("https://bsc-dataseed.binance.org", { timeout: 12_000 }),
+]);
 export const testnetPublicClient = createPublicClient({
   chain: bscTestnet,
   transport: testnetTransport,
 });
 
 export const wagmiConfig = createConfig({
-  chains: [bscTestnet],
+  chains: [bscTestnet, bsc],
   connectors: [injected()],
   transports: {
     [bscTestnet.id]: testnetTransport,
+    [bsc.id]: mainnetTransport,
   },
   ssr: true,
 });
