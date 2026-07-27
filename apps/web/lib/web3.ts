@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createConfig, fallback, http } from "wagmi";
+import { createPublicClient } from "viem";
 import { bscTestnet } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
@@ -12,22 +13,31 @@ export const autoLiquidityFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS as
     | `0x${string}`
     | undefined) ?? "0xdf29818f29d319bb6d85e3931868646c98c303a5";
+export const rewardsFactoryAddress =
+  process.env.NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as
+    | `0x${string}`
+    | undefined;
 export const testnetPancakeRouterAddress =
   "0xD99D1c33F9fC3444f8101754aBC46c52416550D1" as const;
 
 export const queryClient = new QueryClient();
+const testnetTransport = fallback([
+  http("https://bsc-testnet-rpc.publicnode.com", { timeout: 12_000 }),
+  http("https://bsc-testnet.drpc.org", { timeout: 12_000 }),
+  http("https://data-seed-prebsc-1-s1.bnbchain.org:8545", {
+    timeout: 12_000,
+  }),
+]);
+export const testnetPublicClient = createPublicClient({
+  chain: bscTestnet,
+  transport: testnetTransport,
+});
 
 export const wagmiConfig = createConfig({
   chains: [bscTestnet],
   connectors: [injected()],
   transports: {
-    [bscTestnet.id]: fallback([
-      http("https://bsc-testnet-rpc.publicnode.com", { timeout: 12_000 }),
-      http("https://bsc-testnet.drpc.org", { timeout: 12_000 }),
-      http("https://data-seed-prebsc-1-s1.bnbchain.org:8545", {
-        timeout: 12_000,
-      }),
-    ]),
+    [bscTestnet.id]: testnetTransport,
   },
   ssr: true,
 });
@@ -177,6 +187,77 @@ const autoLiquidityCreateComponents = [
   { name: "vanitySalt", type: "bytes32" },
   { name: "marketingWallet", type: "address" },
   { name: "taxes", type: "tuple", components: taxesComponents },
+] as const;
+
+const rewardsCreateComponents = [
+  ...autoLiquidityCreateComponents,
+  { name: "template", type: "uint8" },
+  { name: "minimumRewardShare", type: "uint256" },
+] as const;
+
+export const rewardsFactoryAbi = [
+  {
+    type: "function",
+    name: "findVanitySalt",
+    stateMutability: "view",
+    inputs: [
+      { name: "name", type: "string" },
+      { name: "symbol", type: "string" },
+      { name: "marketingWallet", type: "address" },
+      { name: "taxes", type: "tuple", components: taxesComponents },
+      { name: "template", type: "uint8" },
+      { name: "minimumRewardShare", type: "uint256" },
+      { name: "start", type: "uint256" },
+      { name: "maxIterations", type: "uint256" },
+    ],
+    outputs: [
+      { name: "found", type: "bool" },
+      { name: "salt", type: "bytes32" },
+      { name: "predicted", type: "address" },
+    ],
+  },
+  {
+    type: "function",
+    name: "createVanityToken",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "request",
+        type: "tuple",
+        components: rewardsCreateComponents,
+      },
+    ],
+    outputs: [
+      { name: "tokenAddress", type: "address" },
+      { name: "curveAddress", type: "address" },
+    ],
+  },
+  {
+    type: "function",
+    name: "createVanityTokenAndBuy",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "request",
+        type: "tuple",
+        components: rewardsCreateComponents,
+      },
+      {
+        name: "buyRequest",
+        type: "tuple",
+        components: [
+          { name: "minTokensOut", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "refundRecipient", type: "address" },
+        ],
+      },
+    ],
+    outputs: [
+      { name: "tokenAddress", type: "address" },
+      { name: "curveAddress", type: "address" },
+      { name: "tokensOut", type: "uint256" },
+    ],
+  },
 ] as const;
 
 export const autoLiquidityFactoryAbi = [
@@ -396,5 +477,74 @@ export const tokenAbi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "template",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "rewardVault",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "minimumRewardShare",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+export const rewardVaultAbi = [
+  {
+    type: "function",
+    name: "claimable",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "amount", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "shares",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "amount", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "shareAsset",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "asset", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "claim",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "recipient", type: "address" }],
+    outputs: [{ name: "amount", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "stakeLP",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "withdrawLP",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "amount", type: "uint256" },
+      { name: "recipient", type: "address" },
+    ],
+    outputs: [],
   },
 ] as const;
