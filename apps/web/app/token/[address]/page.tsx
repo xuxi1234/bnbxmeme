@@ -17,6 +17,7 @@ import {
   curveAbi,
   factoryAbi,
   autoLiquidityFactoryAddress,
+  blockExplorerUrl,
   rewardVaultAbi,
   rewardsFactoryAddress,
   testnetFactoryAddress,
@@ -646,7 +647,7 @@ export default function TokenTradingPage() {
           {metadata?.debox && <a href={metadata.debox} target="_blank" rel="noreferrer">DeBox ↗</a>}
           {metadata?.qq && <a href={metadata.qq} target="_blank" rel="noreferrer">QQ 群 ↗</a>}
           <a
-            href={`https://testnet.bscscan.com/token/${tokenAddress}`}
+            href={`${blockExplorerUrl}/token/${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
           >
@@ -723,7 +724,7 @@ export default function TokenTradingPage() {
               <span>Pancake Pair</span>
               {liquidityPair.data ? (
                 <a
-                  href={`https://testnet.bscscan.com/address/${liquidityPair.data}`}
+                  href={`${blockExplorerUrl}/address/${liquidityPair.data}`}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -851,7 +852,7 @@ export default function TokenTradingPage() {
           {tradeWrite.data && (
             <a
               className="trade-tx-link"
-              href={`https://testnet.bscscan.com/tx/${tradeWrite.data}`}
+              href={`${blockExplorerUrl}/tx/${tradeWrite.data}`}
               target="_blank"
               rel="noreferrer"
             >

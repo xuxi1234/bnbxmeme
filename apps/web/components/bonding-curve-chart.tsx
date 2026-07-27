@@ -219,7 +219,7 @@ export function BondingCurveChart({
           <div className="chart-empty">
             <span className="chart-pulse" />
             <strong>{status}</strong>
-            <p>K 线只使用 BSC Testnet 上真实的内盘买卖事件，不生成模拟数据。</p>
+            <p>K 线只使用 BNB Chain Mainnet 上真实的内盘买卖事件，不生成模拟数据。</p>
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
+import { blockExplorerUrl } from "@/lib/web3";
 
 type Trade = {
   id: string;
@@ -119,7 +120,7 @@ export function TokenActivity({
             {trades.map((trade) => (
               <a
                 key={trade.id}
-                href={`https://testnet.bscscan.com/tx/${trade.transactionHash}`}
+                href={`${blockExplorerUrl}/tx/${trade.transactionHash}`}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -159,7 +160,7 @@ export function TokenActivity({
             {holders.map((holder, index) => (
               <a
                 key={holder.address}
-                href={`https://testnet.bscscan.com/token/${token}?a=${holder.address}`}
+                href={`${blockExplorerUrl}/token/${token}?a=${holder.address}`}
                 target="_blank"
                 rel="noreferrer"
               >
