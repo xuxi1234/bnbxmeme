@@ -14,7 +14,8 @@ const API_URL = "https://api.etherscan.io/v2/api";
 const apiKey = process.env.BSC_SCAN_API_KEY;
 const dryRun = process.env.VERIFY_DRY_RUN === "1";
 const rpcUrl =
-  process.env.BSC_MAINNET_RPC_URL ?? "https://bsc-rpc.publicnode.com";
+  process.env.BSC_MAINNET_RPC_URL?.trim() ||
+  "https://bsc-rpc.publicnode.com";
 const requestedFactories =
   process.env.BNBX_MAINNET_FACTORY_ADDRESSES ??
   [
