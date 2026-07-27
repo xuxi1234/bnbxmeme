@@ -15,7 +15,8 @@ vault. It never sends a transaction and cannot change deployed bytecode.
 Configure these in **Settings → Secrets and variables → Actions**:
 
 - `BSC_SCAN_API_KEY`: Etherscan/BscScan API key with BNB Chain API access.
-- `BSC_MAINNET_RPC_URL`: private or rate-limited BSC mainnet HTTPS RPC endpoint.
+- `BSC_MAINNET_RPC_URL` (recommended): private or rate-limited BSC mainnet HTTPS
+  RPC endpoint. When omitted, the job falls back to a public read-only endpoint.
 
 Do not use `NEXT_PUBLIC_` variables for either secret.
 
