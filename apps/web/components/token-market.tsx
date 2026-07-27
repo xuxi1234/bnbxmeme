@@ -18,6 +18,8 @@ const MAX_VISIBLE_TOKENS = 24;
 type MarketFilter = "hot" | "latest" | "graduating" | "graduated";
 type Entry = {
   token: `0x${string}`;
+  name: string;
+  symbol: string;
   factory: `0x${string}`;
   curve: `0x${string}`;
   creationIndex: number;
@@ -114,6 +116,13 @@ export function TokenMarket() {
       : [];
   });
   const tokens = tokenRecords.map(({ token }) => token);
+  const tokenIdentities = useReadContracts({
+    contracts: tokenRecords.flatMap(({ token }) => [
+      { address: token, abi: tokenAbi, functionName: "name" as const },
+      { address: token, abi: tokenAbi, functionName: "symbol" as const },
+    ]),
+    query: { enabled: tokens.length > 0 },
+  });
   const curveResults = useReadContracts({
     contracts: tokenRecords.map(({ token, factory }) => ({
       address: factory, abi: factoryAbi, functionName: "curveOf" as const, args: [token] as const,
@@ -134,6 +143,8 @@ export function TokenMarket() {
 
   const entries = useMemo<Entry[]>(() => tokenRecords.map((record, position) => ({
     token: record.token,
+    name: (tokenIdentities.data?.[position * 2]?.result as string | undefined) ?? "",
+    symbol: (tokenIdentities.data?.[position * 2 + 1]?.result as string | undefined) ?? "",
     factory: record.factory,
     curve: curves[position] ?? zeroAddress,
     creationIndex: record.creationIndex,
@@ -143,7 +154,7 @@ export function TokenMarket() {
     volume: scores[record.token]?.volume ?? 0n,
     activity: scores[record.token]?.activity ?? 0,
     lastBlock: scores[record.token]?.lastBlock ?? 0n,
-  })), [curveStats.data, curves, scores, tokenRecords]);
+  })), [curveStats.data, curves, scores, tokenIdentities.data, tokenRecords]);
 
   useEffect(() => {
     if (entries.length === 0) return;
@@ -173,7 +184,12 @@ export function TokenMarket() {
   const ranked = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const visible = entries.filter((entry) => {
-      if (normalizedQuery && !entry.token.toLowerCase().includes(normalizedQuery)) return false;
+      if (
+        normalizedQuery &&
+        !entry.token.toLowerCase().includes(normalizedQuery) &&
+        !entry.name.toLowerCase().includes(normalizedQuery) &&
+        !entry.symbol.toLowerCase().includes(normalizedQuery)
+      ) return false;
       const progress = entry.target > 0n ? Number((entry.principal * 10_000n) / entry.target) / 100 : 0;
       if (filter === "graduating") return entry.state < 2 && progress < 100;
       if (filter === "graduated") return entry.state === 2;
