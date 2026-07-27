@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount, useChainId, useDeployContract, useSwitchChain } from "wagmi";
-import { useWaitForTransactionReceipt } from "wagmi";
+import {
+  useAccount,
+  useChainId,
+  useDeployContract,
+  useSwitchChain,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 import { bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
 import {
@@ -13,6 +19,12 @@ import {
   autoLiquidityFactoryDeploymentAbi,
   autoLiquidityFactoryDeploymentBytecode,
 } from "@/lib/auto-liquidity-factory-deployment";
+import {
+  advancedTokenDeployerDeploymentAbi,
+  advancedTokenDeployerDeploymentBytecode,
+  rewardsFactoryDeploymentAbi,
+  rewardsFactoryDeploymentBytecode,
+} from "@/lib/rewards-factory-deployment";
 
 const FEE_RECIPIENT = "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6";
 const PANCAKE_V2_TESTNET_ROUTER =
@@ -34,20 +46,36 @@ function deploymentErrorMessage(error: Error) {
 }
 
 export default function DeployTestnetPage() {
-  const [factoryType, setFactoryType] = useState<"standard" | "liquidity">(
-    "liquidity",
-  );
+  const [factoryType, setFactoryType] = useState<
+    "standard" | "liquidity" | "rewards"
+  >("rewards");
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const { data: hash, error, isPending, deployContract } = useDeployContract();
-  const receipt = useWaitForTransactionReceipt({ hash });
+  const legacyDeployment = useDeployContract();
+  const tokenDeployerDeployment = useDeployContract();
+  const rewardsFactoryDeployment = useDeployContract();
+  const managerConfiguration = useWriteContract();
+  const legacyReceipt = useWaitForTransactionReceipt({
+    hash: legacyDeployment.data,
+  });
+  const tokenDeployerReceipt = useWaitForTransactionReceipt({
+    hash: tokenDeployerDeployment.data,
+  });
+  const rewardsFactoryReceipt = useWaitForTransactionReceipt({
+    hash: rewardsFactoryDeployment.data,
+  });
+  const managerReceipt = useWaitForTransactionReceipt({
+    hash: managerConfiguration.data,
+  });
+  const tokenDeployerAddress = tokenDeployerReceipt.data?.contractAddress;
+  const rewardsFactoryAddress = rewardsFactoryReceipt.data?.contractAddress;
   const wrongChain = isConnected && chainId !== bscTestnet.id;
 
-  function deploy() {
+  function deployLegacyFactory() {
     if (!address) return;
     if (factoryType === "liquidity") {
-      deployContract({
+      legacyDeployment.deployContract({
         abi: autoLiquidityFactoryDeploymentAbi,
         bytecode: autoLiquidityFactoryDeploymentBytecode,
         args: [FEE_RECIPIENT, PANCAKE_V2_TESTNET_ROUTER],
@@ -57,7 +85,7 @@ export default function DeployTestnetPage() {
       });
       return;
     }
-    deployContract({
+    legacyDeployment.deployContract({
       abi: factoryDeploymentAbi,
       bytecode: factoryDeploymentBytecode,
       args: [FEE_RECIPIENT, PANCAKE_V2_TESTNET_ROUTER],
@@ -66,6 +94,52 @@ export default function DeployTestnetPage() {
       gas: DEPLOYMENT_GAS_LIMIT,
     });
   }
+
+  function deployAdvancedTokenDeployer() {
+    if (!address) return;
+    tokenDeployerDeployment.deployContract({
+      abi: advancedTokenDeployerDeploymentAbi,
+      bytecode: advancedTokenDeployerDeploymentBytecode,
+      args: [address],
+      chainId: bscTestnet.id,
+      account: address,
+      gas: DEPLOYMENT_GAS_LIMIT,
+    });
+  }
+
+  function deployRewardsFactory() {
+    if (!address || !tokenDeployerAddress) return;
+    rewardsFactoryDeployment.deployContract({
+      abi: rewardsFactoryDeploymentAbi,
+      bytecode: rewardsFactoryDeploymentBytecode,
+      args: [
+        FEE_RECIPIENT,
+        PANCAKE_V2_TESTNET_ROUTER,
+        tokenDeployerAddress,
+      ],
+      chainId: bscTestnet.id,
+      account: address,
+      gas: DEPLOYMENT_GAS_LIMIT,
+    });
+  }
+
+  function configureRewardsFactory() {
+    if (!address || !tokenDeployerAddress || !rewardsFactoryAddress) return;
+    managerConfiguration.writeContract({
+      abi: advancedTokenDeployerDeploymentAbi,
+      address: tokenDeployerAddress,
+      functionName: "configureManager",
+      args: [rewardsFactoryAddress],
+      chainId: bscTestnet.id,
+      account: address,
+    });
+  }
+
+  const currentError =
+    legacyDeployment.error ??
+    tokenDeployerDeployment.error ??
+    rewardsFactoryDeployment.error ??
+    managerConfiguration.error;
 
   return (
     <main>
@@ -88,9 +162,15 @@ export default function DeployTestnetPage() {
             <select
               value={factoryType}
               onChange={(event) =>
-                setFactoryType(event.target.value as "standard" | "liquidity")
+                setFactoryType(
+                  event.target.value as
+                    | "standard"
+                    | "liquidity"
+                    | "rewards",
+                )
               }
             >
+              <option value="rewards">持币分红 / 添加 LP 分红 Factory</option>
               <option value="liquidity">自动回流 V2 Factory</option>
               <option value="standard">标准 0 税 Factory</option>
             </select>
@@ -110,29 +190,109 @@ export default function DeployTestnetPage() {
             >
               切换到 BNB 测试网
             </button>
+          ) : factoryType === "rewards" ? (
+            <div className="stack">
+              <p className="notice">
+                高级模板需依次完成三笔链上操作。每一步确认后才会开放下一步。
+              </p>
+              <button
+                className="button wide"
+                type="button"
+                disabled={
+                  tokenDeployerDeployment.isPending ||
+                  tokenDeployerReceipt.isLoading ||
+                  Boolean(tokenDeployerAddress)
+                }
+                onClick={deployAdvancedTokenDeployer}
+              >
+                {tokenDeployerAddress
+                  ? "步骤 1 已完成"
+                  : tokenDeployerDeployment.isPending
+                    ? "请确认步骤 1…"
+                    : tokenDeployerReceipt.isLoading
+                      ? "等待步骤 1 上链…"
+                      : "步骤 1：部署高级代币部署器"}
+              </button>
+              <button
+                className="button wide"
+                type="button"
+                disabled={
+                  !tokenDeployerAddress ||
+                  rewardsFactoryDeployment.isPending ||
+                  rewardsFactoryReceipt.isLoading ||
+                  Boolean(rewardsFactoryAddress)
+                }
+                onClick={deployRewardsFactory}
+              >
+                {rewardsFactoryAddress
+                  ? "步骤 2 已完成"
+                  : rewardsFactoryDeployment.isPending
+                    ? "请确认步骤 2…"
+                    : rewardsFactoryReceipt.isLoading
+                      ? "等待步骤 2 上链…"
+                      : "步骤 2：部署分红 Factory"}
+              </button>
+              <button
+                className="button wide"
+                type="button"
+                disabled={
+                  !rewardsFactoryAddress ||
+                  managerConfiguration.isPending ||
+                  managerReceipt.isLoading ||
+                  managerReceipt.isSuccess
+                }
+                onClick={configureRewardsFactory}
+              >
+                {managerReceipt.isSuccess
+                  ? "步骤 3 已完成，Factory 可用"
+                  : managerConfiguration.isPending
+                    ? "请确认步骤 3…"
+                    : managerReceipt.isLoading
+                      ? "等待步骤 3 上链…"
+                      : "步骤 3：授权 Factory 创建代币"}
+              </button>
+            </div>
           ) : (
             <button
               className="button wide"
               type="button"
-              disabled={isPending || receipt.isLoading}
-              onClick={deploy}
+              disabled={
+                legacyDeployment.isPending || legacyReceipt.isLoading
+              }
+              onClick={deployLegacyFactory}
             >
-              {isPending
+              {legacyDeployment.isPending
                 ? "请在 MetaMask 确认部署…"
-                : receipt.isLoading
+                : legacyReceipt.isLoading
                   ? "等待测试网确认…"
                   : factoryType === "liquidity"
                     ? "部署自动回流 V2 Factory"
                     : "部署标准 0 税 Factory"}
             </button>
           )}
-          {hash && <p className="notice">部署交易：{hash}</p>}
-          {receipt.data?.contractAddress && (
+          {legacyDeployment.data && (
+            <p className="notice">部署交易：{legacyDeployment.data}</p>
+          )}
+          {legacyReceipt.data?.contractAddress && (
             <p className="success">
-              Factory 部署成功：{receipt.data.contractAddress}
+              Factory 部署成功：{legacyReceipt.data.contractAddress}
             </p>
           )}
-          {error && <p className="error">{deploymentErrorMessage(error)}</p>}
+          {tokenDeployerAddress && (
+            <p className="notice">高级代币部署器：{tokenDeployerAddress}</p>
+          )}
+          {rewardsFactoryAddress && (
+            <p className="notice">分红 Factory：{rewardsFactoryAddress}</p>
+          )}
+          {managerReceipt.isSuccess && rewardsFactoryAddress && (
+            <p className="success">
+              配置成功。请将 NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS
+              设为：{rewardsFactoryAddress}
+            </p>
+          )}
+          {currentError && (
+            <p className="error">{deploymentErrorMessage(currentError)}</p>
+          )}
         </div>
       </section>
     </main>
