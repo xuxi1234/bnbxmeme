@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isAddress, zeroAddress } from "viem";
 import {
   useAccount,
   useChainId,
@@ -49,6 +50,10 @@ export default function DeployTestnetPage() {
   const [factoryType, setFactoryType] = useState<
     "standard" | "liquidity" | "rewards"
   >("rewards");
+  const [resumedTokenDeployer, setResumedTokenDeployer] =
+    useState<`0x${string}` | null>(null);
+  const [resumedRewardsFactory, setResumedRewardsFactory] =
+    useState<`0x${string}` | null>(null);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -68,9 +73,23 @@ export default function DeployTestnetPage() {
   const managerReceipt = useWaitForTransactionReceipt({
     hash: managerConfiguration.data,
   });
-  const tokenDeployerAddress = tokenDeployerReceipt.data?.contractAddress;
-  const rewardsFactoryAddress = rewardsFactoryReceipt.data?.contractAddress;
+  const tokenDeployerAddress =
+    tokenDeployerReceipt.data?.contractAddress ?? resumedTokenDeployer;
+  const rewardsFactoryAddress =
+    rewardsFactoryReceipt.data?.contractAddress ?? resumedRewardsFactory;
   const wrongChain = isConnected && chainId !== bscTestnet.id;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const deployer = params.get("deployer");
+    const factory = params.get("factory");
+    if (deployer && isAddress(deployer) && deployer !== zeroAddress) {
+      setResumedTokenDeployer(deployer);
+    }
+    if (factory && isAddress(factory) && factory !== zeroAddress) {
+      setResumedRewardsFactory(factory);
+    }
+  }, []);
 
   function deployLegacyFactory() {
     if (!address) return;
