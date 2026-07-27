@@ -653,11 +653,15 @@ export default function CreateTokenPage() {
               onChange={(event) => setDebox(event.target.value)}
             />
             <input
-              type="url"
+              type="text"
+              inputMode="numeric"
               value={qq}
-              placeholder="QQ 群 https://qm.qq.com/"
+              placeholder="QQ 群号或官方邀请链接"
               onChange={(event) => setQq(event.target.value)}
             />
+            <small>
+              填写纯数字群号时，将自动生成唤起 QQ 客户端的群资料链接；也可以粘贴群主生成的官方邀请链接。
+            </small>
           </fieldset>
 
           <label>
