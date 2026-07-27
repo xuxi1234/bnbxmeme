@@ -2,10 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { WalletButton } from "./wallet-button";
 import { useLanguage, type Language } from "./language-provider";
 
 export function SiteHeader() {
+  const pathname = usePathname();
+  const isMainnetDeployment = pathname.includes("deploy-mainnet");
   const { language, setLanguage, theme, toggleTheme, t } = useLanguage();
   const navigation = [
     [t("market"), "/#market"],
@@ -61,7 +64,7 @@ export function SiteHeader() {
         </button>
         <span className="network-chip">
           <i />
-          TESTNET
+          {isMainnetDeployment ? "MAINNET" : "TESTNET"}
         </span>
         <WalletButton />
       </div>
