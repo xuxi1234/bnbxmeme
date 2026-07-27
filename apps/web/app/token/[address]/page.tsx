@@ -54,6 +54,7 @@ export default function TokenTradingPage() {
   const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
   const [lpAmount, setLPAmount] = useState("0");
   const [copied, setCopied] = useState(false);
+  const [qqCopied, setQQCopied] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
   const autoSellStarted = useRef(false);
   const tradeWrite = useWriteContract();
@@ -446,6 +447,13 @@ export default function TokenTradingPage() {
     window.setTimeout(() => setCopied(false), 1_600);
   }
 
+  async function copyQQGroupNumber() {
+    if (!metadata?.qqGroupNumber) return;
+    await navigator.clipboard.writeText(metadata.qqGroupNumber);
+    setQQCopied(true);
+    window.setTimeout(() => setQQCopied(false), 2_400);
+  }
+
   return (
     <main>
       <header className="topbar">
@@ -645,7 +653,17 @@ export default function TokenTradingPage() {
           {metadata?.telegram && <a href={metadata.telegram} target="_blank" rel="noreferrer">Telegram ↗</a>}
           {metadata?.twitter && <a href={metadata.twitter} target="_blank" rel="noreferrer">X / Twitter ↗</a>}
           {metadata?.debox && <a href={metadata.debox} target="_blank" rel="noreferrer">DeBox ↗</a>}
-          {metadata?.qq && <a href={metadata.qq} target="_blank" rel="noreferrer">QQ 群 ↗</a>}
+          {metadata?.qqGroupNumber && (
+            <button
+              className="qq-group-copy"
+              type="button"
+              onClick={copyQQGroupNumber}
+              title={t("copy")}
+            >
+              <span>{t("qqGroupNumber")}：{metadata.qqGroupNumber}</span>
+              <strong aria-hidden="true">⧉</strong>
+            </button>
+          )}
           <a
             href={`${blockExplorerUrl}/token/${tokenAddress}`}
             target="_blank"
@@ -675,6 +693,11 @@ export default function TokenTradingPage() {
             DEXTools ↗
           </a>
         </div>
+        {qqCopied && (
+          <div className="copy-toast" role="status" aria-live="polite">
+            {t("qqGroupCopied")}
+          </div>
+        )}
       </section>
 
       <section className="token-workspace">
