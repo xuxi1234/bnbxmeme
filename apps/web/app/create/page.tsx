@@ -692,7 +692,7 @@ export default function CreateTokenPage() {
               <small>BNB</small>
             </div>
             <div className="graduation-presets" aria-label={`${t("graduationTarget")} presets`}>
-              {[1, 3, 5, 10, 18].map((value) => (
+              {[1, 10, 18].map((value) => (
                 <button
                   className={target === value ? "active" : ""}
                   key={value}
@@ -750,9 +750,9 @@ export default function CreateTokenPage() {
               onChange={(event) => setInitialBuy(event.target.value)}
             />
             <small>
-              留空或填写 0 表示只创建、不首购。部署费 0.001 BNB，首购手续费
-              0.5%。首购与创建在同一笔交易完成，可避免创建后被抢跑。若扣除手续费后的
-              净买入达到毕业额度，合约会自动毕业并销毁 LP，超额 BNB 自动退回。
+              留空或填写 0 表示只创建、不首购。部署费 0.001 BNB。首购与创建在
+              同一笔交易完成，可避免创建后被抢跑；达到毕业额度时自动毕业并销毁
+              LP，超额 BNB 自动退回。
             </small>
           </label>
 
