@@ -23,6 +23,9 @@ import {
   autoLiquidityFactoryAbi,
   autoLiquidityFactoryAddress,
   factoryAbi,
+  rewardsFactoryAbi,
+  rewardsFactoryAddress,
+  testnetPublicClient,
   testnetFactoryAddress,
   testnetPancakeRouterAddress,
 } from "@/lib/web3";
@@ -78,7 +81,7 @@ export default function CreateTokenPage() {
   const [buyTaxes, setBuyTaxes] = useState<TaxSide>({ ...emptyTaxes });
   const [sellTaxes, setSellTaxes] = useState<TaxSide>({ ...emptyTaxes });
   const [marketingWallet, setMarketingWallet] = useState("");
-  const [rewardToken, setRewardToken] = useState("");
+  const [minimumRewardBalance, setMinimumRewardBalance] = useState("10000");
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isFindingVanity, setIsFindingVanity] = useState(false);
@@ -91,7 +94,9 @@ export default function CreateTokenPage() {
   const factoryAddress =
     template === "liquidity"
       ? autoLiquidityFactoryAddress
-      : testnetFactoryAddress;
+      : template === "holders" || template === "lp"
+        ? rewardsFactoryAddress
+        : testnetFactoryAddress;
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data || !factoryAddress) return;
@@ -111,7 +116,7 @@ export default function CreateTokenPage() {
       burn: Math.round(side.burn * 100),
       liquidity: Math.round(side.liquidity * 100),
       marketing: Math.round(side.marketing * 100),
-      rewards: 0,
+      rewards: Math.round(side.rewards * 100),
     };
   }
 
@@ -156,13 +161,46 @@ export default function CreateTokenPage() {
     const start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
     const marketing =
       marketingWallet.trim() === "" ? address : marketingWallet.trim();
-    if (template === "liquidity" && (!marketing || !isAddress(marketing))) {
+    if (template !== "standard" && (!marketing || !isAddress(marketing))) {
       throw new Error("营销钱包地址格式错误");
     }
     const marketingAddress = marketing as `0x${string}`;
     let initCode: `0x${string}`;
     let deployingFactory: `0x${string}`;
-    if (template === "liquidity") {
+    if (template === "holders" || template === "lp") {
+      if (!rewardsFactoryAddress) {
+        throw new Error("分红模板测试网 Factory 尚未配置");
+      }
+      const templateValue = template === "holders" ? 2 : 3;
+      const minimumShare = parseEther(minimumRewardBalance || "0");
+      const chunkSize = 1_000;
+      setVanityProgress(0);
+      for (let index = 0; index < VANITY_SEARCH_LIMIT; index += chunkSize) {
+        const result = await testnetPublicClient.readContract({
+          address: rewardsFactoryAddress,
+          abi: rewardsFactoryAbi,
+          functionName: "findVanitySalt",
+          args: [
+            tokenName,
+            tokenSymbol,
+            marketingAddress,
+            configuredTaxes(),
+            templateValue,
+            minimumShare,
+            start + BigInt(index),
+            BigInt(chunkSize),
+          ],
+        });
+        if (result[0]) return result[1];
+        setVanityProgress(
+          Math.round(((index + chunkSize) / VANITY_SEARCH_LIMIT) * 100),
+        );
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+      }
+      throw new Error("暂未找到 1111 靓号，请重新提交");
+    } else if (template === "liquidity") {
       if (!autoLiquidityFactoryAddress) {
         throw new Error("自动回流测试网 Factory 尚未配置");
       }
@@ -225,9 +263,16 @@ export default function CreateTokenPage() {
       setVanityProgress(0);
       const initialBuyWei = parseEther(initialBuy || "0");
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
-      if (template === "liquidity") {
-        if (!autoLiquidityFactoryAddress) {
-          throw new Error("自动回流测试网 Factory 尚未配置");
+      if (template === "liquidity" || template === "holders" || template === "lp") {
+        const isRewardsTemplate = template === "holders" || template === "lp";
+        const selectedFactory = isRewardsTemplate
+          ? rewardsFactoryAddress
+          : autoLiquidityFactoryAddress;
+        const selectedAbi = isRewardsTemplate
+          ? rewardsFactoryAbi
+          : autoLiquidityFactoryAbi;
+        if (!selectedFactory) {
+          throw new Error("所选模板测试网 Factory 尚未配置");
         }
         const marketing =
           marketingWallet.trim() === "" ? address : marketingWallet.trim();
@@ -240,11 +285,17 @@ export default function CreateTokenPage() {
           vanitySalt,
           marketingWallet: marketing,
           taxes: configuredTaxes(),
+          ...(isRewardsTemplate
+            ? {
+                template: template === "holders" ? 2 : 3,
+                minimumRewardShare: parseEther(minimumRewardBalance || "0"),
+              }
+            : {}),
         };
         if (initialBuyWei === 0n) {
           writeContract({
-            address: autoLiquidityFactoryAddress,
-            abi: autoLiquidityFactoryAbi,
+            address: selectedFactory,
+            abi: selectedAbi,
             functionName: "createVanityToken",
             args: [request],
             value: CREATION_FEE_WEI,
@@ -253,8 +304,8 @@ export default function CreateTokenPage() {
           });
         } else {
           writeContract({
-            address: autoLiquidityFactoryAddress,
-            abi: autoLiquidityFactoryAbi,
+            address: selectedFactory,
+            abi: selectedAbi,
             functionName: "createVanityTokenAndBuy",
             args: [
               request,
@@ -323,8 +374,7 @@ export default function CreateTokenPage() {
   const wrongChain = isConnected && chainId !== bscTestnet.id;
   const advancedTemplate = template !== "standard";
   const unavailableTemplate =
-    template === "holders" ||
-    template === "lp" ||
+    ((template === "holders" || template === "lp") && !rewardsFactoryAddress) ||
     (template === "liquidity" && !autoLiquidityFactoryAddress);
   const buyTaxTotal = Object.values(buyTaxes).reduce((sum, value) => sum + value, 0);
   const sellTaxTotal = Object.values(sellTaxes).reduce((sum, value) => sum + value, 0);
@@ -335,6 +385,9 @@ export default function CreateTokenPage() {
     !wrongChain &&
     !unavailableTemplate &&
     !taxInvalid &&
+    (!(template === "holders" || template === "lp") ||
+      (buyTaxes.rewards + sellTaxes.rewards > 0 &&
+        Number(minimumRewardBalance) > 0)) &&
     Boolean(factoryAddress) &&
     name.trim().length > 0 &&
     symbol.trim().length > 0 &&
@@ -450,9 +503,7 @@ export default function CreateTokenPage() {
                     <div className="tax-grid">
                       {(Object.keys(values) as TaxKey[]).map((key) => {
                         const hidden =
-                          (template === "liquidity" && key === "rewards") ||
-                          (template === "holders" && key === "liquidity") ||
-                          (template === "lp" && key === "liquidity");
+                          template === "liquidity" && key === "rewards";
                         if (hidden) return null;
                         const labels: Record<TaxKey, string> = {
                           burn: language === "zh" ? "销毁" : "Burn",
@@ -498,12 +549,28 @@ export default function CreateTokenPage() {
               </label>
               {(template === "holders" || template === "lp") && (
                 <label>
-                  {language === "zh" ? "分红代币地址" : "Reward token address"}
+                  {language === "zh"
+                    ? template === "holders"
+                      ? "最低参与分红持币量"
+                      : "最低参与分红 LP 数量"
+                    : template === "holders"
+                      ? "Minimum token balance for rewards"
+                      : "Minimum LP balance for rewards"}
                   <input
-                    value={rewardToken}
-                    placeholder="0x..."
-                    onChange={(event) => setRewardToken(event.target.value)}
+                    inputMode="decimal"
+                    min="0"
+                    type="number"
+                    value={minimumRewardBalance}
+                    placeholder="10000"
+                    onChange={(event) =>
+                      setMinimumRewardBalance(event.target.value)
+                    }
                   />
+                  <span className="field-help">
+                    {language === "zh"
+                      ? "分红税自动兑换为 BNB，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。"
+                      : "Reward tax is converted to BNB and claimed by eligible users. Burn, curve, and pair addresses are excluded."}
+                  </span>
                 </label>
               )}
               {unavailableTemplate && (
