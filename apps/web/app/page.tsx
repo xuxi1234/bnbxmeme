@@ -27,7 +27,7 @@ export default function Home() {
       <section className="quick-paths" aria-label="BNBX launch workflow">
         <article><span>01</span><div><strong>{t("create")}</strong><p>1111 CA · 0% TAX</p></div></article>
         <article><span>02</span><div><strong>{t("curveTrading")}</strong><p>800M TOKENS</p></div></article>
-        <article><span>03</span><div><strong>{t("graduating")}</strong><p>1–18 BNB</p></div></article>
+        <article><span>03</span><div><strong>{t("graduating")}</strong><p>0.01–0.18 BNB</p></div></article>
         <article><span>04</span><div><strong>PANCAKE V2</strong><p>LP BURNED</p></div></article>
       </section>
 

@@ -9,6 +9,10 @@ import { FeeMath } from "./libraries/FeeMath.sol";
 /// @notice Trading is routed through BNBXFactory so creation and first buy can
 /// be executed atomically.
 contract BondingCurve {
+    /// @dev Mainnet canary unit. A target step of 1..18 represents
+    /// 0.01..0.18 BNB. The full-scale launch will redeploy the factories with
+    /// this unit restored to 1 ether after canary acceptance.
+    uint256 public constant GRADUATION_UNIT = 0.01 ether;
     using FeeMath for uint256;
 
     enum State {
@@ -105,7 +109,7 @@ contract BondingCurve {
         creator = creator_;
         liquidityPair = liquidityPair_;
         wbnb = wbnb_;
-        graduationTarget = uint256(graduationTargetBNB) * 1 ether;
+        graduationTarget = uint256(graduationTargetBNB) * GRADUATION_UNIT;
 
         virtualBNBReserve = graduationTarget / 3;
         virtualTokenReserve = uint256(3_200_000_000 ether) / 3;
