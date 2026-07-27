@@ -10,7 +10,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { bscTestnet } from "wagmi/chains";
+import { bsc } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
 import {
   autoLiquidityFactoryAbi,
@@ -324,7 +324,7 @@ export default function CreateTokenPage() {
             args: [request],
             value: CREATION_FEE_WEI,
             gas: CREATE_GAS_LIMIT,
-            chain: bscTestnet,
+            chain: bsc,
             account: address,
           });
         } else {
@@ -342,7 +342,7 @@ export default function CreateTokenPage() {
             ],
             value: CREATION_FEE_WEI + initialBuyWei,
             gas: CREATE_GAS_LIMIT,
-            chain: bscTestnet,
+            chain: bsc,
             account: address,
           });
         }
@@ -362,7 +362,7 @@ export default function CreateTokenPage() {
           }],
           value: CREATION_FEE_WEI,
           gas: CREATE_GAS_LIMIT,
-          chain: bscTestnet,
+          chain: bsc,
           account: address,
         });
         return;
@@ -385,7 +385,7 @@ export default function CreateTokenPage() {
         }],
         value: CREATION_FEE_WEI + initialBuyWei,
         gas: CREATE_GAS_LIMIT,
-        chain: bscTestnet,
+        chain: bsc,
         account: address,
       });
     } catch (metadataError) {
@@ -399,7 +399,7 @@ export default function CreateTokenPage() {
     }
   }
 
-  const wrongChain = isConnected && chainId !== bscTestnet.id;
+  const wrongChain = isConnected && chainId !== bsc.id;
   const advancedTemplate = template !== "standard";
   const unavailableTemplate =
     ((template === "holders" || template === "lp") && !rewardsFactoryAddress) ||
@@ -431,7 +431,7 @@ export default function CreateTokenPage() {
       </header>
 
       <section className="form-shell">
-        <p className="eyebrow">02 / CONFIGURE · BNB TESTNET</p>
+        <p className="eyebrow">02 / CONFIGURE · BNB MAINNET</p>
         <h1 className="form-title">{t("createTitle")}</h1>
         <p className="lead">
           {language === "zh"
@@ -493,7 +493,7 @@ export default function CreateTokenPage() {
                     }}
                     type="button"
                   >
-                    <span>{preview ? "V2 TESTNET PREVIEW" : "LIVE"}</span>
+                    <span>{preview ? "V2 MAINNET PREVIEW" : "LIVE"}</span>
                     <strong>{content.name}</strong>
                     <small>{content.text}</small>
                   </button>
@@ -782,9 +782,9 @@ export default function CreateTokenPage() {
             <button
               className="button wide"
               type="button"
-              onClick={() => switchChain({ chainId: bscTestnet.id })}
+              onClick={() => switchChain({ chainId: bsc.id })}
             >
-              切换到 BNB 测试网
+              切换到 BNB 主网
             </button>
           ) : (
             <button
@@ -804,7 +804,7 @@ export default function CreateTokenPage() {
 
           {hash && <p className="notice">交易哈希：{hash}</p>}
           {receipt.isSuccess && (
-            <p className="success">代币已成功创建在 BNB 测试网。</p>
+            <p className="success">代币已成功创建在 BNB 主网。</p>
           )}
           {uploadError && <p className="error">{uploadError}</p>}
           {error && <p className="error">{readableWalletError(error)}</p>}
