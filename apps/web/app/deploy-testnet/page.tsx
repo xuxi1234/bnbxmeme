@@ -329,7 +329,10 @@ export default function DeployTestnetPage() {
           )}
           {managerReceipt.isSuccess && rewardsFactoryAddress && (
             <p className="success">
-              配置成功。请将 NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS
+              配置成功。请将{" "}
+              {factoryType === "liquidity"
+                ? "NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS"
+                : "NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS"}
               设为：{rewardsFactoryAddress}
             </p>
           )}

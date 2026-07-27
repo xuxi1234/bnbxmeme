@@ -11,7 +11,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { bscTestnet } from "wagmi/chains";
+import { bsc } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
 import {
   curveAbi,
@@ -784,8 +784,8 @@ export default function TokenTradingPage() {
                   className="button wide trade-submit buy"
                   connectLabel={`${t("buy")} · 连接钱包`}
                 />
-              ) : chainId !== bscTestnet.id ? (
-                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bscTestnet.id })}>
+              ) : chainId !== bsc.id ? (
+                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
                   {t("switchNetwork")}
                 </button>
               ) : (
@@ -825,8 +825,8 @@ export default function TokenTradingPage() {
                   className="button wide trade-submit sell"
                   connectLabel={`${t("sell")} · 连接钱包`}
                 />
-              ) : chainId !== bscTestnet.id ? (
-                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bscTestnet.id })}>
+              ) : chainId !== bsc.id ? (
+                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
                   {t("switchNetwork")}
                 </button>
               ) : (
