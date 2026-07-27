@@ -11,7 +11,7 @@ export type TokenMetadata = {
   telegram?: string;
   twitter?: string;
   debox?: string;
-  qq?: string;
+  qqGroupNumber?: string;
 };
 
 const gateway =
@@ -41,6 +41,12 @@ function safeLink(value: unknown) {
   }
 }
 
+function safeQQGroupNumber(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return /^\d{5,12}$/.test(trimmed) ? trimmed : undefined;
+}
+
 function sanitizeMetadata(value: unknown): TokenMetadata | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, unknown>;
@@ -60,7 +66,7 @@ function sanitizeMetadata(value: unknown): TokenMetadata | null {
     telegram: safeLink(source.telegram),
     twitter: safeLink(source.twitter),
     debox: safeLink(source.debox),
-    qq: safeLink(source.qq),
+    qqGroupNumber: safeQQGroupNumber(source.qqGroupNumber),
   };
 }
 
