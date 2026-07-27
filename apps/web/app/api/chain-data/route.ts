@@ -7,21 +7,22 @@ import {
   parseAbiItem,
   zeroAddress,
 } from "viem";
-import { bscTestnet } from "viem/chains";
+import { bsc } from "viem/chains";
 
 export const dynamic = "force-dynamic";
 
-const configuredRpc = process.env.BSC_LOG_RPC_URL;
+const configuredRpc =
+  process.env.BSC_MAINNET_RPC_URL ?? process.env.BSC_LOG_RPC_URL;
 const client = createPublicClient({
-  chain: bscTestnet,
+  chain: bsc,
   transport: fallback(
     [
-      http("https://bsc-testnet-rpc.publicnode.com", { timeout: 12_000 }),
-      http("https://bsc-testnet.drpc.org", { timeout: 12_000 }),
+      http("https://bsc-rpc.publicnode.com", { timeout: 12_000 }),
+      http("https://bsc.drpc.org", { timeout: 12_000 }),
       ...(configuredRpc
         ? [http(configuredRpc, { timeout: 12_000 })]
         : []),
-      http("https://data-seed-prebsc-1-s1.bnbchain.org:8545", {
+      http("https://bsc-dataseed.binance.org", {
         timeout: 12_000,
       }),
     ],
