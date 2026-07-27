@@ -114,9 +114,16 @@
   }
 
   .banner-copy > p:not(.eyebrow),
-  .banner-controls,
   .banner-actions {
     display: none;
+  }
+
+  .banner-controls {
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    transform: scale(.78);
+    transform-origin: right bottom;
   }
 
   .banner-emblem {
@@ -134,11 +141,6 @@
 
   .banner-emblem span {
     display: none;
-  }
-
-  .quick-paths article {
-    min-height: 104px;
-    padding: 18px 14px;
   }
 
   .token-heading {
