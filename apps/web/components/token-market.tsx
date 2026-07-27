@@ -8,6 +8,7 @@ import {
   autoLiquidityFactoryAddress,
   curveAbi,
   factoryAbi,
+  rewardsFactoryAddress,
   testnetFactoryAddress,
   tokenAbi,
 } from "@/lib/web3";
@@ -82,7 +83,11 @@ export function TokenMarket() {
   const [query, setQuery] = useState("");
   const [scores, setScores] = useState<Record<string, Pick<Entry, "volume" | "activity" | "lastBlock">>>({});
   const { t } = useLanguage();
-  const factories = [testnetFactoryAddress, autoLiquidityFactoryAddress]
+  const factories = [
+    testnetFactoryAddress,
+    autoLiquidityFactoryAddress,
+    rewardsFactoryAddress,
+  ]
     .filter((factory): factory is `0x${string}` => Boolean(factory));
   const counts = useReadContracts({
     contracts: factories.map((factory) => ({
