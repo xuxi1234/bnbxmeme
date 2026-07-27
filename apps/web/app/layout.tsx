@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./product-polish.css";
 import { Providers } from "./providers";
 import { SiteHeader } from "@/components/site-header";
 import { LanguageProvider } from "@/components/language-provider";
