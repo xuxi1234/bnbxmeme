@@ -17,8 +17,9 @@ export const rewardsFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as
     | `0x${string}`
     | undefined) ?? "0xab744222f0f8699db98b5d9481562eb7c1500428";
+export const blockExplorerUrl = "https://bscscan.com";
 export const testnetPancakeRouterAddress =
-  "0xD99D1c33F9fC3444f8101754aBC46c52416550D1" as const;
+  "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
 
 export const queryClient = new QueryClient();
 const testnetTransport = fallback([
