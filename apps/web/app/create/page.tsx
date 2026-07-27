@@ -77,7 +77,7 @@ export default function CreateTokenPage() {
   const [telegram, setTelegram] = useState("");
   const [twitter, setTwitter] = useState("");
   const [debox, setDebox] = useState("");
-  const [qq, setQq] = useState("");
+  const [qqGroupNumber, setQqGroupNumber] = useState("");
   const [target, setTarget] = useState(5);
   const [initialBuy, setInitialBuy] = useState("");
   const [template, setTemplate] = useState<TemplateId>("standard");
@@ -131,7 +131,7 @@ export default function CreateTokenPage() {
   }
 
   async function uploadMetadata() {
-    if (!description && !image && !website && !telegram && !twitter && !debox && !qq) {
+    if (!description && !image && !website && !telegram && !twitter && !debox && !qqGroupNumber) {
       return "";
     }
 
@@ -143,7 +143,7 @@ export default function CreateTokenPage() {
     form.set("telegram", telegram.trim());
     form.set("twitter", twitter.trim());
     form.set("debox", debox.trim());
-    form.set("qq", qq.trim());
+    form.set("qqGroupNumber", qqGroupNumber.trim());
     if (image) form.set("image", image);
 
     const response = await fetch("/api/metadata", { method: "POST", body: form });
@@ -276,6 +276,14 @@ export default function CreateTokenPage() {
     if (!address || !factoryAddress) return;
 
     setUploadError("");
+    const normalizedQQGroupNumber = qqGroupNumber.trim();
+    if (
+      normalizedQQGroupNumber &&
+      !/^\d{5,12}$/.test(normalizedQQGroupNumber)
+    ) {
+      setUploadError(t("qqGroupInvalid"));
+      return;
+    }
     setIsUploading(true);
     try {
       const metadataURI = await uploadMetadata();
@@ -539,20 +547,32 @@ export default function CreateTokenPage() {
                           marketing: language === "zh" ? "营销" : "Marketing",
                           rewards: language === "zh" ? "分红" : "Rewards",
                         };
+                        const otherTotal = Object.entries(values).reduce(
+                          (sum, [taxKey, value]) =>
+                            taxKey === key ? sum : sum + value,
+                          0,
+                        );
+                        const maximum = Math.max(0, MAX_SIDE_TAX - otherTotal);
                         return (
-                          <label key={key}>
-                            {labels[key]} %
+                          <label className="tax-slider-control" key={key}>
+                            <span>
+                              {labels[key]}
+                              <strong>{values[key].toFixed(2)}%</strong>
+                            </span>
                             <input
-                              inputMode="decimal"
-                              max="25"
+                              aria-label={`${labels[key]} ${values[key].toFixed(2)}%`}
+                              max={maximum}
                               min="0"
                               step="0.01"
-                              type="number"
-                              value={values[key]}
+                              type="range"
+                              value={Math.min(values[key], maximum)}
+                              style={{
+                                "--range-progress": `${maximum === 0 ? 0 : (values[key] / maximum) * 100}%`,
+                              } as CSSProperties}
                               onChange={(event) =>
                                 update({
                                   ...values,
-                                  [key]: Math.max(0, Number(event.target.value) || 0),
+                                  [key]: Number(event.target.value),
                                 })
                               }
                             />
@@ -683,12 +703,23 @@ export default function CreateTokenPage() {
             <input
               type="text"
               inputMode="numeric"
-              value={qq}
-              placeholder="QQ 群号或官方邀请链接"
-              onChange={(event) => setQq(event.target.value)}
+              aria-label={t("qqGroupNumber")}
+              maxLength={12}
+              pattern="[0-9]{5,12}"
+              value={qqGroupNumber}
+              placeholder={`${t("qqGroupNumber")} 781965479`}
+              onChange={(event) =>
+                setQqGroupNumber(event.target.value.replace(/\D/g, "").slice(0, 12))
+              }
             />
             <small>
-              填写纯数字群号时，将自动生成唤起 QQ 客户端的群资料链接；也可以粘贴群主生成的官方邀请链接。
+              {language === "zh"
+                ? "仅保存 5–12 位纯数字群号；不会生成或打开加群链接。"
+                : language === "ja"
+                  ? "5～12桁の数字のみ保存します。参加リンクは生成されません。"
+                  : language === "ko"
+                    ? "5~12자리 숫자만 저장하며 가입 링크를 생성하지 않습니다."
+                    : "Only a 5–12 digit group number is stored. No join link is generated."}
             </small>
           </fieldset>
 
