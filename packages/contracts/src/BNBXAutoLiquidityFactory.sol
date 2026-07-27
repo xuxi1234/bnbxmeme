@@ -2,13 +2,15 @@
 pragma solidity 0.8.30;
 
 import { BNBXAutoLiquidityToken } from "./BNBXAutoLiquidityToken.sol";
+import { BNBXAdvancedTokenDeployer } from "./BNBXAdvancedTokenDeployer.sol";
 import { BondingCurve } from "./BondingCurve.sol";
 import { IPancakeV2Factory, IPancakeV2Router } from "./interfaces/IPancakeV2.sol";
 import { TemplateConfig } from "./libraries/TemplateConfig.sol";
 
-/// @title BNBX automatic-liquidity launch factory
-/// @notice Isolated factory for the automatic-liquidity template. Keeping the
-/// template separate leaves the Standard factory bytecode and risk surface unchanged.
+/// @title BNBX advanced launch factory
+/// @notice Isolated factory for automatic-liquidity, holder-reward and
+/// LP-reward templates. The separate token deployer keeps this factory below
+/// the EIP-170 runtime size limit.
 contract BNBXAutoLiquidityFactory {
     struct CreateRequest {
         string name;
@@ -18,6 +20,8 @@ contract BNBXAutoLiquidityFactory {
         bytes32 vanitySalt;
         address marketingWallet;
         TemplateConfig.Taxes taxes;
+        TemplateConfig.Template template;
+        uint256 minimumRewardShare;
     }
 
     struct BuyRequest {
@@ -29,6 +33,7 @@ contract BNBXAutoLiquidityFactory {
     uint256 public constant CREATION_FEE = 0.001 ether;
     address public immutable feeRecipient;
     address public immutable pancakeV2Router;
+    BNBXAdvancedTokenDeployer public immutable tokenDeployer;
 
     mapping(address token => address curve) public curveOf;
     mapping(address token => string metadataURI) public tokenMetadataURI;
@@ -48,7 +53,9 @@ contract BNBXAutoLiquidityFactory {
         address indexed curve,
         address indexed creator,
         uint8 graduationTargetBNB,
-        address marketingWallet
+        address marketingWallet,
+        TemplateConfig.Template template,
+        address rewardVault
     );
     event CreationFeePaid(address indexed creator, uint256 amount);
 
@@ -59,12 +66,20 @@ contract BNBXAutoLiquidityFactory {
         unlocked = 1;
     }
 
-    constructor(address feeRecipient_, address pancakeV2Router_) {
-        if (feeRecipient_ == address(0) || pancakeV2Router_ == address(0)) {
+    constructor(
+        address feeRecipient_,
+        address pancakeV2Router_,
+        address tokenDeployer_
+    ) {
+        if (
+            feeRecipient_ == address(0) || pancakeV2Router_ == address(0)
+                || tokenDeployer_ == address(0)
+        ) {
             revert InvalidAddress();
         }
         feeRecipient = feeRecipient_;
         pancakeV2Router = pancakeV2Router_;
+        tokenDeployer = BNBXAdvancedTokenDeployer(tokenDeployer_);
     }
 
     function tokenCount() external view returns (uint256) {
@@ -136,14 +151,22 @@ contract BNBXAutoLiquidityFactory {
         string calldata symbol,
         address marketingWallet,
         TemplateConfig.Taxes calldata taxes,
+        TemplateConfig.Template template,
+        uint256 minimumRewardShare,
         uint256 start,
         uint256 maxIterations
     ) external view returns (bool found, bytes32 salt, address predicted) {
-        bytes32 initCodeHash =
-            _tokenInitCodeHash(name, symbol, marketingWallet, taxes);
         for (uint256 i; i < maxIterations; ++i) {
             salt = bytes32(start + i);
-            predicted = _create2Address(salt, initCodeHash);
+            predicted = predictTokenAddress(
+                name,
+                symbol,
+                salt,
+                marketingWallet,
+                taxes,
+                template,
+                minimumRewardShare
+            );
             if (uint16(uint160(predicted)) == 0x1111 && predicted.code.length == 0) {
                 return (true, salt, predicted);
             }
@@ -155,10 +178,19 @@ contract BNBXAutoLiquidityFactory {
         string memory symbol,
         bytes32 salt,
         address marketingWallet,
-        TemplateConfig.Taxes memory taxes
+        TemplateConfig.Taxes memory taxes,
+        TemplateConfig.Template template,
+        uint256 minimumRewardShare
     ) public view returns (address) {
-        return _create2Address(
-            salt, _tokenInitCodeHash(name, symbol, marketingWallet, taxes)
+        return tokenDeployer.predict(
+            name,
+            symbol,
+            salt,
+            pancakeV2Router,
+            marketingWallet,
+            taxes,
+            template,
+            minimumRewardShare
         );
     }
 
@@ -203,7 +235,9 @@ contract BNBXAutoLiquidityFactory {
             curveAddress,
             creator,
             request.graduationTargetBNB,
-            marketing
+            marketing,
+            request.template,
+            address(token.rewardVault())
         );
     }
 
@@ -216,57 +250,22 @@ contract BNBXAutoLiquidityFactory {
             request.symbol,
             request.vanitySalt,
             marketing,
-            request.taxes
+            request.taxes,
+            request.template,
+            request.minimumRewardShare
         );
         if (uint16(uint160(predicted)) != 0x1111 || predicted.code.length != 0) {
             revert InvalidVanitySalt();
         }
-        token = new BNBXAutoLiquidityToken{ salt: request.vanitySalt }(
+        token = tokenDeployer.deploy(
             request.name,
             request.symbol,
-            address(this),
+            request.vanitySalt,
             pancakeV2Router,
             marketing,
-            request.taxes
-        );
-    }
-
-    function _tokenInitCodeHash(
-        string memory name,
-        string memory symbol,
-        address marketingWallet,
-        TemplateConfig.Taxes memory taxes
-    ) internal view returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                type(BNBXAutoLiquidityToken).creationCode,
-                abi.encode(
-                    name,
-                    symbol,
-                    address(this),
-                    pancakeV2Router,
-                    marketingWallet,
-                    taxes
-                )
-            )
-        );
-    }
-
-    function _create2Address(bytes32 salt, bytes32 initCodeHash)
-        internal
-        view
-        returns (address)
-    {
-        return address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff), address(this), salt, initCodeHash
-                        )
-                    )
-                )
-            )
+            request.taxes,
+            request.template,
+            request.minimumRewardShare
         );
     }
 
