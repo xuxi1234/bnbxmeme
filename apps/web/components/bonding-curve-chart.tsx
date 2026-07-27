@@ -138,11 +138,11 @@ export function BondingCurveChart({
   }, [candles]);
 
   return (
-    <section className="curve-chart" aria-label={`${symbol} 内盘 K 线`}>
+    <section className="curve-chart" aria-label={`${symbol} / BNB K 线`}>
       <div className="chart-heading">
         <div>
           <p className="eyebrow">BONDING CURVE CHART</p>
-          <h2>{symbol} / BNB 内盘 K 线</h2>
+          <h2>{symbol} / BNB</h2>
           <small>价格单位：BNB / 100万枚代币</small>
         </div>
         <div className="chart-summary">
@@ -170,7 +170,7 @@ export function BondingCurveChart({
         {chart ? (
           <svg
             role="img"
-            aria-label={`${symbol} 内盘成交蜡烛图`}
+            aria-label={`${symbol} / BNB 成交蜡烛图`}
             viewBox={`0 0 ${chart.width} ${chart.height}`}
           >
             {[0, 1, 2, 3, 4].map((line) => (
