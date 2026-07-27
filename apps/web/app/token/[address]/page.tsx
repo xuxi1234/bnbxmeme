@@ -779,10 +779,6 @@ export default function TokenTradingPage() {
                 <span>{t("expectedGet")}</span>
                 <strong>{formatEther(quotedTokens)} {symbol.data ?? "TOKEN"}</strong>
               </div>
-              <div className="quote-row">
-                <span>{t("fee")}</span>
-                <strong>{formatEther(buyQuote.data?.[1] ?? 0n)} BNB</strong>
-              </div>
               {!user ? (
                 <WalletButton
                   className="button wide trade-submit buy"
@@ -823,10 +819,6 @@ export default function TokenTradingPage() {
               <div className="quote-row">
                 <span>{t("expectedReceive")}</span>
                 <strong>{formatEther(quotedSellBNB)} BNB</strong>
-              </div>
-              <div className="quote-row">
-                <span>{t("fee")}</span>
-                <strong>{formatEther(sellQuote.data?.[1] ?? 0n)} BNB</strong>
               </div>
               {!user ? (
                 <WalletButton

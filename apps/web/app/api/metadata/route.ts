@@ -25,6 +25,34 @@ function safeUrl(value: string) {
   }
 }
 
+function safeQQUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (/^\d{5,12}$/.test(trimmed)) {
+    const params = new URLSearchParams({
+      src_type: "internal",
+      version: "1",
+      uin: trimmed,
+      card_type: "group",
+      source: "external",
+    });
+    return `mqqapi://card/show_pslcard?${params.toString()}`;
+  }
+
+  if (trimmed.startsWith("mqqapi://card/show_pslcard?")) {
+    try {
+      const url = new URL(trimmed);
+      const groupNumber = url.searchParams.get("uin") ?? "";
+      return /^\d{5,12}$/.test(groupNumber) ? url.toString() : "";
+    } catch {
+      return "";
+    }
+  }
+
+  return safeUrl(trimmed);
+}
+
 async function pinImage(image: File, jwt: string) {
   if (!ALLOWED_IMAGE_TYPES.has(image.type)) {
     throw new Error("图片仅支持 JPG、PNG、WebP 或 GIF");
@@ -84,7 +112,7 @@ export async function POST(request: Request) {
       telegram: safeUrl(text(form, "telegram", 200)),
       twitter: safeUrl(text(form, "twitter", 200)),
       debox: safeUrl(text(form, "debox", 200)),
-      qq: safeUrl(text(form, "qq", 200)),
+      qq: safeQQUrl(text(form, "qq", 200)),
       createdBy: "BNBX",
       chainId: 97,
     };
