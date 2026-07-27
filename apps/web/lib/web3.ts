@@ -7,16 +7,16 @@ import { injected } from "wagmi/connectors";
 export const testnetFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as
     | `0x${string}`
-    | undefined) ?? "0x576b09d5672d0ca4d0fb4d65895157ee4c32c4b4";
+    | undefined) ?? "0xdb189396ae2a350c484ddd749a6af96baebc124b";
 
 export const autoLiquidityFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS as
     | `0x${string}`
-    | undefined) ?? "0xdf29818f29d319bb6d85e3931868646c98c303a5";
+    | undefined) ?? "0x9f572dc9d582ec8347d2a803f766652982220539";
 export const rewardsFactoryAddress =
-  process.env.NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as
+  (process.env.NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as
     | `0x${string}`
-    | undefined;
+    | undefined) ?? "0xab744222f0f8699db98b5d9481562eb7c1500428";
 export const testnetPancakeRouterAddress =
   "0xD99D1c33F9fC3444f8101754aBC46c52416550D1" as const;
 
@@ -34,8 +34,8 @@ const mainnetTransport = fallback([
   http("https://bsc-dataseed.binance.org", { timeout: 12_000 }),
 ]);
 export const testnetPublicClient = createPublicClient({
-  chain: bscTestnet,
-  transport: testnetTransport,
+  chain: bsc,
+  transport: mainnetTransport,
 });
 
 export const wagmiConfig = createConfig({
