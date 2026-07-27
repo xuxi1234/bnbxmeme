@@ -42,7 +42,7 @@ function deploymentErrorMessage(error: Error) {
   if (message.includes("max code size exceeded")) {
     return "Factory 代码超过 BSC 合约大小限制，请使用最新部署页面后重试。";
   }
-  return "部署交易未成功发送。请确认 MetaMask 位于 BSC Testnet，刷新页面后重试。";
+  return `交易未成功发送：${error.message}`;
 }
 
 export default function DeployTestnetPage() {
@@ -125,21 +125,22 @@ export default function DeployTestnetPage() {
 
   function configureRewardsFactory() {
     if (!address || !tokenDeployerAddress || !rewardsFactoryAddress) return;
+    managerConfiguration.reset();
     managerConfiguration.writeContract({
       abi: advancedTokenDeployerDeploymentAbi,
       address: tokenDeployerAddress,
       functionName: "configureManager",
       args: [rewardsFactoryAddress],
-      chainId: bscTestnet.id,
-      account: address,
+      gas: 150_000n,
     });
   }
 
   const currentError =
-    legacyDeployment.error ??
-    tokenDeployerDeployment.error ??
-    rewardsFactoryDeployment.error ??
-    managerConfiguration.error;
+    factoryType === "rewards" && rewardsFactoryAddress
+      ? managerConfiguration.error
+      : legacyDeployment.error ??
+        tokenDeployerDeployment.error ??
+        rewardsFactoryDeployment.error;
 
   return (
     <main>
