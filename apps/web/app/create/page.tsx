@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   encodeDeployData,
@@ -664,21 +664,59 @@ export default function CreateTokenPage() {
             </small>
           </fieldset>
 
-          <label>
-            {t("graduationTarget")}
-            <select
-              className="graduation-select"
-              aria-label={t("graduationTarget")}
-              value={target}
-              onChange={(event) => setTarget(Number(event.target.value))}
-            >
-              {Array.from({ length: 18 }, (_, index) => index + 1).map((value) => (
-                <option key={value} value={value}>
+          <fieldset className="graduation-control">
+            <legend>{t("graduationTarget")}</legend>
+            <div className="graduation-value" aria-live="polite">
+              <span>{target}</span>
+              <small>BNB</small>
+            </div>
+            <div className="graduation-presets" aria-label={`${t("graduationTarget")} presets`}>
+              {[1, 3, 5, 10, 18].map((value) => (
+                <button
+                  className={target === value ? "active" : ""}
+                  key={value}
+                  type="button"
+                  onClick={() => setTarget(value)}
+                >
                   {value} BNB
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+            <div className="graduation-slider-row">
+              <button
+                type="button"
+                aria-label="减少 1 BNB"
+                disabled={target <= 1}
+                onClick={() => setTarget((current) => Math.max(1, current - 1))}
+              >
+                −
+              </button>
+              <input
+                type="range"
+                min="1"
+                max="18"
+                step="1"
+                aria-label={t("graduationTarget")}
+                aria-valuetext={`${target} BNB`}
+                value={target}
+                style={{ "--range-progress": `${((target - 1) / 17) * 100}%` } as CSSProperties}
+                onChange={(event) => setTarget(Number(event.target.value))}
+              />
+              <button
+                type="button"
+                aria-label="增加 1 BNB"
+                disabled={target >= 18}
+                onClick={() => setTarget((current) => Math.min(18, current + 1))}
+              >
+                +
+              </button>
+            </div>
+            <div className="graduation-scale" aria-hidden="true">
+              <span>1 BNB</span>
+              <span>1–18 BNB</span>
+              <span>18 BNB</span>
+            </div>
+          </fieldset>
 
           <label>
             {t("creatorBuy")}
