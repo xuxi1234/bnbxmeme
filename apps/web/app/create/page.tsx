@@ -2,14 +2,7 @@
 
 import { FormEvent, useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import {
-  encodeDeployData,
-  getCreate2Address,
-  isAddress,
-  keccak256,
-  parseEther,
-  toHex,
-} from "viem";
+import { isAddress, parseEther } from "viem";
 import {
   useAccount,
   useChainId,
@@ -27,15 +20,8 @@ import {
   rewardsFactoryAddress,
   testnetPublicClient,
   testnetFactoryAddress,
-  testnetPancakeRouterAddress,
 } from "@/lib/web3";
 import { useLanguage } from "@/components/language-provider";
-import {
-  autoLiquidityTokenCreationAbi,
-  autoLiquidityTokenCreationBytecode,
-  standardTokenCreationAbi,
-  standardTokenCreationBytecode,
-} from "@/lib/token-creation-bytecode";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 // Some injected mobile wallets incorrectly submit gasLimit=0 when estimation is
@@ -44,7 +30,7 @@ const CREATION_FEE_WEI = parseEther("0.001");
 const CREATE_GAS_LIMIT = 8_000_000n;
 const MAX_SIDE_TAX = 25;
 const VANITY_SEARCH_LIMIT = 500_000;
-const VANITY_YIELD_INTERVAL = 2_000;
+const VANITY_SEARCH_CHUNK_SIZE = 1_000;
 
 type TemplateId = "standard" | "liquidity" | "holders" | "lp";
 type TaxKey = "burn" | "liquidity" | "marketing" | "rewards";
@@ -182,17 +168,18 @@ export default function CreateTokenPage() {
       throw new Error("营销钱包地址格式错误");
     }
     const marketingAddress = marketing as `0x${string}`;
-    let initCode: `0x${string}`;
-    let deployingFactory: `0x${string}`;
     if (template === "holders" || template === "lp") {
       if (!rewardsFactoryAddress) {
         throw new Error("分红模板测试网 Factory 尚未配置");
       }
       const templateValue = template === "holders" ? 2 : 3;
       const minimumShare = parseEther(minimumRewardBalance || "0");
-      const chunkSize = 1_000;
       setVanityProgress(0);
-      for (let index = 0; index < VANITY_SEARCH_LIMIT; index += chunkSize) {
+      for (
+        let index = 0;
+        index < VANITY_SEARCH_LIMIT;
+        index += VANITY_SEARCH_CHUNK_SIZE
+      ) {
         const result = await testnetPublicClient.readContract({
           address: rewardsFactoryAddress,
           abi: rewardsFactoryAbi,
@@ -205,12 +192,14 @@ export default function CreateTokenPage() {
             templateValue,
             minimumShare,
             start + BigInt(index),
-            BigInt(chunkSize),
+            BigInt(VANITY_SEARCH_CHUNK_SIZE),
           ],
         });
         if (result[0]) return result[1];
         setVanityProgress(
-          Math.round(((index + chunkSize) / VANITY_SEARCH_LIMIT) * 100),
+          Math.round(
+            ((index + VANITY_SEARCH_CHUNK_SIZE) / VANITY_SEARCH_LIMIT) * 100,
+          ),
         );
         await new Promise<void>((resolve) =>
           requestAnimationFrame(() => resolve()),
@@ -221,40 +210,58 @@ export default function CreateTokenPage() {
       if (!autoLiquidityFactoryAddress) {
         throw new Error("自动回流测试网 Factory 尚未配置");
       }
-      deployingFactory = autoLiquidityFactoryAddress;
-      initCode = encodeDeployData({
-        abi: autoLiquidityTokenCreationAbi,
-        bytecode: autoLiquidityTokenCreationBytecode,
-        args: [
-          tokenName,
-          tokenSymbol,
-          autoLiquidityFactoryAddress,
-          testnetPancakeRouterAddress,
-          marketingAddress,
-          configuredTaxes(),
-        ],
-      });
-    } else {
-      deployingFactory = testnetFactoryAddress;
-      initCode = encodeDeployData({
-        abi: standardTokenCreationAbi,
-        bytecode: standardTokenCreationBytecode,
-        args: [tokenName, tokenSymbol, testnetFactoryAddress],
-      });
-    }
-    const bytecodeHash = keccak256(initCode);
-    setVanityProgress(0);
-    for (let index = 0; index < VANITY_SEARCH_LIMIT; index += 1) {
-      const salt = toHex(start + BigInt(index), { size: 32 });
-      const predicted = getCreate2Address({
-        from: deployingFactory,
-        salt,
-        bytecodeHash,
-      });
-      if (predicted.toLowerCase().endsWith("1111")) return salt;
-      if (index > 0 && index % VANITY_YIELD_INTERVAL === 0) {
+      setVanityProgress(0);
+      for (
+        let index = 0;
+        index < VANITY_SEARCH_LIMIT;
+        index += VANITY_SEARCH_CHUNK_SIZE
+      ) {
+        const result = await testnetPublicClient.readContract({
+          address: autoLiquidityFactoryAddress,
+          abi: autoLiquidityFactoryAbi,
+          functionName: "findVanitySalt",
+          args: [
+            tokenName,
+            tokenSymbol,
+            marketingAddress,
+            configuredTaxes(),
+            start + BigInt(index),
+            BigInt(VANITY_SEARCH_CHUNK_SIZE),
+          ],
+        });
+        if (result[0]) return result[1];
         setVanityProgress(
-          Math.round((index / VANITY_SEARCH_LIMIT) * 100),
+          Math.round(
+            ((index + VANITY_SEARCH_CHUNK_SIZE) / VANITY_SEARCH_LIMIT) * 100,
+          ),
+        );
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+      }
+    } else {
+      setVanityProgress(0);
+      for (
+        let index = 0;
+        index < VANITY_SEARCH_LIMIT;
+        index += VANITY_SEARCH_CHUNK_SIZE
+      ) {
+        const result = await testnetPublicClient.readContract({
+          address: testnetFactoryAddress,
+          abi: factoryAbi,
+          functionName: "findVanitySalt",
+          args: [
+            tokenName,
+            tokenSymbol,
+            start + BigInt(index),
+            BigInt(VANITY_SEARCH_CHUNK_SIZE),
+          ],
+        });
+        if (result[0]) return result[1];
+        setVanityProgress(
+          Math.round(
+            ((index + VANITY_SEARCH_CHUNK_SIZE) / VANITY_SEARCH_LIMIT) * 100,
+          ),
         );
         await new Promise<void>((resolve) =>
           requestAnimationFrame(() => resolve()),
