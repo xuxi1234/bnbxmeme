@@ -38,6 +38,10 @@ import {
 } from "@/lib/token-creation-bytecode";
 
 const CREATION_FEE_WEI = parseEther("0.001");
+// Some injected mobile wallets incorrectly submit gasLimit=0 when estimation is
+// interrupted. This cap prevents that invalid request; users still pay only for
+// gas actually consumed by the transaction.
+const CREATE_GAS_LIMIT = 8_000_000n;
 const MAX_SIDE_TAX = 25;
 const VANITY_SEARCH_LIMIT = 500_000;
 const VANITY_YIELD_INTERVAL = 2_000;
@@ -61,6 +65,19 @@ function safeInitialBuy(value: string) {
   } catch {
     return false;
   }
+}
+
+function readableWalletError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "钱包交易发送失败";
+  if (message.includes("gas limit is too low") || message.includes("given 0")) {
+    return "钱包生成的 Gas 限额为 0，页面已改用安全 Gas 上限。请刷新页面后重新提交。";
+  }
+  return message;
 }
 
 export default function CreateTokenPage() {
@@ -299,6 +316,7 @@ export default function CreateTokenPage() {
             functionName: "createVanityToken",
             args: [request],
             value: CREATION_FEE_WEI,
+            gas: CREATE_GAS_LIMIT,
             chain: bscTestnet,
             account: address,
           });
@@ -316,6 +334,7 @@ export default function CreateTokenPage() {
               },
             ],
             value: CREATION_FEE_WEI + initialBuyWei,
+            gas: CREATE_GAS_LIMIT,
             chain: bscTestnet,
             account: address,
           });
@@ -335,6 +354,7 @@ export default function CreateTokenPage() {
             vanitySalt,
           }],
           value: CREATION_FEE_WEI,
+          gas: CREATE_GAS_LIMIT,
           chain: bscTestnet,
           account: address,
         });
@@ -357,12 +377,13 @@ export default function CreateTokenPage() {
           refundRecipient: address,
         }],
         value: CREATION_FEE_WEI + initialBuyWei,
+        gas: CREATE_GAS_LIMIT,
         chain: bscTestnet,
         account: address,
       });
     } catch (metadataError) {
       setUploadError(
-        metadataError instanceof Error ? metadataError.message : "代币资料上传失败",
+        readableWalletError(metadataError),
       );
     } finally {
       setIsUploading(false);
@@ -767,7 +788,7 @@ export default function CreateTokenPage() {
               {isUploading
                 ? "正在上传到 IPFS…"
                 : isFindingVanity
-                ? `正在本地生成 1111 地址… ${vanityProgress}%`
+                ? `正在准备 1111 尾号合约地址… ${vanityProgress}%`
                 : isPending
                 ? "请在钱包确认…"
                 : t("createToken")}
@@ -779,7 +800,7 @@ export default function CreateTokenPage() {
             <p className="success">代币已成功创建在 BNB 测试网。</p>
           )}
           {uploadError && <p className="error">{uploadError}</p>}
-          {error && <p className="error">{error.message}</p>}
+          {error && <p className="error">{readableWalletError(error)}</p>}
         </form>
       </section>
     </main>
