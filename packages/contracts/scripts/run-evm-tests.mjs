@@ -18,6 +18,7 @@ const entrypoints = [
   "test/TemplateConfig.t.sol",
   "test/BNBXAutoLiquidityToken.t.sol",
   "test/AutoLiquidityFactoryIntegration.t.sol",
+  "test/BNBXRewardVault.t.sol",
 ];
 
 function loadSource(path) {
@@ -116,6 +117,17 @@ function check(condition, message) {
 
 const suites = [
   {
+    source: "test/BNBXRewardVault.t.sol",
+    contract: "BNBXRewardVaultIntegrationTest",
+    tests: [
+      "testHolderRewardsFollowConfiguredShares",
+      "testQueuedRewardsReleaseWhenFirstShareArrives",
+      "testLPRewardsUseCustodiedUserLiquidity",
+      "testLPWithdrawalStopsFutureRewardsWithoutLosingPastRewards",
+      "testShareChangesDoNotStealPastRewards",
+    ],
+  },
+  {
     source: "test/BNBXToken.t.sol",
     contract: "BNBXTokenTest",
     tests: ["testFixedSupplyIsOneBillion", "testMetadata", "testTransferHasNoTax"],
@@ -154,6 +166,8 @@ const suites = [
     tests: [
       "testCreateWithoutBuyKeepsCurveTaxFree",
       "testAtomicFillGraduatesAndActivatesTax",
+      "testCreatesHolderRewardsTemplateWithExcludedCurveAndPair",
+      "testCreatesLPRewardsTemplateAndConfiguresPairAsset",
     ],
   },
   {
