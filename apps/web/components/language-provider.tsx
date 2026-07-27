@@ -28,6 +28,8 @@ const messages: Record<Language, Record<string, string>> = {
     destroyed: "已销毁", curveOnly: "仅自动曲线", protected: "毕业前保护中", unlocked: "毕业后已开放",
     confirmed: "交易已确认。", txHash: "交易哈希",
     searchPlaceholder: "输入代币名称、符号或合约地址",
+    qqGroupNumber: "QQ群号", qqGroupCopied: "QQ群号已复制，请打开QQ搜索加入",
+    qqGroupInvalid: "QQ群号仅允许填写 5–12 位数字",
   },
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
@@ -51,6 +53,8 @@ const messages: Record<Language, Record<string, string>> = {
     destroyed: "Burned", curveOnly: "Automatic curve only", protected: "Protected before graduation", unlocked: "Unlocked after graduation",
     confirmed: "Transaction confirmed.", txHash: "Transaction hash",
     searchPlaceholder: "Search by token name, symbol, or contract",
+    qqGroupNumber: "QQ Group Number", qqGroupCopied: "Group number copied. Search for it in QQ to join.",
+    qqGroupInvalid: "Enter a QQ group number containing 5–12 digits.",
   },
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
@@ -74,6 +78,8 @@ const messages: Record<Language, Record<string, string>> = {
     destroyed: "소각됨", curveOnly: "자동 커브 전용", protected: "졸업 전 보호", unlocked: "졸업 후 개방",
     confirmed: "거래가 확인되었습니다.", txHash: "거래 해시",
     searchPlaceholder: "토큰 이름, 심볼 또는 컨트랙트 검색",
+    qqGroupNumber: "QQ 그룹 번호", qqGroupCopied: "그룹 번호가 복사되었습니다. QQ에서 검색하여 가입하세요。",
+    qqGroupInvalid: "5~12자리 숫자로 된 QQ 그룹 번호를 입력하세요.",
   },
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
@@ -97,6 +103,8 @@ const messages: Record<Language, Record<string, string>> = {
     destroyed: "バーン済み", curveOnly: "自動カーブのみ", protected: "卒業前保護", unlocked: "卒業後開放",
     confirmed: "取引が確認されました。", txHash: "取引ハッシュ",
     searchPlaceholder: "トークン名・シンボル・アドレスを検索",
+    qqGroupNumber: "QQグループ番号", qqGroupCopied: "グループ番号をコピーしました。QQで検索して参加してください。",
+    qqGroupInvalid: "5～12桁の数字でQQグループ番号を入力してください。",
   },
 };
 
