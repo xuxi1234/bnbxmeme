@@ -695,7 +695,7 @@ export default function CreateTokenPage() {
           <fieldset className="graduation-control">
             <legend>{t("graduationTarget")}</legend>
             <div className="graduation-value" aria-live="polite">
-              <span>{target}</span>
+              <span>{(target / 100).toFixed(2)}</span>
               <small>BNB</small>
             </div>
             <div className="graduation-presets" aria-label={`${t("graduationTarget")} presets`}>
@@ -706,14 +706,14 @@ export default function CreateTokenPage() {
                   type="button"
                   onClick={() => setTarget(value)}
                 >
-                  {value} BNB
+                  {(value / 100).toFixed(2)} BNB
                 </button>
               ))}
             </div>
             <div className="graduation-slider-row">
               <button
                 type="button"
-                aria-label="减少 1 BNB"
+                aria-label="减少 0.01 BNB"
                 disabled={target <= 1}
                 onClick={() => setTarget((current) => Math.max(1, current - 1))}
               >
@@ -725,14 +725,14 @@ export default function CreateTokenPage() {
                 max="18"
                 step="1"
                 aria-label={t("graduationTarget")}
-                aria-valuetext={`${target} BNB`}
+                aria-valuetext={`${(target / 100).toFixed(2)} BNB`}
                 value={target}
                 style={{ "--range-progress": `${((target - 1) / 17) * 100}%` } as CSSProperties}
                 onChange={(event) => setTarget(Number(event.target.value))}
               />
               <button
                 type="button"
-                aria-label="增加 1 BNB"
+                aria-label="增加 0.01 BNB"
                 disabled={target >= 18}
                 onClick={() => setTarget((current) => Math.min(18, current + 1))}
               >
@@ -740,9 +740,9 @@ export default function CreateTokenPage() {
               </button>
             </div>
             <div className="graduation-scale" aria-hidden="true">
-              <span>1 BNB</span>
-              <span>1–18 BNB</span>
-              <span>18 BNB</span>
+              <span>0.01 BNB</span>
+              <span>0.01–0.18 BNB</span>
+              <span>0.18 BNB</span>
             </div>
           </fieldset>
 

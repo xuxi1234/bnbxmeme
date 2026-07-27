@@ -307,7 +307,7 @@ const eightHundredMillion = parseEther("800000000");
 const twoHundredMillion = parseEther("200000000");
 
 for (let target = 1; target <= 18; target += 1) {
-  const targetWei = parseEther(String(target));
+  const targetWei = parseEther((target / 100).toFixed(2));
   const grossBuy = grossForExactNet(targetWei);
   const block = await publicClient.getBlock();
   const tokenName = `Target ${target}`;
@@ -445,7 +445,7 @@ for (let target = 1; target <= 18; target += 1) {
   check(userTokens === eightHundredMillion, `Target ${target}: curve allocation mismatch`);
   check(pairTokens === twoHundredMillion, `Target ${target}: LP allocation mismatch`);
   check(burnedLP > 0n, `Target ${target}: LP was not burned`);
-  console.log(`PASS GraduationTarget.${target}BNB`);
+  console.log(`PASS GraduationTarget.${(target / 100).toFixed(2)}BNB`);
 }
 
 await provider.disconnect();

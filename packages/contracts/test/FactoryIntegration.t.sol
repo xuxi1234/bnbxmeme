@@ -289,7 +289,7 @@ contract FactoryIntegrationTest {
         assert(launchFactory.curveOf(tokenAddress) == curveAddress);
         assert(token.balanceOf(curveAddress) == 1_000_000_000 ether);
         assert(curve.realBNBPrincipal() == 0);
-        assert(curve.graduationTarget() == 1 ether);
+        assert(curve.graduationTarget() == 0.01 ether);
         assert(uint256(curve.state()) == uint256(BondingCurve.State.Trading));
         assert(FEE_RECIPIENT.balance - feeBalanceBefore == 0.001 ether);
     }
@@ -303,9 +303,9 @@ contract FactoryIntegrationTest {
                 "Eighteen", "EIGHTEEN", 18, ""
             );
 
-        assert(BondingCurve(payable(oneBNBCurve)).graduationTarget() == 1 ether);
+        assert(BondingCurve(payable(oneBNBCurve)).graduationTarget() == 0.01 ether);
         assert(
-            BondingCurve(payable(eighteenBNBCurve)).graduationTarget() == 18 ether
+            BondingCurve(payable(eighteenBNBCurve)).graduationTarget() == 0.18 ether
         );
 
         (bool belowSuccess,) = address(launchFactory).call{ value: 0.001 ether }(
