@@ -783,7 +783,12 @@ export default function TokenTradingPage() {
                 <span>{t("fee")}</span>
                 <strong>{formatEther(buyQuote.data?.[1] ?? 0n)} BNB</strong>
               </div>
-              {user && chainId !== bscTestnet.id ? (
+              {!user ? (
+                <WalletButton
+                  className="button wide trade-submit buy"
+                  connectLabel={`${t("buy")} · 连接钱包`}
+                />
+              ) : chainId !== bscTestnet.id ? (
                 <button className="button wide" type="button" onClick={() => switchChain({ chainId: bscTestnet.id })}>
                   {t("switchNetwork")}
                 </button>
@@ -823,7 +828,12 @@ export default function TokenTradingPage() {
                 <span>{t("fee")}</span>
                 <strong>{formatEther(sellQuote.data?.[1] ?? 0n)} BNB</strong>
               </div>
-              {user && chainId !== bscTestnet.id ? (
+              {!user ? (
+                <WalletButton
+                  className="button wide trade-submit sell"
+                  connectLabel={`${t("sell")} · 连接钱包`}
+                />
+              ) : chainId !== bscTestnet.id ? (
                 <button className="button wide" type="button" onClick={() => switchChain({ chainId: bscTestnet.id })}>
                   {t("switchNetwork")}
                 </button>
@@ -864,7 +874,6 @@ export default function TokenTradingPage() {
         </article>
       </section>
       </section>
-      <a className="mobile-trade-dock" href="#trade">{t("buy")} / {t("sell")}</a>
       {tokenAddress !== zeroAddress && curveAddress !== zeroAddress && (
         <TokenActivity
           token={tokenAddress}

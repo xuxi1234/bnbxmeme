@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { SiteHeader } from "@/components/site-header";
@@ -10,6 +10,14 @@ export const metadata: Metadata = {
   title: "BNBX — Build Next Bull System",
   description:
     "BNB Chain 0% 代币税公平发射平台。固定 10 亿供应、联合曲线交易、自动迁移 PancakeSwap V2。",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
