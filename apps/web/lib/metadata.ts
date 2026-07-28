@@ -44,7 +44,7 @@ function safeLink(value: unknown) {
 function safeQQGroupNumber(value: unknown) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
-  return /^\d{5,12}$/.test(trimmed) ? trimmed : undefined;
+  return trimmed ? trimmed.slice(0, 30) : undefined;
 }
 
 function sanitizeMetadata(value: unknown): TokenMetadata | null {

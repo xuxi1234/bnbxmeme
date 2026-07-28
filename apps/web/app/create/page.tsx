@@ -174,7 +174,7 @@ export default function CreateTokenPage() {
 
     const form = new FormData();
     form.set("name", name.trim());
-    form.set("symbol", symbol.trim().toUpperCase());
+    form.set("symbol", symbol.trim());
     form.set("description", description.trim());
     form.set("website", website.trim());
     form.set("telegram", telegram.trim());
@@ -197,7 +197,7 @@ export default function CreateTokenPage() {
   async function findVanitySalt() {
     if (!address) throw new Error("请先连接钱包");
     const tokenName = name.trim();
-    const tokenSymbol = symbol.trim().toUpperCase();
+    const tokenSymbol = symbol.trim();
     const start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
     const marketing =
       marketingWallet.trim() === "" ? address : marketingWallet.trim();
@@ -313,14 +313,6 @@ export default function CreateTokenPage() {
     if (!address || !factoryAddress) return;
 
     setUploadError("");
-    const normalizedQQGroupNumber = qqGroupNumber.trim();
-    if (
-      normalizedQQGroupNumber &&
-      !/^\d{5,12}$/.test(normalizedQQGroupNumber)
-    ) {
-      setUploadError(t("qqGroupInvalid"));
-      return;
-    }
     setIsUploading(true);
     try {
       const metadataURI = await uploadMetadata();
@@ -348,7 +340,7 @@ export default function CreateTokenPage() {
         if (!isAddress(marketing)) throw new Error("营销钱包地址格式错误");
         const request = {
           name: name.trim(),
-          symbol: symbol.trim().toUpperCase(),
+          symbol: symbol.trim(),
           graduationTargetBNB: target,
           metadataURI,
           vanitySalt,
@@ -400,7 +392,7 @@ export default function CreateTokenPage() {
           functionName: "createVanityToken",
           args: [{
             name: name.trim(),
-            symbol: symbol.trim().toUpperCase(),
+            symbol: symbol.trim(),
             graduationTargetBNB: target,
             metadataURI,
             vanitySalt,
@@ -419,7 +411,7 @@ export default function CreateTokenPage() {
         functionName: "createVanityTokenAndBuy",
         args: [{
           name: name.trim(),
-          symbol: symbol.trim().toUpperCase(),
+          symbol: symbol.trim(),
           graduationTargetBNB: target,
           metadataURI,
           vanitySalt,
@@ -685,8 +677,8 @@ export default function CreateTokenPage() {
               required
               maxLength={10}
               value={symbol}
-              placeholder="例如 BCAT"
-              onChange={(event) => setSymbol(event.target.value.toUpperCase())}
+              placeholder="例如 BCAT 或 bcat"
+              onChange={(event) => setSymbol(event.target.value)}
             />
           </label>
 
@@ -714,50 +706,41 @@ export default function CreateTokenPage() {
           <fieldset className="social-fields">
             <legend>{t("socialLinks")}</legend>
             <input
-              type="url"
+              type="text"
+              maxLength={30}
               value={website}
-              placeholder="官网 https://"
+              placeholder="请填写你的官方网站链接 / 可不填写"
               onChange={(event) => setWebsite(event.target.value)}
             />
             <input
-              type="url"
+              type="text"
+              maxLength={30}
               value={telegram}
-              placeholder="Telegram https://t.me/"
+              placeholder="请填写你的 Telegram 社区链接 / 可不填写"
               onChange={(event) => setTelegram(event.target.value)}
             />
             <input
-              type="url"
+              type="text"
+              maxLength={30}
               value={twitter}
-              placeholder="X / Twitter https://x.com/"
+              placeholder="请填写你的 X（Twitter）链接 / 可不填写"
               onChange={(event) => setTwitter(event.target.value)}
             />
             <input
-              type="url"
+              type="text"
+              maxLength={30}
               value={debox}
-              placeholder="DeBox https://debox.pro/"
+              placeholder="请填写你的 DeBox 社区链接 / 可不填写"
               onChange={(event) => setDebox(event.target.value)}
             />
             <input
               type="text"
-              inputMode="numeric"
               aria-label={t("qqGroupNumber")}
-              maxLength={12}
-              pattern="[0-9]{5,12}"
+              maxLength={30}
               value={qqGroupNumber}
-              placeholder={`${t("qqGroupNumber")} 781965479`}
-              onChange={(event) =>
-                setQqGroupNumber(event.target.value.replace(/\D/g, "").slice(0, 12))
-              }
+              placeholder="请填写你的社区的QQ群 / 可不填写"
+              onChange={(event) => setQqGroupNumber(event.target.value)}
             />
-            <small>
-              {language === "zh"
-                ? "仅保存 5–12 位纯数字群号；不会生成或打开加群链接。"
-                : language === "ja"
-                  ? "5～12桁の数字のみ保存します。参加リンクは生成されません。"
-                  : language === "ko"
-                    ? "5~12자리 숫자만 저장하며 가입 링크를 생성하지 않습니다."
-                    : "Only a 5–12 digit group number is stored. No join link is generated."}
-            </small>
           </fieldset>
 
           <fieldset className="graduation-control">

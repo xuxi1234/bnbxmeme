@@ -15,10 +15,31 @@ function text(form: FormData, key: string, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
-function safeUrl(value: string) {
+type CommunityLinkKind = "website" | "telegram" | "twitter" | "debox";
+
+function safeUrl(value: string, kind: CommunityLinkKind) {
   if (!value) return "";
+  const trimmed = value.trim().slice(0, 30);
+  const withoutAt = trimmed.replace(/^@/, "");
+  let candidate = trimmed;
+
+  if (!/^https?:\/\//i.test(candidate)) {
+    const looksLikeAddress = candidate.includes(".") || candidate.includes("/");
+    if (kind === "telegram" && !looksLikeAddress) {
+      candidate = `https://t.me/${encodeURIComponent(withoutAt)}`;
+    } else if (kind === "twitter" && !looksLikeAddress) {
+      candidate = `https://x.com/${encodeURIComponent(withoutAt)}`;
+    } else if (kind === "debox" && !looksLikeAddress) {
+      candidate = `https://m.debox.pro/${encodeURIComponent(withoutAt)}`;
+    } else {
+      candidate = `https://${candidate}`;
+    }
+  } else if (/^http:\/\//i.test(candidate)) {
+    candidate = candidate.replace(/^http:\/\//i, "https://");
+  }
+
   try {
-    const url = new URL(value);
+    const url = new URL(candidate);
     return url.protocol === "https:" ? url.toString() : "";
   } catch {
     return "";
@@ -26,12 +47,7 @@ function safeUrl(value: string) {
 }
 
 function safeQQGroupNumber(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  if (!/^\d{5,12}$/.test(trimmed)) {
-    throw new Error("QQ群号仅允许填写 5–12 位数字");
-  }
-  return trimmed;
+  return value.trim().slice(0, 30);
 }
 
 async function pinImage(image: File, jwt: string) {
@@ -71,7 +87,7 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const name = text(form, "name", 40);
-    const symbol = text(form, "symbol", 10).toUpperCase();
+    const symbol = text(form, "symbol", 10);
     const description = text(form, "description", 500);
     const image = form.get("image");
 
@@ -89,11 +105,11 @@ export async function POST(request: Request) {
       symbol,
       description,
       image: imageURI,
-      website: safeUrl(text(form, "website", 200)),
-      telegram: safeUrl(text(form, "telegram", 200)),
-      twitter: safeUrl(text(form, "twitter", 200)),
-      debox: safeUrl(text(form, "debox", 200)),
-      qqGroupNumber: safeQQGroupNumber(text(form, "qqGroupNumber", 12)),
+      website: safeUrl(text(form, "website", 30), "website"),
+      telegram: safeUrl(text(form, "telegram", 30), "telegram"),
+      twitter: safeUrl(text(form, "twitter", 30), "twitter"),
+      debox: safeUrl(text(form, "debox", 30), "debox"),
+      qqGroupNumber: safeQQGroupNumber(text(form, "qqGroupNumber", 30)),
       createdBy: "BNBX",
       chainId: 97,
     };
