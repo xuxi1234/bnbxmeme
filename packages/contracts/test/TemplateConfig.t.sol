@@ -86,4 +86,72 @@ contract TemplateConfigTest {
         );
         assert(!success);
     }
+
+    function testAutoLiquidityTaxBoundaryMatrix() public view {
+        assertAdvancedBoundaryMatrix(TemplateConfig.Template.AutoLiquidity);
+    }
+
+    function testHolderRewardsTaxBoundaryMatrix() public view {
+        assertAdvancedBoundaryMatrix(TemplateConfig.Template.HolderRewards);
+    }
+
+    function testLPRewardsTaxBoundaryMatrix() public view {
+        assertAdvancedBoundaryMatrix(TemplateConfig.Template.LPRewards);
+    }
+
+    function assertAdvancedBoundaryMatrix(TemplateConfig.Template template)
+        internal
+        view
+    {
+        // 0% and exactly 10% are valid independently for buy and sell.
+        harness.validate(
+            template,
+            TemplateConfig.Taxes(side(0, 0, 0, 0), side(0, 0, 0, 0))
+        );
+        harness.validate(
+            template,
+            TemplateConfig.Taxes(
+                side(1_000, 0, 0, 0), side(0, 0, 0, 1_000)
+            )
+        );
+
+        // A single 10.01% component is invalid on either side.
+        assertRejected(
+            template,
+            TemplateConfig.Taxes(
+                side(1_001, 0, 0, 0), side(0, 0, 0, 0)
+            )
+        );
+        assertRejected(
+            template,
+            TemplateConfig.Taxes(
+                side(0, 0, 0, 0), side(0, 0, 0, 1_001)
+            )
+        );
+
+        // Every component is individually below 10%, but the side total is
+        // 10.01%; validation must still reject the aggregate.
+        assertRejected(
+            template,
+            TemplateConfig.Taxes(
+                side(250, 250, 250, 251), side(0, 0, 0, 0)
+            )
+        );
+        assertRejected(
+            template,
+            TemplateConfig.Taxes(
+                side(0, 0, 0, 0), side(250, 250, 250, 251)
+            )
+        );
+    }
+
+    function assertRejected(
+        TemplateConfig.Template template,
+        TemplateConfig.Taxes memory taxes
+    ) internal view {
+        (bool success,) = address(harness).staticcall(
+            abi.encodeCall(harness.validate, (template, taxes))
+        );
+        assert(!success);
+    }
 }

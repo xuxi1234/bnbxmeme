@@ -146,6 +146,9 @@ const suites = [
       "testAdvancedTemplateAllowsExactlyTenPercentPerSide",
       "testRejectsBuyTaxAboveTenPercent",
       "testRejectsSellTaxAboveTenPercent",
+      "testAutoLiquidityTaxBoundaryMatrix",
+      "testHolderRewardsTaxBoundaryMatrix",
+      "testLPRewardsTaxBoundaryMatrix",
     ],
   },
   {

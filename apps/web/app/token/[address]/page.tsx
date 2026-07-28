@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatEther, isAddress, maxUint256, parseEther, zeroAddress } from "viem";
 import {
   useAccount,
@@ -340,14 +340,14 @@ export default function TokenTradingPage() {
     });
   }
 
-  function executeSell() {
+  const executeSell = useCallback(() => {
     tradeWrite.writeContract({
       address: factoryAddress,
       abi: factoryAbi,
       functionName: "sell",
       args: [tokenAddress, sellWei, minimumAfterSlippage(quotedSellBNB), deadline()],
     });
-  }
+  }, [factoryAddress, quotedSellBNB, sellWei, tokenAddress, tradeWrite]);
 
   function sell() {
     if (needsApproval) {
@@ -374,7 +374,7 @@ export default function TokenTradingPage() {
       setContinueAfterApproval(false);
       executeSell();
     }
-  }, [approvalReceipt.isSuccess, continueAfterApproval]);
+  }, [approvalReceipt.isSuccess, continueAfterApproval, executeSell]);
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -387,7 +387,16 @@ export default function TokenTradingPage() {
       buyQuote.refetch(),
       sellQuote.refetch(),
     ]);
-  }, [receipt.isSuccess]);
+  }, [
+    allowance,
+    balance,
+    buyQuote,
+    principal,
+    receipt.isSuccess,
+    sellQuote,
+    state,
+    target,
+  ]);
 
   useEffect(() => {
     if (!rewardReceipt.isSuccess && !lpApprovalReceipt.isSuccess) return;
@@ -397,7 +406,14 @@ export default function TokenTradingPage() {
       lpBalance.refetch(),
       lpAllowance.refetch(),
     ]);
-  }, [rewardReceipt.isSuccess, lpApprovalReceipt.isSuccess]);
+  }, [
+    claimableRewards,
+    lpAllowance,
+    lpApprovalReceipt.isSuccess,
+    lpBalance,
+    rewardReceipt.isSuccess,
+    rewardShares,
+  ]);
 
   function setSellPercent(percent: bigint) {
     setSellAmount(formatEther(((balance.data ?? 0n) * percent) / 100n));

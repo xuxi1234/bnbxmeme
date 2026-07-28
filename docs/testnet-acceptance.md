@@ -5,7 +5,8 @@ transaction hashes and automated test coverage.
 
 ## Creation
 
-- Create launches for every graduation target from 1 through 18 BNB.
+- Testnet legacy-scale acceptance: create launches for every integer graduation
+  target from 1 through 18 BNB. This is not the Mainnet canary range.
 - Verify exact one-billion fixed supply.
 - Verify 800/200 million allocation.
 - Verify the token exposes no privileged management method.
@@ -29,7 +30,8 @@ transaction hashes and automated test coverage.
 
 ## Graduation
 
-- Graduate every integer target from 1 through 18 BNB.
+- Graduate every legacy Testnet integer target from 1 through 18 BNB. Mainnet
+  canary acceptance instead covers 0.01–0.18 BNB in 0.01 BNB steps.
 - Verify internal trading permanently closes.
 - Verify exactly 200 million tokens and all net principal seed the V2 pool.
 - Verify the LP balance is held by the burn address.
