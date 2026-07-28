@@ -53,11 +53,16 @@ const supabaseSecret =
   process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function cacheHeaders() {
-  return {
+  const headers: Record<string, string> = {
     apikey: supabaseSecret!,
-    Authorization: `Bearer ${supabaseSecret}`,
     "Content-Type": "application/json",
   };
+  // Legacy service-role keys are JWTs and may be used as a bearer token.
+  // Supabase's newer sb_secret_* keys authenticate through apikey only.
+  if (supabaseSecret?.startsWith("eyJ")) {
+    headers.Authorization = `Bearer ${supabaseSecret}`;
+  }
+  return headers;
 }
 
 async function readCachedChainData(curveAddress: string) {
@@ -88,7 +93,7 @@ async function writeCachedChainData(
   if (!supabaseUrl || !supabaseSecret) return;
   const endpoint = new URL("/rest/v1/chain_data_cache", supabaseUrl);
   endpoint.searchParams.set("on_conflict", "chain_id,curve_address");
-  await fetch(endpoint, {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       ...cacheHeaders(),
@@ -103,6 +108,9 @@ async function writeCachedChainData(
       refreshed_at: new Date().toISOString(),
     }),
   });
+  if (!response.ok) {
+    throw new Error(`Chain cache write failed with status ${response.status}`);
+  }
 }
 
 async function getBoughtLogs(
@@ -174,6 +182,31 @@ async function getTransferLogs(
   return logs;
 }
 
+async function getBnbUsdPrice() {
+  const [binance, coinGecko] = await Promise.all([
+    fetch("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT", {
+      next: { revalidate: 60 },
+    }).catch(() => null),
+    fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=usd",
+      { next: { revalidate: 60 } },
+    ).catch(() => null),
+  ]);
+  if (binance?.ok) {
+    const data = (await binance.json()) as { price?: string };
+    const price = Number(data.price);
+    if (Number.isFinite(price) && price > 0) return price;
+  }
+  if (coinGecko?.ok) {
+    const data = (await coinGecko.json()) as {
+      binancecoin?: { usd?: number };
+    };
+    const price = Number(data.binancecoin?.usd);
+    if (Number.isFinite(price) && price > 0) return price;
+  }
+  return 0;
+}
+
 export async function GET(request: NextRequest) {
   const curve = request.nextUrl.searchParams.get("curve");
   const token = request.nextUrl.searchParams.get("token");
@@ -203,7 +236,7 @@ export async function GET(request: NextRequest) {
         : latest > 100_000n
           ? latest - 100_000n
           : 0n;
-    const [latestBlock, buys, sells, transfers, priceResponse] =
+    const [latestBlock, buys, sells, transfers, bnbUsd] =
       await Promise.all([
         client.getBlock({ blockNumber: latest }),
         getBoughtLogs(curveAddress, fromBlock, latest),
@@ -211,14 +244,8 @@ export async function GET(request: NextRequest) {
         tokenAddress
           ? getTransferLogs(tokenAddress, fromBlock, latest)
           : Promise.resolve([]),
-        fetch("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT", {
-          next: { revalidate: 60 },
-        }).catch(() => null),
+        getBnbUsdPrice(),
       ]);
-    const priceData = priceResponse?.ok
-      ? ((await priceResponse.json()) as { price?: string })
-      : null;
-    const bnbUsd = Number(priceData?.price ?? 0);
     // Approximate older trade timestamps from the latest canonical block.
     // This avoids one RPC call per trade on rate-limited public endpoints.
     const estimatedTimestamp = (blockNumber: bigint) =>
