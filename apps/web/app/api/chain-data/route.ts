@@ -17,11 +17,11 @@ const client = createPublicClient({
   chain: bsc,
   transport: fallback(
     [
+      ...(configuredRpc
+        ? [http(configuredRpc, { timeout: 20_000, retryCount: 2 })]
+        : []),
       http("https://bsc-rpc.publicnode.com", { timeout: 12_000 }),
       http("https://bsc.drpc.org", { timeout: 12_000 }),
-      ...(configuredRpc
-        ? [http(configuredRpc, { timeout: 12_000 })]
-        : []),
       http("https://bsc-dataseed.binance.org", {
         timeout: 12_000,
       }),
@@ -119,9 +119,11 @@ export async function GET(request: NextRequest) {
       { trades, holders, bnbUsd },
       { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } },
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "RPC error" },
+      // Do not expose provider URLs, request bodies, or upstream diagnostics
+      // because a private RPC credential may be embedded in the configured URL.
+      { error: "Chain data is temporarily unavailable" },
       { status: 502 },
     );
   }

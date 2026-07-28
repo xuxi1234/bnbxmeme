@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { isAddress, parseEther } from "viem";
+import { decodeEventLog, isAddress, parseEther } from "viem";
 import {
   useAccount,
   useChainId,
@@ -28,7 +29,7 @@ const CREATION_FEE_WEI = parseEther("0.001");
 // interrupted. This cap prevents that invalid request; users still pay only for
 // gas actually consumed by the transaction.
 const CREATE_GAS_LIMIT = 8_000_000n;
-const MAX_SIDE_TAX = 25;
+const MAX_SIDE_TAX = 10;
 const VANITY_SEARCH_LIMIT = 500_000;
 const VANITY_SEARCH_CHUNK_SIZE = 1_000;
 
@@ -62,6 +63,23 @@ function readableWalletError(error: unknown) {
         : "钱包交易发送失败";
   if (message.includes("gas limit is too low") || message.includes("given 0")) {
     return "钱包生成的 Gas 限额为 0，页面已改用安全 Gas 上限。请刷新页面后重新提交。";
+  }
+  if (
+    message.includes("User rejected") ||
+    message.includes("User denied") ||
+    message.includes("rejected the request")
+  ) {
+    return "你已在钱包中取消本次操作，没有发送交易。";
+  }
+  if (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("HTTP request failed")
+  ) {
+    return "RPC 节点响应超时。请先检查链上是否已有交易记录，不要连续重复点击。";
+  }
+  if (message.includes("revert") || message.includes("execution reverted")) {
+    return "合约模拟或链上执行回滚。请保存当前参数和交易哈希以便诊断。";
   }
   return message;
 }
@@ -103,16 +121,31 @@ export default function CreateTokenPage() {
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data || !factoryAddress) return;
-    const created = receipt.data.logs.find(
-      (log) =>
-        log.address.toLowerCase() === factoryAddress.toLowerCase() &&
-        log.topics.length >= 4,
-    );
-    const tokenTopic = created?.topics[1];
-    if (!tokenTopic) return;
-    const tokenAddress = `0x${tokenTopic.slice(-40)}`;
-    router.push(`/token/${tokenAddress}`);
-  }, [factoryAddress, receipt.data, receipt.isSuccess, router]);
+    for (const log of receipt.data.logs) {
+      if (log.address.toLowerCase() !== factoryAddress.toLowerCase()) continue;
+      try {
+        const decoded = decodeEventLog({
+          abi:
+            template === "liquidity"
+              ? autoLiquidityFactoryAbi
+              : template === "holders" || template === "lp"
+                ? rewardsFactoryAbi
+                : factoryAbi,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (decoded.eventName !== "TokenCreated") continue;
+        const args = decoded.args as { token?: `0x${string}` };
+        if (args.token && isAddress(args.token)) {
+          router.push(`/token/${args.token}`);
+          return;
+        }
+      } catch {
+        // The receipt contains Transfer and Pancake events too. Only a
+        // successfully decoded TokenCreated event is eligible for navigation.
+      }
+    }
+  }, [factoryAddress, receipt.data, receipt.isSuccess, router, template]);
 
   function taxSideToBps(side: TaxSide) {
     return {
@@ -170,7 +203,7 @@ export default function CreateTokenPage() {
     const marketingAddress = marketing as `0x${string}`;
     if (template === "holders" || template === "lp") {
       if (!rewardsFactoryAddress) {
-        throw new Error("分红模板测试网 Factory 尚未配置");
+        throw new Error("分红模板主网 Factory 尚未配置");
       }
       const templateValue = template === "holders" ? 2 : 3;
       const minimumShare = parseEther(minimumRewardBalance || "0");
@@ -208,7 +241,7 @@ export default function CreateTokenPage() {
       throw new Error("暂未找到 1111 靓号，请重新提交");
     } else if (template === "liquidity") {
       if (!autoLiquidityFactoryAddress) {
-        throw new Error("自动回流测试网 Factory 尚未配置");
+        throw new Error("自动回流主网 Factory 尚未配置");
       }
       setVanityProgress(0);
       for (
@@ -304,7 +337,7 @@ export default function CreateTokenPage() {
           ? rewardsFactoryAbi
           : autoLiquidityFactoryAbi;
         if (!selectedFactory) {
-          throw new Error("所选模板测试网 Factory 尚未配置");
+          throw new Error("所选模板主网 Factory 尚未配置");
         }
         const marketing =
           marketingWallet.trim() === "" ? address : marketingWallet.trim();
@@ -432,9 +465,9 @@ export default function CreateTokenPage() {
   return (
     <main>
       <header className="topbar">
-        <a className="brand" href="/">
+        <Link className="brand" href="/">
           BNBX
-        </a>
+        </Link>
         <WalletButton />
       </header>
 
@@ -517,8 +550,8 @@ export default function CreateTokenPage() {
               </legend>
               <p className="field-help">
                 {language === "zh"
-                  ? "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 25%。"
-                  : "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 25% after Pancake V2 migration."}
+                  ? "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 10%。"
+                  : "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 10% after Pancake V2 migration."}
               </p>
               {(["buy", "sell"] as const).map((side) => {
                 const values = side === "buy" ? buyTaxes : sellTaxes;
@@ -624,8 +657,8 @@ export default function CreateTokenPage() {
               {unavailableTemplate && (
                 <p className="preview-lock">
                   {language === "zh"
-                    ? "工程预览：对应 V2 Factory 完成测试网部署并配置地址前不会允许真实创建，避免误部署。"
-                    : "Engineering preview: creation stays locked until its V2 Factory is deployed and configured on testnet."}
+                    ? "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。"
+                    : "Safety lock: creation is disabled until the corresponding mainnet Factory is configured."}
                 </p>
               )}
             </fieldset>
@@ -796,7 +829,7 @@ export default function CreateTokenPage() {
 
           {!factoryAddress && (
             <p className="notice">
-              测试网 Factory 合约地址尚未配置。完成合约部署和验证后，
+              主网 Factory 合约地址尚未配置。完成合约部署和验证后，
               创建按钮将自动解锁。
             </p>
           )}
@@ -804,8 +837,8 @@ export default function CreateTokenPage() {
           {taxInvalid && (
             <p className="error">
               {language === "zh"
-                ? "买入税或卖出税合计超过 25%，请降低税率。"
-                : "Buy or sell tax exceeds the 25% maximum."}
+                ? "买入税或卖出税合计超过 10%，请降低税率。"
+                : "Buy or sell tax exceeds the 10% maximum."}
             </p>
           )}
 
@@ -821,7 +854,7 @@ export default function CreateTokenPage() {
             <button
               className="button wide"
               type="submit"
-              disabled={!canSubmit || isPending || isUploading || isFindingVanity}
+              disabled={!canSubmit || isPending || receipt.isLoading || isUploading || isFindingVanity}
             >
               {isUploading
                 ? "正在上传到 IPFS…"
@@ -829,6 +862,8 @@ export default function CreateTokenPage() {
                 ? `正在准备 1111 尾号合约地址… ${vanityProgress}%`
                 : isPending
                 ? "请在钱包确认…"
+                : receipt.isLoading
+                ? "交易已提交，等待链上确认…"
                 : t("createToken")}
             </button>
           )}
@@ -836,6 +871,9 @@ export default function CreateTokenPage() {
           {hash && <p className="notice">交易哈希：{hash}</p>}
           {receipt.isSuccess && (
             <p className="success">代币已成功创建在 BNB 主网。</p>
+          )}
+          {receipt.isError && (
+            <p className="error">交易已提交，但链上执行失败。请不要重复点击，并保存交易哈希以便诊断。</p>
           )}
           {uploadError && <p className="error">{uploadError}</p>}
           {error && <p className="error">{readableWalletError(error)}</p>}

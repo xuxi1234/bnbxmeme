@@ -217,7 +217,7 @@ export function TokenMarket() {
   }, [entries, filter, query]);
 
   if (factories.length === 0) return <MarketEmpty title={t("loading")} message="Factory unavailable" />;
-  if (counts.isLoading || tokenResults.isLoading) return <MarketEmpty title={t("loading")} message="BNB Testnet" />;
+  if (counts.isLoading || tokenResults.isLoading) return <MarketEmpty title={t("loading")} message="BNB Chain Mainnet" />;
   if (tokens.length === 0) return <MarketEmpty title={t("noMatch")} message="" />;
 
   return (

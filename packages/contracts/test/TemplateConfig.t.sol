@@ -45,26 +45,26 @@ contract TemplateConfigTest {
         assert(!success);
     }
 
-    function testAdvancedTemplateAllowsExactlyTwentyFivePercentPerSide()
+    function testAdvancedTemplateAllowsExactlyTenPercentPerSide()
         public
         view
     {
         harness.validate(
             TemplateConfig.Template.AutoLiquidity,
             TemplateConfig.Taxes(
-                side(500, 1_000, 500, 500), side(250, 750, 750, 750)
+                side(200, 300, 250, 250), side(100, 300, 300, 300)
             )
         );
     }
 
-    function testRejectsBuyTaxAboveTwentyFivePercent() public {
+    function testRejectsBuyTaxAboveTenPercent() public {
         (bool success,) = address(harness).call(
             abi.encodeCall(
                 harness.validate,
                 (
                     TemplateConfig.Template.HolderRewards,
                     TemplateConfig.Taxes(
-                        side(500, 1_000, 501, 500), side(0, 0, 0, 0)
+                        side(250, 250, 250, 251), side(0, 0, 0, 0)
                     )
                 )
             )
@@ -72,14 +72,14 @@ contract TemplateConfigTest {
         assert(!success);
     }
 
-    function testRejectsSellTaxAboveTwentyFivePercent() public {
+    function testRejectsSellTaxAboveTenPercent() public {
         (bool success,) = address(harness).call(
             abi.encodeCall(
                 harness.validate,
                 (
                     TemplateConfig.Template.LPRewards,
                     TemplateConfig.Taxes(
-                        side(0, 0, 0, 0), side(1_000, 500, 500, 501)
+                        side(0, 0, 0, 0), side(250, 250, 250, 251)
                     )
                 )
             )

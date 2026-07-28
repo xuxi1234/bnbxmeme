@@ -143,9 +143,9 @@ const suites = [
     tests: [
       "testStandardTemplateAcceptsZeroTax",
       "testStandardTemplateRejectsAnyTax",
-      "testAdvancedTemplateAllowsExactlyTwentyFivePercentPerSide",
-      "testRejectsBuyTaxAboveTwentyFivePercent",
-      "testRejectsSellTaxAboveTwentyFivePercent",
+      "testAdvancedTemplateAllowsExactlyTenPercentPerSide",
+      "testRejectsBuyTaxAboveTenPercent",
+      "testRejectsSellTaxAboveTenPercent",
     ],
   },
   {
@@ -157,7 +157,7 @@ const suites = [
       "testGraduationSeedTransferIsTaxExempt",
       "testBuyTaxActivatesOnlyAfterGraduation",
       "testSellUsesIndependentSellTax",
-      "testRejectsTaxAboveTwentyFivePercent",
+      "testRejectsTaxAboveTenPercent",
     ],
   },
   {

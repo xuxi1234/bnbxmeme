@@ -21,7 +21,7 @@ const requestedFactories =
   [
     "0xdb189396ae2a350c484ddd749a6af96baebc124b",
     "0x9f572dc9d582ec8347d2a803f766652982220539",
-    "0xab744222f0f8699db98b5d9481562eb7c1500428",
+    "0x17b112a7f8ee8bb1b1a3d139c9ba58796ff46352",
   ].join(",");
 
 if (!apiKey && !dryRun) throw new Error("BSC_SCAN_API_KEY is required");

@@ -18,7 +18,7 @@ participant.
 
 ## Token properties
 
-Every launched token is:
+Every standard zero-tax token is:
 
 - immutable and non-upgradeable;
 - fixed-supply;
@@ -69,8 +69,9 @@ the contracts.
 
 ## Graduation
 
-At creation, the creator selects an integer graduation target from 1 through
-18 BNB. It is immutable for the life of the launch.
+During the Mainnet canary, the creator selects one of 18 graduation targets
+from 0.01 through 0.18 BNB in 0.01 BNB steps. The contract stores the selected
+step and derives the immutable wei target using `GRADUATION_UNIT`.
 
 Graduation occurs when net curve principal reaches the selected target. Once
 graduated:

@@ -4,7 +4,10 @@ pragma solidity 0.8.30;
 /// @title BNBX launch template validation
 /// @notice Shared limits for the future V2 factory and its deployment UI.
 library TemplateConfig {
-    uint16 internal constant MAX_SIDE_TAX_BPS = 2_500;
+    /// @dev Buy and sell taxes are independently capped at 10%. Keeping the
+    /// limit in the shared validation library prevents a UI-only restriction
+    /// from being bypassed by calling a factory directly.
+    uint16 internal constant MAX_SIDE_TAX_BPS = 1_000;
 
     enum Template {
         Standard,

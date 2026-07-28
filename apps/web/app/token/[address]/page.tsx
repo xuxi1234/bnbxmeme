@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatEther, isAddress, maxUint256, parseEther, zeroAddress } from "viem";
 import {
@@ -457,7 +458,7 @@ export default function TokenTradingPage() {
   return (
     <main>
       <header className="topbar">
-        <a className="brand" href="/">BNBX</a>
+        <Link className="brand" href="/">BNBX</Link>
         <WalletButton />
       </header>
 

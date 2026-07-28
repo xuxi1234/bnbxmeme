@@ -14,8 +14,8 @@ template until every advanced implementation passes testnet acceptance.
 - Token taxes are disabled for the factory, bonding curve, graduation transfer,
   and initial liquidity creation.
 - Token taxes may activate only after graduation.
-- Buy-side and sell-side tax totals are each capped at 2,500 basis points
-  (25%). A launch may permanently lower, but never increase, its configured
+- Buy-side and sell-side tax totals are each capped at 1,000 basis points
+  (10%). A launch may permanently lower, but never increase, its configured
   tax rates.
 - Marketing recipient defaults to the creator. Every non-zero recipient and
   reward token must be validated during creation.
@@ -63,11 +63,12 @@ LP holders.
 - Claims are initiated by the beneficiary; a failed payout reverts only that
   claim and cannot block transfers.
 - Buy-side and sell-side burn, liquidity, marketing, and rewards allocations
-  are independently configurable, but each side's total remains capped at 25%.
+  are independently configurable, but each side's total remains capped at 10%.
 
 ## Release gate
 
 An advanced template remains disabled in the web app until its bytecode is
-deployed on BSC Testnet, verified on BscScan, fuzz-tested, and accepted using
-the testnet checklist. The UI must never silently deploy a Standard token when
+deployed and accepted on BSC Testnet, then separately deployed and verified on
+BscScan Mainnet before its production address is enabled. The UI must never
+silently deploy a Standard token when
 an advanced template was selected.
