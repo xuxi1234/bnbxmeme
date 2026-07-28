@@ -38,6 +38,76 @@ const soldEvent = parseAbiItem(
 const transferEvent = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 );
+const LOG_BLOCK_RANGE = 10_000n;
+
+async function getBoughtLogs(
+  address: `0x${string}`,
+  fromBlock: bigint,
+  toBlock: bigint,
+) {
+  const logs = [];
+  for (let start = fromBlock; start <= toBlock; start += LOG_BLOCK_RANGE) {
+    const end =
+      start + LOG_BLOCK_RANGE - 1n < toBlock
+        ? start + LOG_BLOCK_RANGE - 1n
+        : toBlock;
+    logs.push(
+      ...(await client.getLogs({
+        address,
+        event: boughtEvent,
+        fromBlock: start,
+        toBlock: end,
+      })),
+    );
+  }
+  return logs;
+}
+
+async function getSoldLogs(
+  address: `0x${string}`,
+  fromBlock: bigint,
+  toBlock: bigint,
+) {
+  const logs = [];
+  for (let start = fromBlock; start <= toBlock; start += LOG_BLOCK_RANGE) {
+    const end =
+      start + LOG_BLOCK_RANGE - 1n < toBlock
+        ? start + LOG_BLOCK_RANGE - 1n
+        : toBlock;
+    logs.push(
+      ...(await client.getLogs({
+        address,
+        event: soldEvent,
+        fromBlock: start,
+        toBlock: end,
+      })),
+    );
+  }
+  return logs;
+}
+
+async function getTransferLogs(
+  address: `0x${string}`,
+  fromBlock: bigint,
+  toBlock: bigint,
+) {
+  const logs = [];
+  for (let start = fromBlock; start <= toBlock; start += LOG_BLOCK_RANGE) {
+    const end =
+      start + LOG_BLOCK_RANGE - 1n < toBlock
+        ? start + LOG_BLOCK_RANGE - 1n
+        : toBlock;
+    logs.push(
+      ...(await client.getLogs({
+        address,
+        event: transferEvent,
+        fromBlock: start,
+        toBlock: end,
+      })),
+    );
+  }
+  return logs;
+}
 
 export async function GET(request: NextRequest) {
   const curve = request.nextUrl.searchParams.get("curve");
@@ -58,10 +128,10 @@ export async function GET(request: NextRequest) {
           : 0n;
     const [latestBlock, buys, sells, transfers, priceResponse] = await Promise.all([
       client.getBlock({ blockNumber: latest }),
-      client.getLogs({ address: curveAddress, event: boughtEvent, fromBlock, toBlock: latest }),
-      client.getLogs({ address: curveAddress, event: soldEvent, fromBlock, toBlock: latest }),
+      getBoughtLogs(curveAddress, fromBlock, latest),
+      getSoldLogs(curveAddress, fromBlock, latest),
       tokenAddress
-        ? client.getLogs({ address: tokenAddress, event: transferEvent, fromBlock, toBlock: latest })
+        ? getTransferLogs(tokenAddress, fromBlock, latest)
         : Promise.resolve([]),
       fetch("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT", {
         next: { revalidate: 60 },
