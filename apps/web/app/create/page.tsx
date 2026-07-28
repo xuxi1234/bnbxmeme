@@ -707,38 +707,38 @@ export default function CreateTokenPage() {
             <legend>{t("socialLinks")}</legend>
             <input
               type="text"
-              maxLength={30}
+              maxLength={100}
               value={website}
-              placeholder="请填写你的官方网站链接 / 可不填写"
+              placeholder={t("websitePlaceholder")}
               onChange={(event) => setWebsite(event.target.value)}
             />
             <input
               type="text"
-              maxLength={30}
+              maxLength={100}
               value={telegram}
-              placeholder="请填写你的 Telegram 社区链接 / 可不填写"
+              placeholder={t("telegramPlaceholder")}
               onChange={(event) => setTelegram(event.target.value)}
             />
             <input
               type="text"
-              maxLength={30}
+              maxLength={100}
               value={twitter}
-              placeholder="请填写你的 X（Twitter）链接 / 可不填写"
+              placeholder={t("twitterPlaceholder")}
               onChange={(event) => setTwitter(event.target.value)}
             />
             <input
               type="text"
-              maxLength={30}
+              maxLength={100}
               value={debox}
-              placeholder="请填写你的 DeBox 社区链接 / 可不填写"
+              placeholder={t("deboxPlaceholder")}
               onChange={(event) => setDebox(event.target.value)}
             />
             <input
               type="text"
               aria-label={t("qqGroupNumber")}
-              maxLength={30}
+              maxLength={100}
               value={qqGroupNumber}
-              placeholder="请填写你的社区的QQ群 / 可不填写"
+              placeholder={t("qqPlaceholder")}
               onChange={(event) => setQqGroupNumber(event.target.value)}
             />
           </fieldset>
