@@ -29,6 +29,11 @@ const messages: Record<Language, Record<string, string>> = {
     confirmed: "交易已确认。", txHash: "交易哈希",
     searchPlaceholder: "输入代币名称、符号或合约地址",
     qqGroupNumber: "QQ群", qqGroupCopied: "QQ群信息已复制，请打开QQ搜索加入",
+    websitePlaceholder: "请填写你的官方网站链接 / 可不填写",
+    telegramPlaceholder: "请填写你的 Telegram 社区链接 / 可不填写",
+    twitterPlaceholder: "请填写你的 X（Twitter）链接 / 可不填写",
+    deboxPlaceholder: "请填写你的 DeBox 社区链接 / 可不填写",
+    qqPlaceholder: "请填写你的社区的QQ群 / 可不填写",
   },
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
@@ -53,6 +58,11 @@ const messages: Record<Language, Record<string, string>> = {
     confirmed: "Transaction confirmed.", txHash: "Transaction hash",
     searchPlaceholder: "Search by token name, symbol, or contract",
     qqGroupNumber: "QQ Group", qqGroupCopied: "QQ group information copied. Search for it in QQ to join.",
+    websitePlaceholder: "Enter your official website / Optional",
+    telegramPlaceholder: "Enter your Telegram community / Optional",
+    twitterPlaceholder: "Enter your X (Twitter) link / Optional",
+    deboxPlaceholder: "Enter your DeBox community / Optional",
+    qqPlaceholder: "Enter your community QQ group / Optional",
   },
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
@@ -77,6 +87,11 @@ const messages: Record<Language, Record<string, string>> = {
     confirmed: "거래가 확인되었습니다.", txHash: "거래 해시",
     searchPlaceholder: "토큰 이름, 심볼 또는 컨트랙트 검색",
     qqGroupNumber: "QQ 그룹", qqGroupCopied: "QQ 그룹 정보가 복사되었습니다. QQ에서 검색하여 가입하세요。",
+    websitePlaceholder: "공식 웹사이트를 입력하세요 / 선택",
+    telegramPlaceholder: "Telegram 커뮤니티를 입력하세요 / 선택",
+    twitterPlaceholder: "X (Twitter) 링크를 입력하세요 / 선택",
+    deboxPlaceholder: "DeBox 커뮤니티를 입력하세요 / 선택",
+    qqPlaceholder: "커뮤니티 QQ 그룹을 입력하세요 / 선택",
   },
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
@@ -101,6 +116,11 @@ const messages: Record<Language, Record<string, string>> = {
     confirmed: "取引が確認されました。", txHash: "取引ハッシュ",
     searchPlaceholder: "トークン名・シンボル・アドレスを検索",
     qqGroupNumber: "QQグループ", qqGroupCopied: "QQグループ情報をコピーしました。QQで検索して参加してください。",
+    websitePlaceholder: "公式ウェブサイトを入力 / 任意",
+    telegramPlaceholder: "Telegramコミュニティを入力 / 任意",
+    twitterPlaceholder: "X（Twitter）リンクを入力 / 任意",
+    deboxPlaceholder: "DeBoxコミュニティを入力 / 任意",
+    qqPlaceholder: "コミュニティのQQグループを入力 / 任意",
   },
 };
 

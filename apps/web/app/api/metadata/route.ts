@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_COMMUNITY_TEXT_LENGTH = 100;
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -19,7 +20,7 @@ type CommunityLinkKind = "website" | "telegram" | "twitter" | "debox";
 
 function safeUrl(value: string, kind: CommunityLinkKind) {
   if (!value) return "";
-  const trimmed = value.trim().slice(0, 30);
+  const trimmed = value.trim().slice(0, MAX_COMMUNITY_TEXT_LENGTH);
   const withoutAt = trimmed.replace(/^@/, "");
   let candidate = trimmed;
 
@@ -47,7 +48,7 @@ function safeUrl(value: string, kind: CommunityLinkKind) {
 }
 
 function safeQQGroupNumber(value: string) {
-  return value.trim().slice(0, 30);
+  return value.trim().slice(0, MAX_COMMUNITY_TEXT_LENGTH);
 }
 
 async function pinImage(image: File, jwt: string) {
@@ -105,11 +106,11 @@ export async function POST(request: Request) {
       symbol,
       description,
       image: imageURI,
-      website: safeUrl(text(form, "website", 30), "website"),
-      telegram: safeUrl(text(form, "telegram", 30), "telegram"),
-      twitter: safeUrl(text(form, "twitter", 30), "twitter"),
-      debox: safeUrl(text(form, "debox", 30), "debox"),
-      qqGroupNumber: safeQQGroupNumber(text(form, "qqGroupNumber", 30)),
+      website: safeUrl(text(form, "website", MAX_COMMUNITY_TEXT_LENGTH), "website"),
+      telegram: safeUrl(text(form, "telegram", MAX_COMMUNITY_TEXT_LENGTH), "telegram"),
+      twitter: safeUrl(text(form, "twitter", MAX_COMMUNITY_TEXT_LENGTH), "twitter"),
+      debox: safeUrl(text(form, "debox", MAX_COMMUNITY_TEXT_LENGTH), "debox"),
+      qqGroupNumber: safeQQGroupNumber(text(form, "qqGroupNumber", MAX_COMMUNITY_TEXT_LENGTH)),
       createdBy: "BNBX",
       chainId: 97,
     };
