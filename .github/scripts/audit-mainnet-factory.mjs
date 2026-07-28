@@ -18,7 +18,7 @@ const { bsc } = require("viem/chains");
 
 const factory = getAddress(
   process.env.FACTORY_ADDRESS ??
-    "0x17b112a7f8ee8bb1b1a3d139c9ba58796ff46352",
+    "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8",
 );
 const rpcSecret = process.env.BSC_MAINNET_RPC_URL?.trim();
 if (!rpcSecret) throw new Error("BSC_MAINNET_RPC_URL is required");
