@@ -31,7 +31,11 @@ const CREATION_FEE_WEI = parseEther("0.001");
 const CREATE_GAS_LIMIT = 8_000_000n;
 const MAX_SIDE_TAX = 10;
 const VANITY_SEARCH_LIMIT = 500_000;
-const VANITY_SEARCH_CHUNK_SIZE = 1_000;
+// One eth_call can safely search a much larger CREATE2 salt range than the
+// previous 1,000-attempt batch. 10,000 keeps the call below common BSC RPC
+// execution limits while cutting the average number of network round trips
+// from ~66 to ~7 for a 16-bit vanity suffix.
+const VANITY_SEARCH_CHUNK_SIZE = 10_000;
 
 type TemplateId = "standard" | "liquidity" | "holders" | "lp";
 type TaxKey = "burn" | "liquidity" | "marketing" | "rewards";
