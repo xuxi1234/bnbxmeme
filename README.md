@@ -40,8 +40,14 @@ packages/chain-config shared chain addresses and IDs
 - Chain ID: `56`
 - PancakeSwap V2 Router: `0x10ED43C718714eb63d5aA57B78B54704E256024E`
 - Fee recipient: `0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`
-- Advanced token deployer: `0xc4c3a0907400e351622a1ce657ddb8651cba87d6`
-- Rewards Factory: `0x17b112a7f8ee8bb1b1a3d139c9ba58796ff46352`
+- Advanced token deployer: `0xe7061e64991855a474ba29ad8adf7b6984c29cb4`
+- Rewards Factory: `0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8`
+- Advanced token deployer deployment:
+  `0x76acc2ac3407d9dd68f5ec3ccc56ecb6471bb35ae09c26a0522c764764721a6c`
+- Rewards Factory deployment:
+  `0x25fd96e9562b42a7b8e6b52b7bd7fbf4438ee35981253809be94f68a0b772c58`
+- Deployer manager configuration:
+  `0x843d747e99275ce20183da0a4bb11a834f2581e2b3f42563c83da0d8abc29623`
 
 The web deployment uses server-only `PINATA_JWT` and `BSC_MAINNET_RPC_URL`
 environment variables. Never expose them through a `NEXT_PUBLIC_*` variable,
