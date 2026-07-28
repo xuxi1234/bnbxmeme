@@ -1,0 +1,75 @@
+name: Audit BNBX mainnet Factory (read-only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/scripts/audit-mainnet-factory.mjs"
+      - ".github/workflows/audit-mainnet-factory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-bnbx-mainnet-factory-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Compare deployed Factory with 25% and 10% artifacts
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 32
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
+      FACTORY_ADDRESS: "0x17b112a7f8ee8bb1b1a3d139c9ba58796ff46352"
+    steps:
+      - name: Check out PR branch with main history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Confirm read-only RPC method policy
+        run: |
+          if grep -E "eth_send|sendTransaction|writeContract|deployContract|walletClient|privateKey" .github/scripts/audit-mainnet-factory.mjs; then
+            echo "Forbidden write-capable method found" >&2
+            exit 1
+          fi
+
+      - name: Audit Factory and token deployer
+        run: node .github/scripts/audit-mainnet-factory.mjs | tee factory-audit.json
+
+      - name: Publish audit summary
+        if: always()
+        run: |
+          if test -s factory-audit.json; then
+            {
+              echo '## BNBX mainnet Factory read-only audit'
+              echo
+              echo '```json'
+              cat factory-audit.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload audit evidence
+        if: always() && hashFiles('factory-audit.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-mainnet-factory-audit
+          path: factory-audit.json
+          if-no-files-found: error
+          retention-days: 30
