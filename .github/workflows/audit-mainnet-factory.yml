@@ -50,7 +50,9 @@ jobs:
           fi
 
       - name: Audit Factory and token deployer
-        run: node .github/scripts/audit-mainnet-factory.mjs | tee factory-audit.json
+        run: |
+          set -o pipefail
+          node .github/scripts/audit-mainnet-factory.mjs | tee factory-audit.json
 
       - name: Publish audit summary
         if: always()
