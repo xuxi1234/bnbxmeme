@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isAddress, zeroAddress } from "viem";
 import {
@@ -172,9 +173,9 @@ export default function DeployTestnetPage() {
   return (
     <main>
       <header className="topbar">
-        <a className="brand" href="/">
+        <Link className="brand" href="/">
           BNBX
-        </a>
+        </Link>
         <WalletButton />
       </header>
       <section className="form-shell">

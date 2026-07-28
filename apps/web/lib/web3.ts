@@ -16,7 +16,7 @@ export const autoLiquidityFactoryAddress =
 export const rewardsFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as
     | `0x${string}`
-    | undefined) ?? "0xab744222f0f8699db98b5d9481562eb7c1500428";
+    | undefined) ?? "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8";
 export const blockExplorerUrl = "https://bscscan.com";
 export const testnetPancakeRouterAddress =
   "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
@@ -49,7 +49,38 @@ export const wagmiConfig = createConfig({
   ssr: true,
 });
 
+const standardTokenCreatedEvent = {
+  type: "event",
+  name: "TokenCreated",
+  anonymous: false,
+  inputs: [
+    { name: "token", type: "address", indexed: true },
+    { name: "curve", type: "address", indexed: true },
+    { name: "creator", type: "address", indexed: true },
+    { name: "name", type: "string", indexed: false },
+    { name: "symbol", type: "string", indexed: false },
+    { name: "graduationTargetBNB", type: "uint8", indexed: false },
+    { name: "metadataURI", type: "string", indexed: false },
+  ],
+} as const;
+
+const advancedTokenCreatedEvent = {
+  type: "event",
+  name: "TokenCreated",
+  anonymous: false,
+  inputs: [
+    { name: "token", type: "address", indexed: true },
+    { name: "curve", type: "address", indexed: true },
+    { name: "creator", type: "address", indexed: true },
+    { name: "graduationTargetBNB", type: "uint8", indexed: false },
+    { name: "marketingWallet", type: "address", indexed: false },
+    { name: "template", type: "uint8", indexed: false },
+    { name: "rewardVault", type: "address", indexed: false },
+  ],
+} as const;
+
 export const factoryAbi = [
+  standardTokenCreatedEvent,
   {
     type: "function",
     name: "tokenCount",
@@ -203,6 +234,7 @@ const rewardsCreateComponents = [
 ] as const;
 
 export const rewardsFactoryAbi = [
+  advancedTokenCreatedEvent,
   {
     type: "function",
     name: "findVanitySalt",
@@ -268,6 +300,7 @@ export const rewardsFactoryAbi = [
 ] as const;
 
 export const autoLiquidityFactoryAbi = [
+  advancedTokenCreatedEvent,
   {
     type: "function",
     name: "findVanitySalt",

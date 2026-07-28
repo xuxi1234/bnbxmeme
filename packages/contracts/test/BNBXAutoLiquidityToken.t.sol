@@ -107,9 +107,9 @@ contract BNBXAutoLiquidityTokenTest {
         assert(token.tokensForMarketing() == 500 ether);
     }
 
-    function testRejectsTaxAboveTwentyFivePercent() public {
+    function testRejectsTaxAboveTenPercent() public {
         TemplateConfig.Taxes memory excessive = TemplateConfig.Taxes(
-            TemplateConfig.SideTaxes(1_000, 1_000, 501, 0),
+            TemplateConfig.SideTaxes(250, 250, 250, 251),
             TemplateConfig.SideTaxes(0, 0, 0, 0)
         );
         (bool success,) = address(this).call(
