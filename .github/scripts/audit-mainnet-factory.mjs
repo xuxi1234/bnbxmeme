@@ -20,8 +20,18 @@ const factory = getAddress(
   process.env.FACTORY_ADDRESS ??
     "0x17b112a7f8ee8bb1b1a3d139c9ba58796ff46352",
 );
-const rpcUrl = process.env.BSC_MAINNET_RPC_URL?.trim();
-if (!rpcUrl) throw new Error("BSC_MAINNET_RPC_URL is required");
+const rpcSecret = process.env.BSC_MAINNET_RPC_URL?.trim();
+if (!rpcSecret) throw new Error("BSC_MAINNET_RPC_URL is required");
+const rpcUrl = rpcSecret.match(/https:\/\/[^\s'"\\]+/)?.[0];
+if (!rpcUrl) {
+  throw new Error("BSC_MAINNET_RPC_URL does not contain an HTTPS endpoint");
+}
+const rpcEndpoint = new URL(rpcUrl);
+if (rpcEndpoint.hostname !== "bnb-mainnet.g.alchemy.com") {
+  throw new Error(
+    `Unexpected RPC host ${rpcEndpoint.hostname}; expected bnb-mainnet.g.alchemy.com`,
+  );
+}
 
 const client = createPublicClient({
   chain: bsc,
