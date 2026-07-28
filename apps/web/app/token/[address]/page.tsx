@@ -716,6 +716,13 @@ export default function TokenTradingPage() {
           >
             CoinMarketCap ↗
           </a>
+          <a
+            href={`https://gmgn.ai/bsc/token/bnbxmeme_${tokenAddress}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GMGN.AI ↗
+          </a>
         </div>
         {qqCopied && (
           <div className="copy-toast" role="status" aria-live="polite">
