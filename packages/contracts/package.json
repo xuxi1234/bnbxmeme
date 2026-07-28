@@ -14,6 +14,7 @@
     "verify:testnet": "node scripts/verify-testnet.mjs",
     "verify-source:testnet": "node scripts/verify-source-testnet.mjs",
     "verify-launch-source:testnet": "node scripts/verify-launch-source-testnet.mjs",
+    "verify-source:mainnet": "node scripts/verify-source-mainnet.mjs",
     "smoke:testnet": "node scripts/smoke-test-testnet.mjs"
   },
   "devDependencies": {

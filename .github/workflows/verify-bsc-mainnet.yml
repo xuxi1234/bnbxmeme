@@ -1,0 +1,48 @@
+name: Verify BNBX contracts on BscScan
+
+on:
+  workflow_dispatch:
+    inputs:
+      factory_addresses:
+        description: "Comma-separated BNBX mainnet Factory addresses"
+        required: false
+        default: "0xdb189396ae2a350c484ddd749a6af96baebc124b,0x9f572dc9d582ec8347d2a803f766652982220539,0xab744222f0f8699db98b5d9481562eb7c1500428"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-bnbx-mainnet
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify infrastructure and launched tokens
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+      BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
+      BNBX_MAINNET_FACTORY_ADDRESSES: ${{ inputs.factory_addresses }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compile contracts
+        run: pnpm --filter @bnbx/contracts build
+
+      - name: Verify all mainnet contracts
+        run: pnpm --filter @bnbx/contracts verify-source:mainnet
