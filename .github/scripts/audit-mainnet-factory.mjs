@@ -1,15 +1,20 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import solc from "solc";
-import {
+import { createRequire } from "node:module";
+
+const require = createRequire(
+  new URL("../../packages/contracts/package.json", import.meta.url),
+);
+const solc = require("solc");
+const {
   createPublicClient,
   getAddress,
   http,
   keccak256,
   toBytes,
-} from "viem";
-import { bsc } from "viem/chains";
+} = require("viem");
+const { bsc } = require("viem/chains");
 
 const factory = getAddress(
   process.env.FACTORY_ADDRESS ??
