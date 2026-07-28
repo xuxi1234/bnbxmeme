@@ -105,12 +105,11 @@ const readUint = (address, name, args, inputs) =>
 const readString = (address, name) => read(address, name, stringOutput);
 
 async function callApi(parameters) {
-  const response = await fetch(API_URL, {
+  const response = await fetch(`${API_URL}?chainid=${CHAIN_ID}`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       apikey: apiKey,
-      chainid: CHAIN_ID,
       module: "contract",
       ...parameters,
     }),
