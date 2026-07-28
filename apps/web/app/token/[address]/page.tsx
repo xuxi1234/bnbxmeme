@@ -709,6 +709,13 @@ export default function TokenTradingPage() {
           >
             DEXTools ↗
           </a>
+          <a
+            href={`https://dex.coinmarketcap.com/token/BSC/${tokenAddress}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            CoinMarketCap ↗
+          </a>
         </div>
         {qqCopied && (
           <div className="copy-toast" role="status" aria-live="polite">
