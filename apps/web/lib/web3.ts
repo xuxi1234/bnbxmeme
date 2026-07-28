@@ -16,7 +16,7 @@ export const autoLiquidityFactoryAddress =
 export const rewardsFactoryAddress =
   (process.env.NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as
     | `0x${string}`
-    | undefined) ?? "0x17b112a7f8ee8bb1b1a3d139c9ba58796ff46352";
+    | undefined) ?? "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8";
 export const blockExplorerUrl = "https://bscscan.com";
 export const testnetPancakeRouterAddress =
   "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
