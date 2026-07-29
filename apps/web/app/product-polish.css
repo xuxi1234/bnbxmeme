@@ -92,7 +92,7 @@
 
 @media (max-width: 560px) {
   .home-banner {
-    min-height: 208px;
+    min-height: 238px;
     border-radius: 8px;
     background:
       radial-gradient(circle at 90% 50%, rgba(243,186,47,.22), transparent 13rem),
@@ -100,7 +100,7 @@
   }
 
   .banner-copy {
-    min-height: 208px;
+    min-height: 238px;
     width: 100%;
     justify-content: flex-start;
     padding: 28px 22px 22px;
@@ -113,8 +113,21 @@
     line-height: 1.02;
   }
 
-  .banner-copy > p:not(.eyebrow),
+  .banner-copy > p:not(.eyebrow) {
+    display: none;
+  }
+
   .banner-actions {
+    display: flex;
+    margin-top: 18px;
+  }
+
+  .banner-actions .button {
+    min-height: 42px;
+    padding-inline: 18px;
+  }
+
+  .banner-actions .banner-outline {
     display: none;
   }
 
@@ -179,9 +192,18 @@
   }
 
   .token-description {
-    margin: 14px 0 0;
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
     font-size: 14px;
     line-height: 1.55;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .token-description.expanded {
+    display: block;
+    overflow: visible;
   }
 
   .tax-template-card {
