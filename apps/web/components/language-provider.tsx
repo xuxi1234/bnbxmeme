@@ -8,6 +8,7 @@ export type Theme = "dark" | "light";
 const messages: Record<Language, Record<string, string>> = {
   zh: {
     market: "市场", create: "创建代币", today: "今日毕业", history: "历史毕业",
+    connectWallet: "连接钱包", connectingWallet: "连接中…", openInWallet: "在钱包中打开",
     projects: "实时项目", hot: "热门", latest: "最新", graduating: "即将打满", graduated: "历史毕业",
     buy: "买入", sell: "卖出", buyWith: "使用 BNB 买入", sellToken: "卖出代币",
     expectedGet: "预计获得", expectedReceive: "预计收到", fee: "交易手续费",
@@ -37,6 +38,7 @@ const messages: Record<Language, Record<string, string>> = {
   },
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
+    connectWallet: "Connect Wallet", connectingWallet: "Connecting…", openInWallet: "Open in Wallet",
     projects: "Live Projects", hot: "Hot", latest: "Latest", graduating: "Graduating", graduated: "Graduated",
     buy: "Buy", sell: "Sell", buyWith: "Buy with BNB", sellToken: "Sell Token",
     expectedGet: "You receive", expectedReceive: "You receive", fee: "Trading fee",
@@ -66,6 +68,7 @@ const messages: Record<Language, Record<string, string>> = {
   },
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
+    connectWallet: "지갑 연결", connectingWallet: "연결 중…", openInWallet: "지갑에서 열기",
     projects: "실시간 프로젝트", hot: "인기", latest: "최신", graduating: "졸업 예정", graduated: "졸업 완료",
     buy: "구매", sell: "판매", buyWith: "BNB로 구매", sellToken: "토큰 판매",
     expectedGet: "예상 수령", expectedReceive: "예상 수령", fee: "거래 수수료",
@@ -95,6 +98,7 @@ const messages: Record<Language, Record<string, string>> = {
   },
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
+    connectWallet: "ウォレット接続", connectingWallet: "接続中…", openInWallet: "ウォレットで開く",
     projects: "リアルタイム", hot: "人気", latest: "新着", graduating: "卒業間近", graduated: "卒業済み",
     buy: "購入", sell: "売却", buyWith: "BNBで購入", sellToken: "トークンを売却",
     expectedGet: "受取予定", expectedReceive: "受取予定", fee: "取引手数料",
