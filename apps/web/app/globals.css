@@ -139,7 +139,61 @@ a { color: inherit; }
 .site-brand small { color: var(--muted); font-size: 9px; letter-spacing: .13em; }
 .brand-logo { width: 40px; height: 40px; object-fit: contain; }
 .desktop-nav { display: flex; align-items: center; gap: clamp(24px, 2.2vw, 40px); }
-.mobile-nav { display: none; }
+.mobile-nav,
+.mobile-menu { display: none; }
+.mobile-menu-trigger {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 21px;
+}
+.mobile-menu-panel {
+  position: fixed;
+  z-index: 150;
+  top: 62px;
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 98%, #000);
+  box-shadow: 0 24px 70px rgba(0,0,0,.5);
+}
+.mobile-menu-panel nav { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.mobile-menu-panel nav a,
+.mobile-language-grid button,
+.mobile-theme-action {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.mobile-menu-panel nav a { display: grid; place-items: center; }
+.mobile-menu-section { display: grid; gap: 8px; margin-top: 12px; }
+.mobile-menu-section > span { color: var(--muted); font-size: 10px; font-weight: 800; }
+.mobile-language-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.mobile-language-grid button.active { background: rgba(243,186,47,.12); color: var(--brand); }
+.mobile-theme-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 0 14px;
+  text-align: left;
+}
+.mobile-theme-action span { color: var(--brand); font-size: 18px; }
 .desktop-nav a {
   display: inline-flex;
   min-height: 44px;
@@ -1346,12 +1400,32 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .tax-breakdown > div:last-child { grid-column: 1 / -1; }
 .tax-breakdown span { color: var(--muted); font-size: 12px; }
 .tax-breakdown strong { overflow-wrap: anywhere; font-size: 13px; }
-.token-description { max-width: 920px; margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.token-description-card {
+  display: grid;
+  max-width: 920px;
+  gap: 7px;
+  margin-top: 14px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+.token-description-card > strong { color: var(--text); font-size: 12px; }
+.token-description-card > button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+.token-description { max-width: 920px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
 .project-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .project-links a,
 .project-links button { padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: #d5d9d1; cursor: pointer; font-size: 10px; font-weight: 750; text-decoration: none; }
 .project-links a:hover,
 .project-links button:hover { border-color: var(--brand); color: var(--brand); }
+.project-links-toggle { display: none; }
 .qq-group-copy { display: inline-flex; align-items: center; gap: 8px; }
 .qq-group-copy strong { color: var(--brand); font-size: 14px; }
 .copy-toast {
@@ -1436,6 +1510,8 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .security-facts span { margin: 0; font-size: 10px; }
 .security-facts strong, .security-facts a { overflow: hidden; color: var(--text); font-family: monospace; font-size: 11px; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .security-facts a { color: var(--brand); }
+.security-toggle { display: none; }
+.security-details { display: block; }
 .trade-box { min-width: 0; margin-top: 0; border-radius: 10px; }
 .trade-tabs {
   display: grid;
@@ -1504,12 +1580,14 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .market-column {
   display: grid;
   grid-column: 1;
+  grid-row: 1;
   gap: 20px;
   min-width: 0;
 }
 .trade-sidebar {
   display: grid;
   grid-column: 2;
+  grid-row: 1;
   gap: 20px;
   min-width: 0;
 }
@@ -1764,8 +1842,12 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
     display: flex;
     flex-direction: column;
   }
-  .trade-sidebar { order: 1; width: 100%; }
-  .market-column { order: 2; width: 100%; }
+  .market-column,
+  .trade-sidebar { display: contents; }
+  .market-column > .curve-chart { order: 1; width: 100%; }
+  .trade-sidebar > .trade-box { order: 2; width: 100%; }
+  .market-column > .activity-terminal { order: 3; width: 100%; }
+  .trade-sidebar > .progress-card { order: 4; width: 100%; }
 }
 
 @media (max-width: 560px) {
@@ -1869,6 +1951,9 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   .tax-breakdown > div:last-child { grid-column: auto; }
   .project-links { display: grid; grid-template-columns: 1fr 1fr; }
   .project-links a, .project-links button { display: flex; min-height: 44px; align-items: center; justify-content: center; text-align: center; }
+  .project-links .project-links-toggle { display: flex; }
+  .project-links .project-link-secondary { display: none; }
+  .project-links .project-link-secondary.expanded { display: flex; }
   .copy-toast { right: 16px; bottom: 16px; }
   .card { padding: 18px; }
   .progress-card > strong { font-size: 44px; }
@@ -1885,11 +1970,43 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   .activity-heading { align-items: flex-start; flex-direction: column; padding-right: 14px; }
   .activity-heading > span { padding-bottom: 10px; }
   .site-header { overflow: visible; }
-  .header-actions .button { max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .language-trigger { min-width: 68px; max-width: 76px; }
-  .language-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .language-options { position: fixed; top: 62px; right: 12px; width: min(180px, calc(100vw - 24px)); }
-  .theme-toggle { flex: 0 0 44px; }
+  .header-actions { gap: 5px; }
+  .header-actions > .language-menu,
+  .header-actions > .theme-toggle { display: none; }
+  .header-actions .button {
+    max-width: 104px;
+    min-height: 44px;
+    overflow: hidden;
+    padding-inline: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .header-actions .wallet-chevron,
+  .network-trigger > i { display: none; }
+  .network-trigger { min-width: 44px; justify-content: center; padding-inline: 8px; }
+  .mobile-menu { display: block; }
+  .mobile-nav { display: none; }
+  body { padding-bottom: 0; }
+  .security-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .security-toggle strong { color: var(--brand); font-size: 18px; }
+  .security-details { display: none; }
+  .security-details.expanded { display: block; }
   .site-footer {
     padding: 38px 32px 28px;
     background: color-mix(in srgb, var(--surface) 74%, transparent);
@@ -1908,10 +2025,7 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   .site-header { padding-inline: 12px; }
   .site-brand > span { display: none; }
   .brand-logo { width: 38px; height: 38px; }
-  .header-actions { gap: 5px; }
-  .header-actions .button { max-width: 104px; padding-inline: 10px; }
+  .header-actions .button { max-width: 92px; }
   .network-trigger { padding-inline: 8px; }
   .network-logo { width: 22px; height: 22px; }
-  .language-trigger { min-width: 66px; max-width: 72px; padding-inline: 8px; }
-  .mobile-nav a { padding-inline: 14px; }
 }
