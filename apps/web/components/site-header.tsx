@@ -19,8 +19,8 @@ export function SiteHeader() {
   const languageMenu = useRef<HTMLDivElement>(null);
   const navigation = [
     [t("market"), "/#market"],
-    [t("create"), "/create"],
     [t("today"), "/#market"],
+    [t("create"), "/create"],
     [t("history"), "/#market"],
   ];
 
@@ -110,7 +110,7 @@ export function SiteHeader() {
         <WalletButton />
       </div>
       <nav className="mobile-nav" aria-label="移动端导航">
-        {navigation.slice(0, 3).map(([label, href]) => (
+        {navigation.map(([label, href]) => (
           <Link key={label} href={href}>{label}</Link>
         ))}
       </nav>
