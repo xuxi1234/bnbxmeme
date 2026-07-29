@@ -58,32 +58,54 @@ function safeInitialBuy(value: string) {
   }
 }
 
-function readableWalletError(error: unknown) {
+function readableWalletError(error: unknown, language: "zh" | "en" | "ko" | "ja") {
+  const localized = {
+    zh: {
+      fallback: "钱包交易发送失败", gas: "钱包生成的 Gas 限额为 0。请刷新后重新提交。",
+      rejected: "你已在钱包中取消操作，没有发送交易。", timeout: "RPC 节点响应超时。请先检查链上记录，不要连续重复点击。",
+      reverted: "合约模拟或链上执行回滚。请保存参数和交易哈希以便诊断。",
+    },
+    en: {
+      fallback: "Wallet transaction failed", gas: "The wallet generated an invalid gas limit. Refresh and submit again.",
+      rejected: "You cancelled this action in your wallet. No transaction was sent.", timeout: "The RPC timed out. Check for an existing on-chain transaction before retrying.",
+      reverted: "Contract simulation or execution reverted. Save the parameters and transaction hash for diagnosis.",
+    },
+    ko: {
+      fallback: "지갑 거래 전송 실패", gas: "지갑이 잘못된 Gas 한도를 생성했습니다. 새로고침 후 다시 제출하세요.",
+      rejected: "지갑에서 작업을 취소했습니다. 거래는 전송되지 않았습니다.", timeout: "RPC 응답 시간이 초과되었습니다. 재시도 전 온체인 거래 기록을 확인하세요.",
+      reverted: "컨트랙트 시뮬레이션 또는 실행이 되돌려졌습니다. 진단을 위해 설정과 거래 해시를 저장하세요.",
+    },
+    ja: {
+      fallback: "ウォレット取引の送信に失敗しました", gas: "ウォレットが無効なGas上限を生成しました。更新して再送信してください。",
+      rejected: "ウォレットで操作をキャンセルしました。取引は送信されていません。", timeout: "RPCがタイムアウトしました。再試行前にオンチェーン履歴を確認してください。",
+      reverted: "コントラクトのシミュレーションまたは実行がリバートしました。診断用に設定と取引ハッシュを保存してください。",
+    },
+  }[language];
   const message =
     error instanceof Error
       ? error.message
       : typeof error === "string"
         ? error
-        : "钱包交易发送失败";
+        : localized.fallback;
   if (message.includes("gas limit is too low") || message.includes("given 0")) {
-    return "钱包生成的 Gas 限额为 0，页面已改用安全 Gas 上限。请刷新页面后重新提交。";
+    return localized.gas;
   }
   if (
     message.includes("User rejected") ||
     message.includes("User denied") ||
     message.includes("rejected the request")
   ) {
-    return "你已在钱包中取消本次操作，没有发送交易。";
+    return localized.rejected;
   }
   if (
     message.includes("timeout") ||
     message.includes("timed out") ||
     message.includes("HTTP request failed")
   ) {
-    return "RPC 节点响应超时。请先检查链上是否已有交易记录，不要连续重复点击。";
+    return localized.timeout;
   }
   if (message.includes("revert") || message.includes("execution reverted")) {
-    return "合约模拟或链上执行回滚。请保存当前参数和交易哈希以便诊断。";
+    return localized.reverted;
   }
   return message;
 }
@@ -427,7 +449,7 @@ export default function CreateTokenPage() {
       });
     } catch (metadataError) {
       setUploadError(
-        readableWalletError(metadataError),
+        readableWalletError(metadataError, language),
       );
     } finally {
       setIsUploading(false);
@@ -482,7 +504,7 @@ export default function CreateTokenPage() {
 
         <form className="launch-form" onSubmit={submit}>
           <fieldset className="template-picker">
-            <legend>{language === "zh" ? "选择代币模板" : "Token template"}</legend>
+            <legend>{t("templateSelect")}</legend>
             <div className="template-grid">
               {templateIds.map((id) => {
                 const content = {
@@ -515,11 +537,15 @@ export default function CreateTokenPage() {
                         : "Reward qualifying Pancake LP holders after graduation.",
                   },
                 }[id];
-                const preview = id !== "standard";
+                const enabled =
+                  id === "standard" ||
+                  (id === "liquidity" && Boolean(autoLiquidityFactoryAddress)) ||
+                  ((id === "holders" || id === "lp") && Boolean(rewardsFactoryAddress));
                 return (
                   <button
                     aria-pressed={template === id}
-                    className={`template-card ${template === id ? "selected" : ""}`}
+                    className={`template-card ${template === id ? "selected" : ""} ${enabled ? "" : "disabled"}`}
+                    disabled={!enabled}
                     key={id}
                     onClick={() => {
                       setTemplate(id);
@@ -530,7 +556,7 @@ export default function CreateTokenPage() {
                     }}
                     type="button"
                   >
-                    <span>{preview ? "V2 MAINNET PREVIEW" : "LIVE"}</span>
+                    <span>{enabled ? t("available") : t("unavailable")}</span>
                     <strong>{content.name}</strong>
                     <small>{content.text}</small>
                   </button>
@@ -666,7 +692,7 @@ export default function CreateTokenPage() {
               required
               maxLength={40}
               value={name}
-              placeholder="例如 BNBX Cat"
+              placeholder={t("namePlaceholder")}
               onChange={(event) => setName(event.target.value)}
             />
           </label>
@@ -677,7 +703,7 @@ export default function CreateTokenPage() {
               required
               maxLength={10}
               value={symbol}
-              placeholder="例如 BCAT 或 bcat"
+              placeholder={t("symbolPlaceholder")}
               onChange={(event) => setSymbol(event.target.value)}
             />
           </label>
@@ -687,7 +713,7 @@ export default function CreateTokenPage() {
             <textarea
               maxLength={500}
               value={description}
-              placeholder="介绍代币、社区和 Meme 故事（最多 500 字）"
+              placeholder={t("descriptionPlaceholder")}
               onChange={(event) => setDescription(event.target.value)}
             />
             <small>{description.length}/500</small>
@@ -700,7 +726,7 @@ export default function CreateTokenPage() {
               type="file"
               onChange={(event) => setImage(event.target.files?.[0] ?? null)}
             />
-            <small>支持 JPG、PNG、WebP、GIF，最大 2MB。</small>
+            <small>{t("logoHelp")}</small>
           </label>
 
           <fieldset className="social-fields">
@@ -764,7 +790,7 @@ export default function CreateTokenPage() {
             <div className="graduation-slider-row">
               <button
                 type="button"
-                aria-label="减少 0.01 BNB"
+                aria-label={t("decreaseTarget")}
                 disabled={target <= 1}
                 onClick={() => setTarget((current) => Math.max(1, current - 1))}
               >
@@ -783,7 +809,7 @@ export default function CreateTokenPage() {
               />
               <button
                 type="button"
-                aria-label="增加 0.01 BNB"
+                aria-label={t("increaseTarget")}
                 disabled={target >= 18}
                 onClick={() => setTarget((current) => Math.min(18, current + 1))}
               >
@@ -803,21 +829,23 @@ export default function CreateTokenPage() {
               min="0"
               step="0.000000001"
               inputMode="decimal"
-              placeholder="输入 BNB 金额"
+              placeholder={t("initialBuyPlaceholder")}
               value={initialBuy}
               onChange={(event) => setInitialBuy(event.target.value)}
             />
             <small>
-              留空或填写 0 表示只创建、不首购。部署费 0.001 BNB。首购与创建在
-              同一笔交易完成，可避免创建后被抢跑；达到毕业额度时自动毕业并销毁
-              LP，超额 BNB 自动退回。
+              {{
+                zh: "留空或填写 0 表示只创建、不首购。部署费 0.001 BNB。首购与创建在同一笔交易完成；达到额度时自动毕业并销毁 LP，超额 BNB 自动退回。",
+                en: "Leave blank or enter 0 to create without buying. The creation fee is 0.001 BNB. Creation and the initial buy are atomic; graduation burns LP and refunds excess BNB.",
+                ko: "비워두거나 0을 입력하면 구매 없이 생성합니다. 생성 수수료는 0.001 BNB입니다. 생성과 최초 구매는 한 거래로 처리되며, 졸업 시 LP 소각 및 초과 BNB 환불이 자동 실행됩니다.",
+                ja: "空欄または0で購入せず作成します。作成手数料は0.001 BNBです。作成と初回購入は同一取引で行われ、卒業時にLPをバーンし超過BNBを返金します。",
+              }[language]}
             </small>
           </label>
 
           {!factoryAddress && (
             <p className="notice">
-              主网 Factory 合约地址尚未配置。完成合约部署和验证后，
-              创建按钮将自动解锁。
+              {t("factoryMissing")}
             </p>
           )}
 
@@ -835,7 +863,7 @@ export default function CreateTokenPage() {
               type="button"
               onClick={() => switchChain({ chainId: bsc.id })}
             >
-              切换到 BNB 主网
+              {t("switchNetwork")}
             </button>
           ) : (
             <button
@@ -844,26 +872,41 @@ export default function CreateTokenPage() {
               disabled={!canSubmit || isPending || receipt.isLoading || isUploading || isFindingVanity}
             >
               {isUploading
-                ? "正在上传到 IPFS…"
+                ? t("uploading")
                 : isFindingVanity
-                ? `正在准备 1111 尾号合约地址… ${vanityProgress}%`
+                ? `${t("preparingAddress")} ${vanityProgress}%`
                 : isPending
-                ? "请在钱包确认…"
+                ? t("walletConfirm")
                 : receipt.isLoading
-                ? "交易已提交，等待链上确认…"
+                ? t("confirming")
                 : t("createToken")}
             </button>
           )}
 
-          {hash && <p className="notice">交易哈希：{hash}</p>}
+          {hash && (
+            <a className="trade-tx-link" href={`https://bscscan.com/tx/${hash}`} target="_blank" rel="noreferrer">
+              <span>{t("txHash")}</span><strong>{hash.slice(0, 12)}…{hash.slice(-8)} ↗</strong>
+            </a>
+          )}
+          {(isPending || hash || receipt.isLoading || receipt.isSuccess) && (
+            <div className="transaction-status" role="status" aria-live="polite">
+              <strong>{t("txStatus")}</strong>
+              <ol>
+                <li className={hash ? "done" : "active"}>{t("walletStep")}</li>
+                <li className={hash ? "done" : ""}>{t("broadcastStep")}</li>
+                <li className={receipt.isSuccess ? "done" : hash ? "active" : ""}>{t("confirmStep")}</li>
+                <li className={receipt.isSuccess ? "done" : ""}>{t("syncStep")}</li>
+              </ol>
+            </div>
+          )}
           {receipt.isSuccess && (
-            <p className="success">代币已成功创建在 BNB 主网。</p>
+            <p className="success">{t("creationSuccess")}</p>
           )}
           {receipt.isError && (
-            <p className="error">交易已提交，但链上执行失败。请不要重复点击，并保存交易哈希以便诊断。</p>
+            <p className="error">{t("creationFailed")}</p>
           )}
           {uploadError && <p className="error">{uploadError}</p>}
-          {error && <p className="error">{readableWalletError(error)}</p>}
+          {error && <p className="error">{readableWalletError(error, language)}</p>}
         </form>
       </section>
     </main>
