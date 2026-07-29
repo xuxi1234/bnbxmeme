@@ -34,6 +34,7 @@ type Entry = {
 
 function TokenCard({ entry }: { entry: Entry }) {
   const { t } = useLanguage();
+  const [imageFailed, setImageFailed] = useState(false);
   const details = useReadContracts({
     contracts: [
       { address: entry.token, abi: tokenAbi, functionName: "name" },
@@ -52,9 +53,14 @@ function TokenCard({ entry }: { entry: Entry }) {
   return (
     <Link className="token-card" href={`/token/${entry.token}`}>
       <div className="token-avatar">
-        {metadata?.image ? (
+        {metadata?.image && !imageFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={metadata.image} alt="" />
+          <img
+            src={metadata.image}
+            alt=""
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+          />
         ) : (
           (symbol ?? "?").slice(0, 2)
         )}
