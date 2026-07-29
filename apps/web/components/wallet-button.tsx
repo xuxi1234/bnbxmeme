@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useLanguage } from "./language-provider";
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -14,8 +15,9 @@ type WalletButtonProps = {
 
 export function WalletButton({
   className = "button",
-  connectLabel = "连接钱包",
+  connectLabel,
 }: WalletButtonProps = {}) {
+  const { t } = useLanguage();
   const { address, isConnected } = useAccount();
   const { connectors, connect, isPending } = useConnect();
   const { disconnect } = useDisconnect();
@@ -43,7 +45,7 @@ export function WalletButton({
   if (walletDeepLink) {
     return (
       <a className={className} href={walletDeepLink}>
-        在钱包中打开
+        {t("openInWallet")}
       </a>
     );
   }
@@ -55,7 +57,7 @@ export function WalletButton({
       disabled={isPending || connectors.length === 0}
       onClick={() => connectors[0] && connect({ connector: connectors[0] })}
     >
-      {isPending ? "连接中…" : connectLabel}
+      {isPending ? t("connectingWallet") : (connectLabel ?? t("connectWallet"))}
     </button>
   );
 }
