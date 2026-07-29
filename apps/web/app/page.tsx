@@ -24,16 +24,6 @@ export default function Home() {
     <main className="home">
       <HomeBanner />
 
-      <section className="assurance-grid" aria-label="平台安全机制">
-        {content.assurances.map(([eyebrow, title, description]) => (
-          <article key={title}>
-            <small>{eyebrow}</small>
-            <strong>{title}</strong>
-            <p>{description}</p>
-          </article>
-        ))}
-      </section>
-
       <section className="market-section" id="market">
         <div className="section-heading">
           <div>
@@ -42,6 +32,16 @@ export default function Home() {
           </div>
         </div>
         <TokenMarket />
+      </section>
+
+      <section className="assurance-grid" aria-label="BNBX">
+        {content.assurances.map(([eyebrow, title, description]) => (
+          <article key={title}>
+            <small>{eyebrow}</small>
+            <strong>{title}</strong>
+            <p>{description}</p>
+          </article>
+        ))}
       </section>
     </main>
   );

@@ -102,19 +102,19 @@ export function TokenActivity({
           <p className="activity-empty">{t("readingLogs")}</p>
         ) : loadError ? (
           <p className="activity-empty activity-error">
-            链上节点暂时繁忙，正在自动切换备用 RPC…
+            {t("chainBusy")}
           </p>
         ) : trades.length === 0 ? (
           <p className="activity-empty">{t("noTrades")}</p>
         ) : (
           <div className="activity-table">
             <div className="activity-table-head">
-              <span>方向</span>
-              <span>账户</span>
+              <span>{t("direction")}</span>
+              <span>{t("account")}</span>
               <span>USD</span>
               <span>BNB</span>
-              <span>代币</span>
-              <span>日期</span>
+              <span>{t("tokenAmount")}</span>
+              <span>{t("date")}</span>
               <span>TXN</span>
             </div>
             {trades.map((trade) => (
@@ -151,7 +151,7 @@ export function TokenActivity({
           <p className="activity-empty">{t("readingLogs")}</p>
         ) : loadError ? (
           <p className="activity-empty activity-error">
-            持币数据同步延迟，备用节点将在下一轮重试。
+            {t("holderSyncBusy")}
           </p>
         ) : holders.length === 0 ? (
           <p className="activity-empty">{t("noHolders")}</p>
@@ -166,7 +166,7 @@ export function TokenActivity({
               >
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 <strong>{shortAddress(holder.address)}</strong>
-                <span>{Number(formatEther(holder.balance)).toLocaleString()} 枚</span>
+                <span>{Number(formatEther(holder.balance)).toLocaleString()} {t("units")}</span>
               </a>
             ))}
           </div>
