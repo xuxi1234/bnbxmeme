@@ -24,13 +24,13 @@ type Holder = {
 };
 
 export type ActivitySummary = {
-  latestPricePerMillionBnb: number;
+  latestPricePerMillionBnb: number | null;
   bnbUsd: number;
-  volume24hBnb: number;
+  volume24hBnb: number | null;
   priceChange24h: number | null;
   liquidityBnb: number | null;
   marketSource: "curve" | "pancake";
-  holderCount: number;
+  holderCount: number | null;
   holdersLimited: boolean;
   top10ConcentrationPct: number | null;
 };
@@ -134,6 +134,7 @@ export function TokenActivity({
     async function load() {
       if (trades.length === 0 && holders.length === 0) setIsLoading(true);
       setLoadError(false);
+      let isBackfilling = false;
       try {
         const response = await fetch(
           `/api/chain-data?curve=${curve}&token=${token}${
@@ -154,8 +155,29 @@ export function TokenActivity({
             priceChange24h: number | null;
             liquidityBnb: number | null;
           };
+          index?: {
+            status: "backfilling" | "complete";
+          };
           bnbUsd?: number;
         };
+        if (data.index?.status === "backfilling") {
+          isBackfilling = true;
+          onSummary?.({
+            latestPricePerMillionBnb:
+              data.market?.pricePerMillionBnb ?? null,
+            bnbUsd: Number(data.bnbUsd ?? 0),
+            volume24hBnb: null,
+            priceChange24h: null,
+            liquidityBnb: data.market?.liquidityBnb ?? null,
+            marketSource:
+              data.market?.source ??
+              (pair && pair !== zeroAddress ? "pancake" : "curve"),
+            holderCount: null,
+            holdersLimited: false,
+            top10ConcentrationPct: null,
+          });
+          return;
+        }
         const allActivity = data.trades.map((trade) => ({
           ...trade,
           bnb: BigInt(trade.bnb),
@@ -215,7 +237,7 @@ export function TokenActivity({
           setLoadError(true);
         }
       } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(isBackfilling);
       }
     }
 

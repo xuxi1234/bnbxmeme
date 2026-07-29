@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import { formatEther, isAddress, parseAbiItem, zeroAddress } from "viem";
 import {
-  formatEther,
-  isAddress,
-  parseAbiItem,
-  zeroAddress,
-} from "viem";
-import { serverPublicClient as client } from "@/lib/server-chain";
+  CHAIN_INDEX_VERSION,
+  applyTransferDeltas,
+  canServeStaleIndex,
+  exactCheckpointFilter,
+  indexCoversCheckpoint,
+  isCompatibleIndexState,
+  materializeHolders,
+  mergeIndexedTrades,
+  resolveScanWindow,
+  summarizeTrades,
+  type ChainIndexIdentity,
+  type ChainIndexState,
+  type IndexedTrade,
+} from "@/lib/chain-data-core";
+import { resolveFactoryDeploymentBlock } from "@/lib/factory-deployment-blocks";
+import {
+  serverLogClient as logClient,
+  serverPublicClient as client,
+} from "@/lib/server-chain";
 import { validateTokenProject } from "@/lib/token-project-server";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +55,7 @@ type MarketSnapshot = {
 };
 
 type ChainDataPayload = {
-  trades: Array<Record<string, unknown>>;
+  trades: IndexedTrade[];
   holders: Array<{ address: string; balance: string }>;
   holderCount?: number;
   holdersLimited?: boolean;
@@ -49,6 +63,14 @@ type ChainDataPayload = {
   bnbUsd: number;
   refreshedAt?: string;
   latestBlock?: string;
+  index?: {
+    version: typeof CHAIN_INDEX_VERSION;
+    status: "backfilling" | "complete";
+    deploymentBlock: string;
+    latestBlock: string;
+    chainHead: string;
+  };
+  _index?: ChainIndexState;
 };
 
 const pairReadAbi = [
@@ -102,7 +124,7 @@ async function readCachedChainData(curveAddress: string) {
   const query = new URL("/rest/v1/chain_data_cache", supabaseUrl);
   query.searchParams.set("chain_id", "eq.56");
   query.searchParams.set("curve_address", `eq.${curveAddress.toLowerCase()}`);
-  query.searchParams.set("select", "payload,refreshed_at");
+  query.searchParams.set("select", "payload,refreshed_at,latest_block");
   query.searchParams.set("limit", "1");
   const response = await fetch(query, {
     headers: cacheHeaders(),
@@ -112,6 +134,7 @@ async function readCachedChainData(curveAddress: string) {
   const rows = (await response.json()) as Array<{
     payload: ChainDataPayload;
     refreshed_at: string;
+    latest_block: number | string;
   }>;
   return rows[0] ?? null;
 }
@@ -121,28 +144,62 @@ async function writeCachedChainData(
   tokenAddress: string | null,
   latestBlock: bigint,
   payload: ChainDataPayload,
+  expectedLatestBlock: string | null,
 ) {
-  if (!supabaseUrl || !supabaseSecret) return;
+  if (!supabaseUrl || !supabaseSecret) return true;
   const endpoint = new URL("/rest/v1/chain_data_cache", supabaseUrl);
-  endpoint.searchParams.set("on_conflict", "chain_id,curve_address");
+  const row = {
+    chain_id: 56,
+    curve_address: curveAddress.toLowerCase(),
+    token_address: tokenAddress?.toLowerCase() ?? null,
+    latest_block: latestBlock.toString(),
+    payload,
+    refreshed_at: new Date().toISOString(),
+  };
+
+  if (expectedLatestBlock === null) {
+    endpoint.searchParams.set("on_conflict", "chain_id,curve_address");
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        ...cacheHeaders(),
+        Prefer: "resolution=ignore-duplicates,return=representation",
+      },
+      body: JSON.stringify(row),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Chain cache insert failed with status ${response.status}`,
+      );
+    }
+    const inserted = (await response.json()) as unknown[];
+    return inserted.length > 0;
+  }
+
+  // Optimistic checkpoint comparison prevents a slower request from
+  // overwriting a newer incremental snapshot.
+  endpoint.searchParams.set("chain_id", "eq.56");
+  endpoint.searchParams.set(
+    "curve_address",
+    `eq.${curveAddress.toLowerCase()}`,
+  );
+  endpoint.searchParams.set(
+    "latest_block",
+    exactCheckpointFilter(expectedLatestBlock),
+  );
   const response = await fetch(endpoint, {
-    method: "POST",
+    method: "PATCH",
     headers: {
       ...cacheHeaders(),
-      Prefer: "resolution=merge-duplicates,return=minimal",
+      Prefer: "return=representation",
     },
-    body: JSON.stringify({
-      chain_id: 56,
-      curve_address: curveAddress.toLowerCase(),
-      token_address: tokenAddress?.toLowerCase() ?? null,
-      latest_block: latestBlock.toString(),
-      payload,
-      refreshed_at: new Date().toISOString(),
-    }),
+    body: JSON.stringify(row),
   });
   if (!response.ok) {
     throw new Error(`Chain cache write failed with status ${response.status}`);
   }
+  const updated = (await response.json()) as unknown[];
+  return updated.length > 0;
 }
 
 async function getBoughtLogs(
@@ -157,7 +214,7 @@ async function getBoughtLogs(
         ? start + LOG_BLOCK_RANGE - 1n
         : toBlock;
     logs.push(
-      ...(await client.getLogs({
+      ...(await logClient.getLogs({
         address,
         event: boughtEvent,
         fromBlock: start,
@@ -180,7 +237,7 @@ async function getSoldLogs(
         ? start + LOG_BLOCK_RANGE - 1n
         : toBlock;
     logs.push(
-      ...(await client.getLogs({
+      ...(await logClient.getLogs({
         address,
         event: soldEvent,
         fromBlock: start,
@@ -203,7 +260,7 @@ async function getTransferLogs(
         ? start + LOG_BLOCK_RANGE - 1n
         : toBlock;
     logs.push(
-      ...(await client.getLogs({
+      ...(await logClient.getLogs({
         address,
         event: transferEvent,
         fromBlock: start,
@@ -226,7 +283,7 @@ async function getGraduatedLogs(
         ? start + LOG_BLOCK_RANGE - 1n
         : toBlock;
     logs.push(
-      ...(await client.getLogs({
+      ...(await logClient.getLogs({
         address,
         event: graduatedEvent,
         fromBlock: start,
@@ -249,7 +306,7 @@ async function getSwapLogs(
         ? start + LOG_BLOCK_RANGE - 1n
         : toBlock;
     logs.push(
-      ...(await client.getLogs({
+      ...(await logClient.getLogs({
         address,
         event: swapEvent,
         fromBlock: start,
@@ -258,37 +315,6 @@ async function getSwapLogs(
     );
   }
   return logs;
-}
-
-type DexScreenerPair = {
-  chainId?: string;
-  dexId?: string;
-  pairAddress?: string;
-  baseToken?: { address?: string };
-  quoteToken?: { address?: string };
-  priceNative?: string;
-  txns?: { h24?: { buys?: number; sells?: number } };
-  volume?: { h24?: number };
-  priceChange?: { h24?: number };
-  liquidity?: { quote?: number };
-  pairCreatedAt?: number;
-};
-
-async function readDexScreenerPair(pairAddress: `0x${string}`) {
-  const response = await fetch(
-    `https://api.dexscreener.com/latest/dex/pairs/bsc/${pairAddress}`,
-    { next: { revalidate: 15 } },
-  ).catch(() => null);
-  if (!response?.ok) return null;
-  const payload = (await response.json()) as { pairs?: DexScreenerPair[] };
-  return (
-    payload.pairs?.find(
-      (pair) =>
-        pair.chainId === "bsc" &&
-        pair.dexId?.toLowerCase().includes("pancake") &&
-        pair.pairAddress?.toLowerCase() === pairAddress.toLowerCase(),
-    ) ?? null
-  );
 }
 
 async function readPairSnapshot(
@@ -354,6 +380,50 @@ async function getBnbUsdPrice() {
   return 0;
 }
 
+function publicPayload(payload: ChainDataPayload, chainHead: bigint) {
+  const { _index: state, ...visible } = payload;
+  if (!state) return visible;
+  return {
+    ...visible,
+    index: {
+      version: CHAIN_INDEX_VERSION,
+      status: state.complete ? ("complete" as const) : ("backfilling" as const),
+      deploymentBlock: state.deploymentBlock,
+      latestBlock: state.latestBlock,
+      chainHead: chainHead.toString(),
+    },
+  };
+}
+
+function backfillResponse(
+  state: ChainIndexState,
+  chainHead: bigint,
+  market: MarketSnapshot,
+  bnbUsd: number,
+) {
+  return {
+    code: "CHAIN_INDEX_BACKFILLING",
+    market: {
+      source: market.source,
+      pricePerMillionBnb: market.pricePerMillionBnb,
+      volume24hBnb: null,
+      priceChange24h: null,
+      liquidityBnb: market.liquidityBnb,
+      buys24h: null,
+      sells24h: null,
+      graduatedAt: null,
+    },
+    bnbUsd,
+    index: {
+      version: CHAIN_INDEX_VERSION,
+      status: "backfilling" as const,
+      deploymentBlock: state.deploymentBlock,
+      latestBlock: state.latestBlock,
+      chainHead: chainHead.toString(),
+    },
+  };
+}
+
 export async function GET(request: NextRequest) {
   const curve = request.nextUrl.searchParams.get("curve");
   const token = request.nextUrl.searchParams.get("token");
@@ -400,54 +470,116 @@ export async function GET(request: NextRequest) {
   const curveAddress = project.curve;
   const tokenAddress = project.token;
   const pairAddress = pair as `0x${string}` | null;
-  try {
-    const cached = await readCachedChainData(curveAddress);
-    if (
-      cached &&
-      Date.now() - new Date(cached.refreshed_at).getTime() < CACHE_MAX_AGE_MS &&
-      (!pairAddress || cached.payload.market?.source === "pancake")
-    ) {
-      return NextResponse.json(cached.payload, {
+  const deploymentBlock = resolveFactoryDeploymentBlock(project.factory);
+  if (deploymentBlock === null) {
+    return NextResponse.json(
+      {
+        code: "FACTORY_DEPLOYMENT_BLOCK_UNKNOWN",
+        error: "Chain data is temporarily unavailable",
+      },
+      { status: 503 },
+    );
+  }
+
+  const identity: ChainIndexIdentity = {
+    factory: project.factory,
+    token: tokenAddress,
+    curve: curveAddress,
+    pair: pairAddress,
+    deploymentBlock: deploymentBlock.toString(),
+  };
+  let cached = await readCachedChainData(curveAddress).catch(() => null);
+  let cachedIndex =
+    cached && isCompatibleIndexState(cached.payload._index, identity)
+      ? cached.payload._index
+      : null;
+
+  if (
+    cached &&
+    cachedIndex?.complete &&
+    Date.now() - new Date(cached.refreshed_at).getTime() < CACHE_MAX_AGE_MS
+  ) {
+    return NextResponse.json(
+      publicPayload(cached.payload, BigInt(cachedIndex.latestBlock)),
+      {
         headers: {
           "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
           "X-BNBX-Chain-Cache": "HIT",
+          "X-BNBX-Chain-Index": "COMPLETE",
         },
-      });
-    }
+      },
+    );
+  }
+
+  try {
     const latest = await client.getBlockNumber();
-    const configured = process.env.NEXT_PUBLIC_BNBX_DEPLOYMENT_BLOCK;
-    const fromBlock =
-      configured && /^\d+$/.test(configured)
-        ? BigInt(configured)
-        : latest > 100_000n
-          ? latest - 100_000n
-          : 0n;
-    const [
-      latestBlock,
-      buys,
-      sells,
-      transfers,
-      graduations,
-      swaps,
-      pairSnapshot,
-      dexPair,
-      bnbUsd,
-    ] =
-      await Promise.all([
-        client.getBlock({ blockNumber: latest }),
-        getBoughtLogs(curveAddress, fromBlock, latest),
-        getSoldLogs(curveAddress, fromBlock, latest),
-        tokenAddress
-          ? getTransferLogs(tokenAddress, fromBlock, latest)
-          : Promise.resolve([]),
-        getGraduatedLogs(curveAddress, fromBlock, latest),
-        pairAddress ? getSwapLogs(pairAddress, fromBlock, latest) : Promise.resolve([]),
-        pairAddress && tokenAddress
-          ? readPairSnapshot(pairAddress, tokenAddress).catch(() => null)
-          : Promise.resolve(null),
-        pairAddress ? readDexScreenerPair(pairAddress) : Promise.resolve(null),
-        getBnbUsdPrice(),
-      ]);
+    if (cachedIndex && BigInt(cachedIndex.latestBlock) > latest) {
+      if (cachedIndex.complete) {
+        return NextResponse.json(
+          publicPayload(cached!.payload, BigInt(cachedIndex.latestBlock)),
+          {
+            headers: {
+              "Cache-Control":
+                "public, s-maxage=30, stale-while-revalidate=300",
+              Warning: '110 - "Serving stale chain cache"',
+              "X-BNBX-Chain-Cache": "STALE",
+              "X-BNBX-Chain-Index": "COMPLETE",
+            },
+          },
+        );
+      }
+      throw new Error("RPC chain head is behind the index checkpoint");
+    }
+
+    const checkpointBlock = cachedIndex
+      ? BigInt(cachedIndex.latestBlock)
+      : null;
+    const maxBlocks =
+      supabaseUrl && supabaseSecret ? undefined : latest - deploymentBlock + 1n;
+    const scanWindow = resolveScanWindow({
+      deploymentBlock,
+      checkpointBlock,
+      chainHead: latest,
+      ...(maxBlocks === undefined ? {} : { maxBlocks }),
+    });
+    const scanPromise = scanWindow.shouldScan
+      ? Promise.all([
+          getBoughtLogs(curveAddress, scanWindow.fromBlock, scanWindow.toBlock),
+          getSoldLogs(curveAddress, scanWindow.fromBlock, scanWindow.toBlock),
+          getTransferLogs(
+            tokenAddress,
+            scanWindow.fromBlock,
+            scanWindow.toBlock,
+          ),
+          getGraduatedLogs(
+            curveAddress,
+            scanWindow.fromBlock,
+            scanWindow.toBlock,
+          ),
+          pairAddress
+            ? getSwapLogs(pairAddress, scanWindow.fromBlock, scanWindow.toBlock)
+            : Promise.resolve([] as Awaited<ReturnType<typeof getSwapLogs>>),
+        ] as const)
+      : Promise.resolve([
+          [] as Awaited<ReturnType<typeof getBoughtLogs>>,
+          [] as Awaited<ReturnType<typeof getSoldLogs>>,
+          [] as Awaited<ReturnType<typeof getTransferLogs>>,
+          [] as Awaited<ReturnType<typeof getGraduatedLogs>>,
+          [] as Awaited<ReturnType<typeof getSwapLogs>>,
+        ] as const);
+    const [latestBlock, scanResults, pairSnapshot, bnbUsd] = await Promise.all([
+      client.getBlock({ blockNumber: latest }),
+      scanPromise,
+      pairAddress
+        ? readPairSnapshot(pairAddress, tokenAddress).then((snapshot) => {
+            if (!snapshot) throw new Error("Pair does not match token");
+            return snapshot;
+          })
+        : Promise.resolve(null),
+      getBnbUsdPrice(),
+    ]);
+    const [buys, sells, transfers, graduations, swaps] = scanResults;
+
     const uniqueTradeBlocks = [
       ...new Set(
         [...buys, ...sells, ...swaps, ...graduations].map((log) =>
@@ -456,28 +588,30 @@ export async function GET(request: NextRequest) {
       ),
     ]
       .map(BigInt)
-      .sort((a, b) => (a < b ? -1 : 1))
+      .sort((left, right) => (left < right ? -1 : 1))
       .slice(-80);
     const exactBlocks = await Promise.all(
       uniqueTradeBlocks.map((blockNumber) =>
-        client.getBlock({ blockNumber }).catch(() => null),
+        logClient.getBlock({ blockNumber }).catch(() => null),
       ),
     );
     const exactTimestamps = new Map(
       exactBlocks.flatMap((block) =>
-        block ? [[block.number.toString(), Number(block.timestamp)] as const] : [],
+        block
+          ? [[block.number.toString(), Number(block.timestamp)] as const]
+          : [],
       ),
     );
     const tradeTimestamp = (blockNumber: bigint) =>
       exactTimestamps.get(blockNumber.toString()) ??
-      (Number(latestBlock.timestamp) -
-        Math.floor(Number(latest - blockNumber) * 0.45));
-    const curveTrades = [
+      Number(latestBlock.timestamp) -
+        Math.floor(Number(latest - blockNumber) * 0.45);
+    const curveTrades: IndexedTrade[] = [
       ...buys.map((log) => ({
         id: `${log.transactionHash}-${log.logIndex}`,
-        side: "buy",
-        source: "curve",
-        account: log.args.buyer,
+        side: "buy" as const,
+        source: "curve" as const,
+        account: log.args.buyer ?? zeroAddress,
         bnb: (log.args.grossBNB ?? 0n).toString(),
         priceBNB: (log.args.netBNB ?? 0n).toString(),
         tokens: (log.args.tokensOut ?? 0n).toString(),
@@ -487,9 +621,9 @@ export async function GET(request: NextRequest) {
       })),
       ...sells.map((log) => ({
         id: `${log.transactionHash}-${log.logIndex}`,
-        side: "sell",
-        source: "curve",
-        account: log.args.seller,
+        side: "sell" as const,
+        source: "curve" as const,
+        account: log.args.seller ?? zeroAddress,
         bnb: (log.args.netBNB ?? 0n).toString(),
         priceBNB: (log.args.grossBNB ?? 0n).toString(),
         tokens: (log.args.tokensIn ?? 0n).toString(),
@@ -498,7 +632,7 @@ export async function GET(request: NextRequest) {
         transactionHash: log.transactionHash,
       })),
     ];
-    const pancakeTrades = pairSnapshot
+    const pancakeTrades: IndexedTrade[] = pairSnapshot
       ? swaps.flatMap((log) => {
           const tokenIn = pairSnapshot.tokenIs0
             ? (log.args.amount0In ?? 0n)
@@ -516,151 +650,205 @@ export async function GET(request: NextRequest) {
           const isSell = tokenIn > 0n && bnbOut > 0n;
           if (!isBuy && !isSell) return [];
           const bnb = isBuy ? bnbIn : bnbOut;
-          const tokens = isBuy ? tokenOut : tokenIn;
-          return [{
-            id: `${log.transactionHash}-${log.logIndex}`,
-            side: isBuy ? "buy" : "sell",
-            source: "pancake",
-            account: log.args.to,
-            bnb: bnb.toString(),
-            priceBNB: bnb.toString(),
-            tokens: tokens.toString(),
-            timestamp: tradeTimestamp(log.blockNumber),
-            blockNumber: log.blockNumber.toString(),
-            transactionHash: log.transactionHash,
-          }];
+          const tokensOutOrIn = isBuy ? tokenOut : tokenIn;
+          return [
+            {
+              id: `${log.transactionHash}-${log.logIndex}`,
+              side: isBuy ? ("buy" as const) : ("sell" as const),
+              source: "pancake" as const,
+              account: log.args.to ?? zeroAddress,
+              bnb: bnb.toString(),
+              priceBNB: bnb.toString(),
+              tokens: tokensOutOrIn.toString(),
+              timestamp: tradeTimestamp(log.blockNumber),
+              blockNumber: log.blockNumber.toString(),
+              transactionHash: log.transactionHash,
+            },
+          ];
         })
       : [];
-    const trades = [...curveTrades, ...pancakeTrades].sort((a, b) =>
-      BigInt(a.blockNumber) < BigInt(b.blockNumber) ? -1 : 1,
+    const trades = mergeIndexedTrades(
+      cachedIndex ? cached!.payload.trades : [],
+      [...curveTrades, ...pancakeTrades],
     );
-    const balances = new Map<string, bigint>();
-    for (const log of transfers) {
-      const value = log.args.value ?? 0n;
-      if (log.args.from && log.args.from !== zeroAddress) {
-        balances.set(
-          log.args.from,
-          (balances.get(log.args.from) ?? 0n) - value,
-        );
-      }
-      if (log.args.to && log.args.to !== zeroAddress) {
-        balances.set(log.args.to, (balances.get(log.args.to) ?? 0n) + value);
-      }
-    }
-    const excludedHolders = new Set(
-      [curveAddress, pairAddress, LP_BURN_ADDRESS, zeroAddress]
-        .filter(Boolean)
-        .map((address) => address!.toLowerCase()),
+    const holderBalances = applyTransferDeltas(
+      cachedIndex ? cachedIndex.holderBalances : {},
+      transfers.map((log) => ({
+        from:
+          log.args.from &&
+          log.args.from.toLowerCase() !== zeroAddress.toLowerCase()
+            ? log.args.from
+            : null,
+        to:
+          log.args.to && log.args.to.toLowerCase() !== zeroAddress.toLowerCase()
+            ? log.args.to
+            : null,
+        value: (log.args.value ?? 0n).toString(),
+      })),
     );
-    const allHolders = [...balances.entries()]
-      .filter(
-        ([address, balance]) =>
-          balance > 0n && !excludedHolders.has(address.toLowerCase()),
-      )
-      .map(([address, balance]) => ({ address, balance: balance.toString() }))
-      .sort((a, b) => (BigInt(a.balance) > BigInt(b.balance) ? -1 : 1));
-    const holders = allHolders.slice(0, 50);
+    const holderSnapshot = materializeHolders(holderBalances, [
+      curveAddress,
+      pairAddress,
+      LP_BURN_ADDRESS,
+      zeroAddress,
+    ]);
+    const graduatedAt =
+      graduations.length > 0
+        ? tradeTimestamp(graduations.at(-1)!.blockNumber)
+        : (cachedIndex?.graduatedAt ?? null);
     const cutoff24h = Number(latestBlock.timestamp) - 86_400;
-    const recentTrades = trades.filter((trade) => trade.timestamp >= cutoff24h);
-    const latestTrade = recentTrades.at(-1) ?? trades.at(-1);
-    const oldestTrade = recentTrades[0];
-    const pricePerMillion = (trade: (typeof trades)[number] | undefined) => {
-      if (!trade) return null;
-      const tokens = Number(formatEther(BigInt(trade.tokens)));
-      const bnb = Number(formatEther(BigInt(trade.priceBNB)));
-      return tokens > 0 && bnb > 0 ? (bnb / tokens) * 1_000_000 : null;
-    };
-    const fallbackLatestPrice = pricePerMillion(latestTrade);
-    const fallbackOldestPrice = pricePerMillion(oldestTrade);
-    const fallbackChange =
-      fallbackLatestPrice !== null &&
-      fallbackOldestPrice !== null &&
-      fallbackOldestPrice > 0
-        ? ((fallbackLatestPrice - fallbackOldestPrice) / fallbackOldestPrice) *
-          100
-        : null;
-    const dexVolumeUsd = Number(dexPair?.volume?.h24);
-    const dexVolumeBnb =
-      Number.isFinite(dexVolumeUsd) && dexVolumeUsd >= 0 && bnbUsd > 0
-        ? dexVolumeUsd / bnbUsd
-        : null;
-    const graduatedAt = graduations.at(-1)
-      ? tradeTimestamp(graduations.at(-1)!.blockNumber)
-      : dexPair?.pairCreatedAt
-        ? Math.floor(dexPair.pairCreatedAt / 1000)
-        : null;
+    const curveSummary = summarizeTrades(trades, "curve", cutoff24h);
+    const pancakeSummary = summarizeTrades(trades, "pancake", cutoff24h);
     const market: MarketSnapshot = pairAddress
       ? {
           source: "pancake",
           pricePerMillionBnb:
-            pairSnapshot?.pricePerMillionBnb ?? fallbackLatestPrice,
-          volume24hBnb:
-            dexVolumeBnb ??
-            recentTrades.reduce(
-              (sum, trade) => sum + Number(formatEther(BigInt(trade.bnb))),
-              0,
-            ),
-          priceChange24h: Number.isFinite(Number(dexPair?.priceChange?.h24))
-            ? Number(dexPair?.priceChange?.h24)
-            : fallbackChange,
+            pairSnapshot?.pricePerMillionBnb ??
+            pancakeSummary.latestPricePerMillionBnb,
+          volume24hBnb: pancakeSummary.volume24hBnb,
+          priceChange24h: pancakeSummary.priceChange24h,
           liquidityBnb: pairSnapshot?.liquidityBnb ?? null,
-          buys24h:
-            dexPair?.txns?.h24?.buys ??
-            recentTrades.filter((trade) => trade.side === "buy").length,
-          sells24h:
-            dexPair?.txns?.h24?.sells ??
-            recentTrades.filter((trade) => trade.side === "sell").length,
+          buys24h: pancakeSummary.buys24h,
+          sells24h: pancakeSummary.sells24h,
           graduatedAt,
         }
       : {
           source: "curve",
-          pricePerMillionBnb: fallbackLatestPrice,
-          volume24hBnb: recentTrades.reduce(
-            (sum, trade) => sum + Number(formatEther(BigInt(trade.bnb))),
-            0,
-          ),
-          priceChange24h: fallbackChange,
+          pricePerMillionBnb: curveSummary.latestPricePerMillionBnb,
+          volume24hBnb: curveSummary.volume24hBnb,
+          priceChange24h: curveSummary.priceChange24h,
           liquidityBnb: null,
-          buys24h: recentTrades.filter((trade) => trade.side === "buy").length,
-          sells24h: recentTrades.filter((trade) => trade.side === "sell").length,
+          buys24h: curveSummary.buys24h,
+          sells24h: curveSummary.sells24h,
           graduatedAt,
         };
-    const payload = {
-      trades,
-      holders,
-      holderCount: allHolders.length,
-      holdersLimited: allHolders.length > holders.length,
-      market,
-      bnbUsd,
-      refreshedAt: new Date().toISOString(),
-      latestBlock: latest.toString(),
+    const checkpoint = scanWindow.shouldScan
+      ? scanWindow.toBlock
+      : (checkpointBlock ?? latest);
+    const indexState: ChainIndexState = {
+      version: CHAIN_INDEX_VERSION,
+      complete: scanWindow.complete,
+      factory: project.factory,
+      token: tokenAddress,
+      curve: curveAddress,
+      pair: pairAddress,
+      deploymentBlock: deploymentBlock.toString(),
+      latestBlock: checkpoint.toString(),
+      holderBalances,
+      graduatedAt,
     };
-    await writeCachedChainData(
+    const payload: ChainDataPayload = {
+      trades,
+      ...holderSnapshot,
+      market,
+      bnbUsd: bnbUsd > 0 ? bnbUsd : (cached?.payload.bnbUsd ?? 0),
+      refreshedAt: new Date().toISOString(),
+      latestBlock: checkpoint.toString(),
+      _index: indexState,
+    };
+    const expectedLatestBlock = cached ? String(cached.latest_block) : null;
+    const cacheWriteWon = await writeCachedChainData(
       curveAddress,
       tokenAddress,
-      latest,
+      checkpoint,
       payload,
-    ).catch(() => undefined);
-    return NextResponse.json(payload, {
+      expectedLatestBlock,
+    );
+    if (!cacheWriteWon) {
+      const concurrent = await readCachedChainData(curveAddress);
+      const concurrentIndex =
+        concurrent &&
+        isCompatibleIndexState(concurrent.payload._index, identity)
+          ? concurrent.payload._index
+          : null;
+      if (
+        !concurrent ||
+        !concurrentIndex ||
+        !indexCoversCheckpoint(concurrentIndex, checkpoint)
+      ) {
+        throw new Error("Concurrent chain cache checkpoint is not usable");
+      }
+      if (!concurrentIndex.complete) {
+        const concurrentMarket = concurrent.payload.market;
+        if (!concurrentMarket) {
+          throw new Error("Concurrent chain cache market data is missing");
+        }
+        return NextResponse.json(
+          backfillResponse(
+            concurrentIndex,
+            latest,
+            concurrentMarket,
+            concurrent.payload.bnbUsd,
+          ),
+          {
+            status: 202,
+            headers: {
+              "Cache-Control": "no-store",
+              "Retry-After": "5",
+              "X-BNBX-Chain-Cache": "CONCURRENT",
+              "X-BNBX-Chain-Index": "BACKFILLING",
+            },
+          },
+        );
+      }
+      return NextResponse.json(publicPayload(concurrent.payload, latest), {
+        headers: {
+          "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
+          "X-BNBX-Chain-Cache": "CONCURRENT",
+          "X-BNBX-Chain-Index": "COMPLETE",
+        },
+      });
+    }
+
+    if (!indexState.complete) {
+      return NextResponse.json(
+        backfillResponse(indexState, latest, market, payload.bnbUsd),
+        {
+          status: 202,
+          headers: {
+            "Cache-Control": "no-store",
+            "Retry-After": "5",
+            "X-BNBX-Chain-Index": "BACKFILLING",
+          },
+        },
+      );
+    }
+    return NextResponse.json(publicPayload(payload, latest), {
       headers: {
         "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
+        "X-BNBX-Chain-Index": "COMPLETE",
       },
     });
   } catch {
-    const cached = await readCachedChainData(curveAddress).catch(() => null);
-    if (cached) {
-      return NextResponse.json(cached.payload, {
-        headers: {
-          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300",
-          Warning: '110 - "Serving stale chain cache"',
-          "X-BNBX-Chain-Cache": "STALE",
+    // Re-read after a failed scan because a concurrent request may have
+    // completed a newer checkpoint while this request was running.
+    cached = await readCachedChainData(curveAddress).catch(() => cached);
+    cachedIndex =
+      cached && isCompatibleIndexState(cached.payload._index, identity)
+        ? cached.payload._index
+        : null;
+    if (cached && canServeStaleIndex(cachedIndex)) {
+      return NextResponse.json(
+        publicPayload(cached.payload, BigInt(cachedIndex!.latestBlock)),
+        {
+          headers: {
+            "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300",
+            Warning: '110 - "Serving stale chain cache"',
+            "X-BNBX-Chain-Cache": "STALE",
+            "X-BNBX-Chain-Index": "COMPLETE",
+          },
         },
-      });
+      );
     }
     return NextResponse.json(
       // Do not expose provider URLs, request bodies, or upstream diagnostics
       // because a private RPC credential may be embedded in the configured URL.
-      { error: "Chain data is temporarily unavailable" },
+      {
+        code: cachedIndex
+          ? "CHAIN_INDEX_BACKFILL_UNAVAILABLE"
+          : "CHAIN_DATA_UNAVAILABLE",
+        error: "Chain data is temporarily unavailable",
+      },
       { status: 502 },
     );
   }

@@ -59,8 +59,8 @@ function formatTokenAmount(value: bigint) {
   }).format(Number(formatEther(value)));
 }
 
-function formatMarketMetric(value: number, currency = false) {
-  if (!Number.isFinite(value) || value <= 0) return "—";
+function formatMarketMetric(value: number | null, currency = false) {
+  if (value === null || !Number.isFinite(value) || value <= 0) return "—";
   return new Intl.NumberFormat("en-US", {
     notation: value >= 1_000 ? "compact" : "standard",
     maximumFractionDigits: value >= 1 ? 2 : 8,
@@ -178,13 +178,13 @@ export function TokenTradingPage({
   const [linksExpanded, setLinksExpanded] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
-    latestPricePerMillionBnb: 0,
+    latestPricePerMillionBnb: null,
     bnbUsd: 0,
-    volume24hBnb: 0,
+    volume24hBnb: null,
     priceChange24h: null,
     liquidityBnb: null,
     marketSource: "curve",
-    holderCount: 0,
+    holderCount: null,
     holdersLimited: false,
     top10ConcentrationPct: null,
   });
@@ -544,7 +544,9 @@ export function TokenTradingPage({
     (currentTokenPriceUsdt ?? 0) *
     Number(formatEther(totalSupplyValue ?? 0n));
   const volume24hUsd =
-    activitySummary.volume24hBnb * activitySummary.bnbUsd;
+    activitySummary.volume24hBnb === null
+      ? null
+      : activitySummary.volume24hBnb * activitySummary.bnbUsd;
   const activePairAddress =
     stateValue === 2 &&
     liquidityPairAddress &&

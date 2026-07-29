@@ -170,6 +170,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [indexReloadKey, setIndexReloadKey] = useState(0);
   const hasPayload = useRef(false);
   const { t } = useLanguage();
 
@@ -243,6 +244,8 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   useEffect(() => {
     if (entries.length === 0) return;
     const controller = new AbortController();
+    let retryTimer: number | undefined;
+    let needsIndexRetry = false;
     void Promise.all(
       entries.map(async (entry) => {
         if (!entry.curve || entry.curve === zeroAddress) {
@@ -282,7 +285,22 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
               graduatedAt?: number | null;
             };
             bnbUsd?: number;
+            index?: {
+              status: "backfilling" | "complete";
+            };
           };
+          if (data.index?.status === "backfilling") {
+            needsIndexRetry = true;
+            return [
+              entry.token,
+              {
+                pricePerMillion:
+                  data.market?.pricePerMillionBnb ?? undefined,
+                liquidityBnb: data.market?.liquidityBnb ?? undefined,
+                bnbUsd: data.bnbUsd,
+              },
+            ] as const;
+          }
           const latestTrade = [...data.trades].sort((a, b) =>
             BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1,
           )[0];
@@ -360,10 +378,20 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         }
       }),
     ).then((result) => {
-      if (!controller.signal.aborted) setScores(Object.fromEntries(result));
+      if (controller.signal.aborted) return;
+      setScores(Object.fromEntries(result));
+      if (needsIndexRetry) {
+        retryTimer = window.setTimeout(
+          () => setIndexReloadKey((value) => value + 1),
+          15_000,
+        );
+      }
     });
-    return () => controller.abort();
-  }, [entries]);
+    return () => {
+      controller.abort();
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
+  }, [entries, indexReloadKey]);
 
   const ranked = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
