@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useLanguage } from "./language-provider";
 
 export function SiteFooter() {
@@ -9,6 +10,7 @@ export function SiteFooter() {
       <div><strong>BNBX</strong><span>Build Next Bull System</span></div>
       <p>{t("risk")}</p>
       <nav className="footer-socials" aria-label="BNBX">
+        <Link href="/security">{t("securityCenter")}</Link>
         <a href="https://t.me/bnbxmeme" target="_blank" rel="noreferrer">Telegram ↗</a>
         <a href="https://x.com/bnbxmeme" target="_blank" rel="noreferrer">X / Twitter ↗</a>
         <a href="https://m.debox.pro/group?id=6wsohe3g&amp;code=57h6sfxd" target="_blank" rel="noreferrer">DeBox ↗</a>

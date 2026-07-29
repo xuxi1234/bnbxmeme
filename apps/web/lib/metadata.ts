@@ -77,17 +77,21 @@ function sanitizeMetadata(value: unknown): TokenMetadata | null {
 export function useTokenMetadata(uri?: string) {
   const [metadata, setMetadata] = useState<TokenMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const url = resolveContentURI(uri);
     if (!url) {
       setMetadata(null);
       setIsLoading(false);
+      setLoadError(false);
       return;
     }
 
     const controller = new AbortController();
     setIsLoading(true);
+    setLoadError(false);
     fetch(url, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("metadata fetch failed");
@@ -95,14 +99,19 @@ export function useTokenMetadata(uri?: string) {
       })
       .then((data) => setMetadata(sanitizeMetadata(data)))
       .catch(() => {
-        if (!controller.signal.aborted) setMetadata(null);
+        if (!controller.signal.aborted) setLoadError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
       });
 
     return () => controller.abort();
-  }, [uri]);
+  }, [reloadKey, uri]);
 
-  return { metadata, isLoading };
+  return {
+    metadata,
+    isLoading,
+    loadError,
+    retry: () => setReloadKey((value) => value + 1),
+  };
 }

@@ -1,34 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  createPublicClient,
-  fallback,
-  http,
   isAddress,
   parseAbiItem,
   zeroAddress,
 } from "viem";
-import { bsc } from "viem/chains";
+import { serverPublicClient as client } from "@/lib/server-chain";
 
 export const dynamic = "force-dynamic";
 
-const configuredRpc =
-  process.env.BSC_MAINNET_RPC_URL ?? process.env.BSC_LOG_RPC_URL;
-const client = createPublicClient({
-  chain: bsc,
-  transport: fallback(
-    [
-      ...(configuredRpc
-        ? [http(configuredRpc, { timeout: 20_000, retryCount: 2 })]
-        : []),
-      http("https://bsc-rpc.publicnode.com", { timeout: 12_000 }),
-      http("https://bsc.drpc.org", { timeout: 12_000 }),
-      http("https://bsc-dataseed.binance.org", {
-        timeout: 12_000,
-      }),
-    ],
-    { rank: false },
-  ),
-});
 const boughtEvent = parseAbiItem(
   "event Bought(address indexed buyer, uint256 grossBNB, uint256 feeBNB, uint256 netBNB, uint256 tokensOut, uint256 refundBNB)",
 );
@@ -45,6 +24,8 @@ type ChainDataPayload = {
   trades: Array<Record<string, unknown>>;
   holders: Array<{ address: string; balance: string }>;
   bnbUsd: number;
+  refreshedAt?: string;
+  latestBlock?: string;
 };
 
 const supabaseUrl =
@@ -246,11 +227,28 @@ export async function GET(request: NextRequest) {
           : Promise.resolve([]),
         getBnbUsdPrice(),
       ]);
-    // Approximate older trade timestamps from the latest canonical block.
-    // This avoids one RPC call per trade on rate-limited public endpoints.
-    const estimatedTimestamp = (blockNumber: bigint) =>
-      Number(latestBlock.timestamp) -
-      Math.floor(Number(latest - blockNumber) * 0.45);
+    const uniqueTradeBlocks = [
+      ...new Set(
+        [...buys, ...sells].map((log) => log.blockNumber.toString()),
+      ),
+    ]
+      .map(BigInt)
+      .sort((a, b) => (a < b ? -1 : 1))
+      .slice(-80);
+    const exactBlocks = await Promise.all(
+      uniqueTradeBlocks.map((blockNumber) =>
+        client.getBlock({ blockNumber }).catch(() => null),
+      ),
+    );
+    const exactTimestamps = new Map(
+      exactBlocks.flatMap((block) =>
+        block ? [[block.number.toString(), Number(block.timestamp)] as const] : [],
+      ),
+    );
+    const tradeTimestamp = (blockNumber: bigint) =>
+      exactTimestamps.get(blockNumber.toString()) ??
+      (Number(latestBlock.timestamp) -
+        Math.floor(Number(latest - blockNumber) * 0.45));
     const trades = [
       ...buys.map((log) => ({
         id: `${log.transactionHash}-${log.logIndex}`,
@@ -259,7 +257,7 @@ export async function GET(request: NextRequest) {
         bnb: (log.args.grossBNB ?? 0n).toString(),
         priceBNB: (log.args.netBNB ?? 0n).toString(),
         tokens: (log.args.tokensOut ?? 0n).toString(),
-        timestamp: estimatedTimestamp(log.blockNumber),
+        timestamp: tradeTimestamp(log.blockNumber),
         blockNumber: log.blockNumber.toString(),
         transactionHash: log.transactionHash,
       })),
@@ -270,7 +268,7 @@ export async function GET(request: NextRequest) {
         bnb: (log.args.netBNB ?? 0n).toString(),
         priceBNB: (log.args.grossBNB ?? 0n).toString(),
         tokens: (log.args.tokensIn ?? 0n).toString(),
-        timestamp: estimatedTimestamp(log.blockNumber),
+        timestamp: tradeTimestamp(log.blockNumber),
         blockNumber: log.blockNumber.toString(),
         transactionHash: log.transactionHash,
       })),
@@ -293,7 +291,13 @@ export async function GET(request: NextRequest) {
       .map(([address, balance]) => ({ address, balance: balance.toString() }))
       .sort((a, b) => (BigInt(a.balance) > BigInt(b.balance) ? -1 : 1))
       .slice(0, 50);
-    const payload = { trades, holders, bnbUsd };
+    const payload = {
+      trades,
+      holders,
+      bnbUsd,
+      refreshedAt: new Date().toISOString(),
+      latestBlock: latest.toString(),
+    };
     await writeCachedChainData(
       curveAddress,
       tokenAddress,

@@ -64,6 +64,90 @@ function formatMarketMetric(value: number, currency = false) {
   }).format(value);
 }
 
+type TokenSnapshot = {
+  token: `0x${string}`;
+  factory: `0x${string}`;
+  curve: `0x${string}`;
+  name: string | null;
+  symbol: string | null;
+  totalSupply: string | null;
+  launchManager: `0x${string}` | null;
+  graduationAuthority: `0x${string}` | null;
+  pairUnlocked: boolean | null;
+  curveTokenBalance: string | null;
+  metadataURI: string | null;
+  principal: string | null;
+  target: string | null;
+  state: number | null;
+  creator: `0x${string}` | null;
+  liquidityPair: `0x${string}` | null;
+};
+
+function snapshotBigInt(value: string | null | undefined) {
+  return value == null ? undefined : BigInt(value);
+}
+
+function useTokenSnapshot(token: `0x${string}`) {
+  const [snapshot, setSnapshot] = useState<TokenSnapshot | null>(null);
+  const [dataStatus, setDataStatus] = useState<"fresh" | "partial" | null>(null);
+  const [isLoading, setIsLoading] = useState(token !== zeroAddress);
+  const [error, setError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const hasSnapshot = useRef(false);
+
+  useEffect(() => {
+    if (token === zeroAddress) {
+      setIsLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    async function load() {
+      setError(false);
+      setNotFound(false);
+      if (!hasSnapshot.current) setIsLoading(true);
+      try {
+        const response = await fetch(`/api/market-data?token=${token}`, {
+          signal: controller.signal,
+        });
+        if (response.status === 404) {
+          if (!controller.signal.aborted) setNotFound(true);
+          return;
+        }
+        if (!response.ok) throw new Error("token data unavailable");
+        const result = (await response.json()) as {
+          detail: TokenSnapshot;
+          dataStatus: "fresh" | "partial";
+        };
+        if (!controller.signal.aborted) {
+          hasSnapshot.current = true;
+          setSnapshot(result.detail);
+          setDataStatus(result.dataStatus);
+        }
+      } catch {
+        if (!controller.signal.aborted) setError(true);
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    }
+    void load();
+    const interval = window.setInterval(load, 15_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [reloadKey, token]);
+
+  return {
+    snapshot,
+    dataStatus,
+    isLoading,
+    error,
+    notFound,
+    retry: () => setReloadKey((value) => value + 1),
+  };
+}
+
 export default function TokenTradingPage() {
   const params = useParams<{ address: string }>();
   const tokenAddress = isAddress(params.address) ? params.address : zeroAddress;
@@ -101,6 +185,7 @@ export default function TokenTradingPage() {
     hash: lpApprovalWrite.data,
   });
   const { t } = useLanguage();
+  const tokenSnapshot = useTokenSnapshot(tokenAddress);
 
   const launchManager = useReadContract({
     address: tokenAddress,
@@ -136,6 +221,16 @@ export default function TokenTradingPage() {
         configuredRewardsFactory !== zeroAddress && tokenAddress !== zeroAddress,
     },
   });
+  const snapshotFactory =
+    tokenSnapshot.snapshot?.factory &&
+    tokenSnapshot.snapshot.factory !== zeroAddress
+      ? tokenSnapshot.snapshot.factory
+      : zeroAddress;
+  const snapshotCurve =
+    tokenSnapshot.snapshot?.curve &&
+    tokenSnapshot.snapshot.curve !== zeroAddress
+      ? tokenSnapshot.snapshot.curve
+      : zeroAddress;
   const standardCurve =
     standardCurveQuery.data && standardCurveQuery.data !== zeroAddress
       ? standardCurveQuery.data
@@ -149,7 +244,9 @@ export default function TokenTradingPage() {
       ? rewardsCurveQuery.data
       : zeroAddress;
   const factoryAddress =
-    standardCurve !== zeroAddress
+    snapshotFactory !== zeroAddress
+      ? snapshotFactory
+      : standardCurve !== zeroAddress
       ? testnetFactoryAddress
       : autoCurve !== zeroAddress
         ? autoLiquidityFactoryAddress
@@ -157,7 +254,9 @@ export default function TokenTradingPage() {
           ? configuredRewardsFactory
           : zeroAddress;
   const curveAddress =
-    standardCurve !== zeroAddress
+    snapshotCurve !== zeroAddress
+      ? snapshotCurve
+      : standardCurve !== zeroAddress
       ? standardCurve
       : autoCurve !== zeroAddress
         ? autoCurve
@@ -173,7 +272,14 @@ export default function TokenTradingPage() {
     args: [tokenAddress],
     query: { enabled: factoryAddress !== zeroAddress && tokenAddress !== zeroAddress },
   });
-  const { metadata, isLoading: metadataLoading } = useTokenMetadata(metadataURI.data);
+  const resolvedMetadataURI =
+    metadataURI.data ?? tokenSnapshot.snapshot?.metadataURI ?? undefined;
+  const {
+    metadata,
+    isLoading: metadataLoading,
+    loadError: metadataError,
+    retry: retryMetadata,
+  } = useTokenMetadata(resolvedMetadataURI);
 
   const name = useReadContract({
     address: tokenAddress,
@@ -341,6 +447,36 @@ export default function TokenTradingPage() {
   const sellTaxTotal = sellTaxes.data
     ? sellTaxes.data.reduce((sum, value) => sum + value, 0)
     : 0;
+  const tokenName = name.data ?? tokenSnapshot.snapshot?.name ?? undefined;
+  const tokenSymbol =
+    symbol.data ?? tokenSnapshot.snapshot?.symbol ?? undefined;
+  const principalValue =
+    principal.data ?? snapshotBigInt(tokenSnapshot.snapshot?.principal);
+  const targetValue =
+    target.data ?? snapshotBigInt(tokenSnapshot.snapshot?.target);
+  const stateValue =
+    state.data === undefined
+      ? (tokenSnapshot.snapshot?.state ?? undefined)
+      : Number(state.data);
+  const totalSupplyValue =
+    totalSupply.data ?? snapshotBigInt(tokenSnapshot.snapshot?.totalSupply);
+  const curveTokenBalanceValue =
+    curveTokenBalance.data ??
+    snapshotBigInt(tokenSnapshot.snapshot?.curveTokenBalance);
+  const creatorAddress =
+    creator.data ?? tokenSnapshot.snapshot?.creator ?? undefined;
+  const launchManagerAddress =
+    launchManager.data ?? tokenSnapshot.snapshot?.launchManager ?? undefined;
+  const graduationAuthorityAddress =
+    graduationAuthority.data ??
+    tokenSnapshot.snapshot?.graduationAuthority ??
+    undefined;
+  const liquidityPairAddress =
+    liquidityPair.data ??
+    tokenSnapshot.snapshot?.liquidityPair ??
+    undefined;
+  const pairUnlockedValue =
+    pairUnlocked.data ?? tokenSnapshot.snapshot?.pairUnlocked ?? undefined;
 
   const buyWei = safeParseEther(buyAmount);
   const sellWei = safeParseEther(sellAmount);
@@ -368,18 +504,25 @@ export default function TokenTradingPage() {
   const quotedSellBNB = sellQuote.data?.[2] ?? 0n;
   const needsApproval = (allowance.data ?? 0n) < sellWei;
   const progress =
-    target.data && target.data > 0n
-      ? Math.min(100, Number(((principal.data ?? 0n) * 10_000n) / target.data) / 100)
-      : 0;
+    targetValue !== undefined &&
+    principalValue !== undefined &&
+    targetValue > 0n
+      ? Math.min(
+          100,
+          Number((principalValue * 10_000n) / targetValue) / 100,
+        )
+      : null;
   const remainingBNB =
-    (target.data ?? 0n) > (principal.data ?? 0n)
-      ? (target.data ?? 0n) - (principal.data ?? 0n)
-      : 0n;
+    targetValue !== undefined && principalValue !== undefined
+      ? targetValue > principalValue
+        ? targetValue - principalValue
+        : 0n
+      : undefined;
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
   const lpWei = safeParseEther(lpAmount);
   const marketCapUsd =
     activitySummary.latestPriceBnb *
-    Number(formatEther(totalSupply.data ?? 0n)) *
+    Number(formatEther(totalSupplyValue ?? 0n)) *
     activitySummary.bnbUsd;
   const trackedVolumeUsd =
     activitySummary.trackedVolumeBnb * activitySummary.bnbUsd;
@@ -553,6 +696,15 @@ export default function TokenTradingPage() {
     window.setTimeout(() => setQQCopied(false), 2_400);
   }
 
+  function openMobileTrade(mode: "buy" | "sell") {
+    setTradeMode(mode);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("trade")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   return (
     <main>
       <header className="topbar">
@@ -561,7 +713,38 @@ export default function TokenTradingPage() {
       </header>
 
       <section className="token-heading">
-        <p className="eyebrow">{[t("curveTrading"), t("preparing"), t("pancake")][Number(state.data ?? 0)]}</p>
+        {tokenAddress === zeroAddress && (
+          <div className="data-reliability-banner error" role="alert">
+            <span>{t("dataUnavailable")}</span>
+            <Link href="/">{t("market")}</Link>
+          </div>
+        )}
+        {(tokenSnapshot.error ||
+          tokenSnapshot.dataStatus === "partial" ||
+          (tokenSnapshot.notFound && curveAddress === zeroAddress)) && (
+          <div
+            className={`data-reliability-banner${tokenSnapshot.notFound ? " error" : ""}`}
+            role="status"
+          >
+            <span>
+              {tokenSnapshot.notFound
+                ? t("dataUnavailableHelp")
+                : tokenSnapshot.error
+                  ? t("staleDataNotice")
+                  : t("partialDataNotice")}
+            </span>
+            <button type="button" onClick={tokenSnapshot.retry}>
+              {tokenSnapshot.isLoading ? t("loading") : t("retry")}
+            </button>
+          </div>
+        )}
+        <p className="eyebrow">
+          {stateValue === undefined
+            ? t("loading")
+            : ([t("curveTrading"), t("preparing"), t("pancake")][
+                stateValue
+              ] ?? t("dataUnknown"))}
+        </p>
         <div className="token-terminal-summary">
           <div className="token-identity">
             {metadata?.image && !imageFailed ? (
@@ -573,13 +756,13 @@ export default function TokenTradingPage() {
               />
             ) : (
               <span className="token-detail-avatar" aria-hidden="true">
-                {String(symbol.data ?? "?").slice(0, 2)}
+                {String(tokenSymbol ?? "?").slice(0, 2)}
               </span>
             )}
             <div>
               <div className="token-name-line">
-                <h1 className="form-title">{name.data ?? t("token")}</h1>
-                <span>${symbol.data ?? "—"}</span>
+                <h1 className="form-title">{tokenName ?? t("loading")}</h1>
+                <span>${tokenSymbol ?? "—"}</span>
               </div>
               <button
                 className="copy-address"
@@ -590,14 +773,14 @@ export default function TokenTradingPage() {
                 <span>CA {tokenAddress}</span>
                 <strong>{copied ? t("copied") : t("copy")}</strong>
               </button>
-              {creator.data && (
+              {creatorAddress && (
                 <a
                   className="creator-link"
-                  href={`${blockExplorerUrl}/address/${creator.data}`}
+                  href={`${blockExplorerUrl}/address/${creatorAddress}`}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {t("creator")} {creator.data.slice(0, 6)}…{creator.data.slice(-4)} ↗
+                  {t("creator")} {creatorAddress.slice(0, 6)}…{creatorAddress.slice(-4)} ↗
                 </a>
               )}
             </div>
@@ -623,7 +806,7 @@ export default function TokenTradingPage() {
             </div>
             <div>
               <span>{t("progress")}</span>
-              <strong>{progress.toFixed(2)}%</strong>
+              <strong>{progress === null ? "—" : `${progress.toFixed(2)}%`}</strong>
             </div>
           </div>
         </div>
@@ -632,8 +815,15 @@ export default function TokenTradingPage() {
           <p className={`token-description${descriptionExpanded ? " expanded" : ""}`}>
             {metadataLoading
               ? t("loading")
-              : tokenDescription || t("noTokenDescription")}
+              : metadataError
+                ? t("metadataUnavailable")
+                : tokenDescription || t("noTokenDescription")}
           </p>
+          {metadataError && (
+            <button type="button" onClick={retryMetadata}>
+              {t("retry")}
+            </button>
+          )}
           {tokenDescription.length > 120 && (
             <button
               type="button"
@@ -709,7 +899,7 @@ export default function TokenTradingPage() {
                   <span>最低持币门槛</span>
                   <strong>
                     {formatEther(minimumRewardShare.data ?? 0n)}{" "}
-                    {symbol.data ?? "TOKEN"}
+                    {tokenSymbol ?? "—"}
                   </strong>
                 </div>
               )}
@@ -922,7 +1112,10 @@ export default function TokenTradingPage() {
                 </div>
                 <div className="quote-row">
                   <span>{t("expectedGet")}</span>
-                  <strong>{formatEther(quotedTokens)} {symbol.data ?? "TOKEN"}</strong>
+                  <strong>
+                    {buyQuote.data ? formatEther(quotedTokens) : "—"}{" "}
+                    {tokenSymbol ?? "—"}
+                  </strong>
                 </div>
                 {!user ? (
                   <WalletButton
@@ -937,7 +1130,7 @@ export default function TokenTradingPage() {
                   <button
                     className="button wide trade-submit buy"
                     type="button"
-                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || buyWei === 0n || quotedTokens === 0n || tradeWrite.isPending || Number(state.data ?? 0) !== 0}
+                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || buyWei === 0n || quotedTokens === 0n || tradeWrite.isPending || stateValue !== 0}
                     onClick={buy}
                   >{t("buy")}</button>
                 )}
@@ -960,10 +1153,13 @@ export default function TokenTradingPage() {
                     </button>
                   ))}
                 </div>
-                <div className="trade-balance">{t("balance")}: {formatEther(balance.data ?? 0n)} {symbol.data ?? "TOKEN"}</div>
+                <div className="trade-balance">
+                  {t("balance")}: {balance.data === undefined ? "—" : formatEther(balance.data)}{" "}
+                  {tokenSymbol ?? "—"}
+                </div>
                 <div className="quote-row">
                   <span>{t("expectedReceive")}</span>
-                  <strong>{formatEther(quotedSellBNB)} BNB</strong>
+                  <strong>{sellQuote.data ? formatEther(quotedSellBNB) : "—"} BNB</strong>
                 </div>
                 {!user ? (
                   <WalletButton
@@ -978,7 +1174,7 @@ export default function TokenTradingPage() {
                   <button
                     className="button wide trade-submit sell"
                     type="button"
-                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || sellWei === 0n || quotedSellBNB === 0n || tradeWrite.isPending || approvalWrite.isPending || approvalReceipt.isLoading || Number(state.data ?? 0) !== 0}
+                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || sellWei === 0n || quotedSellBNB === 0n || tradeWrite.isPending || approvalWrite.isPending || approvalReceipt.isLoading || stateValue !== 0}
                     onClick={sell}
                   >
                     {approvalWrite.isPending || approvalReceipt.isLoading
@@ -1037,28 +1233,38 @@ export default function TokenTradingPage() {
           <article className="card progress-card">
           <h2 className="section-title">{t("safetyTitle")}</h2>
           <span>{t("progress")}</span>
-          <strong>{progress.toFixed(2)}%</strong>
+          <strong>{progress === null ? "—" : `${progress.toFixed(2)}%`}</strong>
           <div className="progress-track">
-            <div style={{ width: `${progress}%` }} />
+            <div style={{ width: `${progress ?? 0}%` }} />
           </div>
           <div className="graduation-metrics">
             <div>
               <span>{t("raisedBnb")}</span>
-              <strong>{formatEther(principal.data ?? 0n)} BNB</strong>
+              <strong>
+                {principalValue === undefined ? "—" : formatEther(principalValue)} BNB
+              </strong>
             </div>
             <div>
               <span>{t("remainingBnb")}</span>
-              <strong>{formatEther(remainingBNB)} BNB</strong>
+              <strong>
+                {remainingBNB === undefined ? "—" : formatEther(remainingBNB)} BNB
+              </strong>
             </div>
             <div>
               <span>{t("curveRemaining")}</span>
-              <strong title={formatEther(curveTokenBalance.data ?? 0n)}>
-                {formatTokenAmount(curveTokenBalance.data ?? 0n)} {symbol.data ?? "TOKEN"}
+              <strong title={curveTokenBalanceValue === undefined ? "" : formatEther(curveTokenBalanceValue)}>
+                {curveTokenBalanceValue === undefined
+                  ? "—"
+                  : formatTokenAmount(curveTokenBalanceValue)}{" "}
+                {tokenSymbol ?? "—"}
               </strong>
             </div>
           </div>
           <p className="graduation-note">{t("automaticMigration")}</p>
-          <span>{t("myBalance")}：{formatEther(balance.data ?? 0n)}</span>
+          <span>
+            {t("myBalance")}：
+            {balance.data === undefined ? "—" : formatEther(balance.data)}
+          </span>
           <button
             className="security-toggle"
             type="button"
@@ -1074,7 +1280,11 @@ export default function TokenTradingPage() {
             <div className="security-facts">
             <div>
               <span>{t("verifiedFactory")}</span>
-              <a href={`${blockExplorerUrl}/address/${factoryAddress}`} target="_blank" rel="noreferrer">{t("verified")} ↗</a>
+              {factoryAddress === zeroAddress ? (
+                <strong>{t("dataUnknown")}</strong>
+              ) : (
+                <a href={`${blockExplorerUrl}/address/${factoryAddress}`} target="_blank" rel="noreferrer">{t("verified")} ↗</a>
+              )}
             </div>
             <div>
               <span>{t("tokenTax")}</span>
@@ -1085,44 +1295,56 @@ export default function TokenTradingPage() {
             <div>
               <span>{t("supply")}</span>
               <strong>
-                {Number(formatEther(totalSupply.data ?? 0n)).toLocaleString()} 枚
+                {totalSupplyValue === undefined
+                  ? "—"
+                  : `${Number(formatEther(totalSupplyValue)).toLocaleString()} 枚`}
               </strong>
             </div>
             <div>
               <span>{t("factoryPermission")}</span>
               <strong>
-                {launchManager.data === zeroAddress ? t("abandoned") : t("loading")}
+                {launchManagerAddress === undefined
+                  ? t("dataUnknown")
+                  : launchManagerAddress === zeroAddress
+                    ? t("abandoned")
+                    : t("dataUnknown")}
               </strong>
             </div>
             <div>
               <span>{t("graduationPermission")}</span>
               <strong>
-                {graduationAuthority.data === zeroAddress
+                {graduationAuthorityAddress === undefined
+                  ? t("dataUnknown")
+                  : graduationAuthorityAddress === zeroAddress
                   ? t("destroyed")
-                  : graduationAuthority.data === curveAddress
+                  : graduationAuthorityAddress === curveAddress
                     ? t("curveOnly")
-                    : t("loading")}
+                    : t("dataUnknown")}
               </strong>
             </div>
             <div>
               <span>Pancake Pair</span>
-              {liquidityPair.data ? (
+              {liquidityPairAddress ? (
                 <a
-                  href={`${blockExplorerUrl}/address/${liquidityPair.data}`}
+                  href={`${blockExplorerUrl}/address/${liquidityPairAddress}`}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {liquidityPair.data.slice(0, 6)}…
-                  {liquidityPair.data.slice(-4)} ↗
+                  {liquidityPairAddress.slice(0, 6)}…
+                  {liquidityPairAddress.slice(-4)} ↗
                 </a>
               ) : (
-                <strong>{t("loading")}</strong>
+                <strong>{t("dataUnknown")}</strong>
               )}
             </div>
             <div>
               <span>{t("pairStatus")}</span>
               <strong>
-                {pairUnlocked.data ? t("unlocked") : t("protected")}
+                {pairUnlockedValue === undefined
+                  ? t("dataUnknown")
+                  : pairUnlockedValue
+                    ? t("unlocked")
+                    : t("protected")}
               </strong>
             </div>
             </div>
@@ -1134,7 +1356,7 @@ export default function TokenTradingPage() {
           {curveAddress !== zeroAddress && (
             <BondingCurveChart
               curve={curveAddress}
-              symbol={symbol.data ?? "TOKEN"}
+              symbol={tokenSymbol ?? "—"}
               refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
             />
           )}
@@ -1148,6 +1370,14 @@ export default function TokenTradingPage() {
           )}
         </div>
       </section>
+      <nav className="mobile-trade-dock" aria-label={t("marketData")}>
+        <button className="buy" type="button" onClick={() => openMobileTrade("buy")}>
+          {t("buy")}
+        </button>
+        <button className="sell" type="button" onClick={() => openMobileTrade("sell")}>
+          {t("sell")}
+        </button>
+      </nav>
     </main>
   );
 }
