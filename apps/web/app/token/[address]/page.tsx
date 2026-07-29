@@ -846,7 +846,7 @@ export default function TokenTradingPage() {
               {!user ? (
                 <WalletButton
                   className="button wide trade-submit buy"
-                  connectLabel={`${t("buy")} · 连接钱包`}
+                  connectLabel={`${t("buy")} · ${t("connectWallet")}`}
                 />
               ) : chainId !== bsc.id ? (
                 <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
@@ -887,7 +887,7 @@ export default function TokenTradingPage() {
               {!user ? (
                 <WalletButton
                   className="button wide trade-submit sell"
-                  connectLabel={`${t("sell")} · 连接钱包`}
+                  connectLabel={`${t("sell")} · ${t("connectWallet")}`}
                 />
               ) : chainId !== bsc.id ? (
                 <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
