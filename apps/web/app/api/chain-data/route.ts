@@ -6,6 +6,7 @@ import {
   zeroAddress,
 } from "viem";
 import { serverPublicClient as client } from "@/lib/server-chain";
+import { validateTokenProject } from "@/lib/token-project-server";
 
 export const dynamic = "force-dynamic";
 
@@ -360,14 +361,44 @@ export async function GET(request: NextRequest) {
   if (
     !curve ||
     !isAddress(curve) ||
-    (token && !isAddress(token)) ||
-    (pair && !isAddress(pair)) ||
-    (pair && !token)
+    !token ||
+    !isAddress(token) ||
+    (pair && !isAddress(pair))
   ) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
-  const curveAddress = curve as `0x${string}`;
-  const tokenAddress = token as `0x${string}` | null;
+
+  const project = await validateTokenProject(token);
+  if (project.status === "not_found") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_NOT_FOUND",
+        error: "Token is not registered by an official BNBX Factory",
+      },
+      { status: 404 },
+    );
+  }
+  if (project.status === "unavailable") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_VALIDATION_UNAVAILABLE",
+        error: "BNB Chain project validation is temporarily unavailable",
+      },
+      { status: 503 },
+    );
+  }
+  if (project.curve.toLowerCase() !== curve.toLowerCase()) {
+    return NextResponse.json(
+      {
+        code: "PROJECT_CURVE_MISMATCH",
+        error: "Curve does not belong to this BNBX project",
+      },
+      { status: 404 },
+    );
+  }
+
+  const curveAddress = project.curve;
+  const tokenAddress = project.token;
   const pairAddress = pair as `0x${string}` | null;
   try {
     const cached = await readCachedChainData(curveAddress);

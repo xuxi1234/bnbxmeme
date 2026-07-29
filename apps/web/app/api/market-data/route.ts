@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAddress, zeroAddress } from "viem";
 import { officialFactoryAddresses } from "@/lib/deployments";
 import { serverPublicClient } from "@/lib/server-chain";
+import { validateTokenProject } from "@/lib/token-project-server";
+import type { ProjectValidationResult } from "@/lib/project-validation-core";
 
 export const dynamic = "force-dynamic";
 
@@ -318,30 +320,9 @@ async function readMarket() {
   };
 }
 
-async function readToken(token: `0x${string}`) {
-  const curveResults = await serverPublicClient.multicall({
-    allowFailure: true,
-    contracts: officialFactoryAddresses.map((factory) => ({
-      address: factory,
-      abi: factoryReadAbi,
-      functionName: "curveOf" as const,
-      args: [token] as const,
-    })),
-  });
-  const successfulProbes = curveResults.filter(
-    (result) => result.status === "success",
-  );
-  if (successfulProbes.length === 0) {
-    throw new Error("All official Factory probes failed");
-  }
-  const factoryPosition = curveResults.findIndex((result) => {
-    const curve = successful<`0x${string}`>(result);
-    return Boolean(curve && curve !== zeroAddress);
-  });
-  if (factoryPosition < 0) return null;
+type ValidProject = Extract<ProjectValidationResult, { status: "valid" }>;
 
-  const factory = officialFactoryAddresses[factoryPosition];
-  const curve = successful<`0x${string}`>(curveResults[factoryPosition])!;
+async function readToken({ token, factory, curve }: ValidProject) {
   const detailResults = await serverPublicClient.multicall({
     allowFailure: true,
     contracts: [
@@ -421,13 +402,26 @@ export async function GET(request: NextRequest) {
   }
   try {
     if (token) {
-      const result = await readToken(token as `0x${string}`);
-      if (!result) {
+      const project = await validateTokenProject(token);
+      if (project.status === "not_found") {
         return NextResponse.json(
-          { error: "Token is not registered by an official BNBX Factory" },
+          {
+            code: "PROJECT_NOT_FOUND",
+            error: "Token is not registered by an official BNBX Factory",
+          },
           { status: 404 },
         );
       }
+      if (project.status === "unavailable") {
+        return NextResponse.json(
+          {
+            code: "PROJECT_VALIDATION_UNAVAILABLE",
+            error: "BNB Chain project validation is temporarily unavailable",
+          },
+          { status: 503 },
+        );
+      }
+      const result = await readToken(project);
       return NextResponse.json(result, {
         headers: responseHeaders(result.dataStatus),
       });

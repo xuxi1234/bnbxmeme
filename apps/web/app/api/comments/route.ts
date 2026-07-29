@@ -7,6 +7,7 @@ import {
   supabaseServiceHeaders,
   supabaseTableEndpoint,
 } from "@/lib/comments-server";
+import { validateTokenProject } from "@/lib/token-project-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,13 +33,39 @@ function publicComment(row: CommentRow) {
   };
 }
 
+async function projectAccessError(token: string) {
+  const project = await validateTokenProject(token);
+  if (project.status === "not_found") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_NOT_FOUND",
+        error: "Token is not registered by an official BNBX Factory",
+      },
+      { status: 404 },
+    );
+  }
+  if (project.status === "unavailable") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_VALIDATION_UNAVAILABLE",
+        error: "BNB Chain project validation is temporarily unavailable",
+      },
+      { status: 503 },
+    );
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
-  const headers = supabaseServiceHeaders();
-  const endpoint = commentsEndpoint();
   if (!token || !isAddress(token)) {
     return NextResponse.json({ error: "Invalid token address" }, { status: 400 });
   }
+  const projectError = await projectAccessError(token);
+  if (projectError) return projectError;
+
+  const headers = supabaseServiceHeaders();
+  const endpoint = commentsEndpoint();
   if (!headers || !endpoint) {
     return NextResponse.json(
       { error: "Community service is not configured" },
@@ -117,6 +144,9 @@ export async function POST(request: NextRequest) {
   if (!isAddress(token) || !isAddress(wallet)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
+  const projectError = await projectAccessError(token);
+  if (projectError) return projectError;
+
   if (
     body.length < 1 ||
     body.length > 280 ||
