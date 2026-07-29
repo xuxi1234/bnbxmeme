@@ -3,23 +3,21 @@ import { createConfig, fallback, http } from "wagmi";
 import { createPublicClient } from "viem";
 import { bsc, bscTestnet } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
+import {
+  autoLiquidityFactoryAddress,
+  blockExplorerUrl,
+  pancakeRouterAddress,
+  rewardsFactoryAddress,
+  standardFactoryAddress,
+} from "./deployments";
 
-export const testnetFactoryAddress =
-  (process.env.NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as
-    | `0x${string}`
-    | undefined) ?? "0xdb189396ae2a350c484ddd749a6af96baebc124b";
-
-export const autoLiquidityFactoryAddress =
-  (process.env.NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS as
-    | `0x${string}`
-    | undefined) ?? "0x9f572dc9d582ec8347d2a803f766652982220539";
-export const rewardsFactoryAddress =
-  (process.env.NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as
-    | `0x${string}`
-    | undefined) ?? "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8";
-export const blockExplorerUrl = "https://bscscan.com";
-export const testnetPancakeRouterAddress =
-  "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
+export {
+  autoLiquidityFactoryAddress,
+  blockExplorerUrl,
+  rewardsFactoryAddress,
+};
+export const testnetFactoryAddress = standardFactoryAddress;
+export const testnetPancakeRouterAddress = pancakeRouterAddress;
 
 export const queryClient = new QueryClient();
 const testnetTransport = fallback([

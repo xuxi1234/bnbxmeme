@@ -1,7 +1,7 @@
 /* Product hierarchy and responsive polish. Kept separate so the base design
    remains easy to maintain while device-specific decisions stay explicit. */
 .home-banner {
-  min-height: 286px;
+  min-height: 228px;
 }
 
 .banner-glow {
@@ -10,14 +10,14 @@
 }
 
 .banner-copy {
-  min-height: 286px;
+  min-height: 228px;
   width: 64%;
-  padding: 30px 48px;
+  padding: 24px 42px;
 }
 
 .banner-copy h1 {
-  margin: 12px 0 10px;
-  font-size: clamp(38px, 4.2vw, 54px);
+  margin: 9px 0 8px;
+  font-size: clamp(34px, 3.8vw, 48px);
   line-height: .98;
 }
 
@@ -33,12 +33,12 @@
 
 .banner-emblem {
   right: 9%;
-  width: 164px;
-  height: 164px;
+  width: 138px;
+  height: 138px;
 }
 
 .banner-emblem strong {
-  font-size: 31px;
+  font-size: 27px;
 }
 
 .banner-controls {
@@ -92,7 +92,7 @@
 
 @media (max-width: 560px) {
   .home-banner {
-    min-height: 238px;
+    min-height: 190px;
     border-radius: 8px;
     background:
       radial-gradient(circle at 90% 50%, rgba(243,186,47,.22), transparent 13rem),
@@ -100,16 +100,16 @@
   }
 
   .banner-copy {
-    min-height: 238px;
+    min-height: 190px;
     width: 100%;
     justify-content: flex-start;
-    padding: 28px 22px 22px;
+    padding: 22px 20px 18px;
   }
 
   .banner-copy h1 {
     max-width: 310px;
     margin: 10px 0 0;
-    font-size: clamp(31px, 9.5vw, 40px);
+    font-size: clamp(29px, 8.8vw, 36px);
     line-height: 1.02;
   }
 

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { decodeEventLog, isAddress, parseEther } from "viem";
+import { decodeEventLog, formatEther, isAddress, parseEther } from "viem";
 import {
   useAccount,
   useChainId,
@@ -36,6 +36,11 @@ const VANITY_SEARCH_LIMIT = 500_000;
 // execution limits while cutting the average number of network round trips
 // from ~66 to ~7 for a 16-bit vanity suffix.
 const VANITY_SEARCH_CHUNK_SIZE = 10_000;
+const TRADE_FEE_BPS = 50n;
+const SLIPPAGE_BPS = 100n;
+const BPS = 10_000n;
+const CURVE_TOKEN_SUPPLY = parseEther("800000000");
+const INITIAL_VIRTUAL_TOKEN_RESERVE = parseEther("3200000000") / 3n;
 
 type TemplateId = "standard" | "liquidity" | "holders" | "lp";
 type TaxKey = "burn" | "liquidity" | "marketing" | "rewards";
@@ -56,6 +61,51 @@ function safeInitialBuy(value: string) {
   } catch {
     return false;
   }
+}
+
+function ceilDiv(value: bigint, divisor: bigint) {
+  if (value === 0n) return 0n;
+  return (value - 1n) / divisor + 1n;
+}
+
+function feeOn(gross: bigint) {
+  return ceilDiv(gross * TRADE_FEE_BPS, BPS);
+}
+
+function grossForExactNet(requiredNet: bigint) {
+  if (requiredNet === 0n) return 0n;
+  let gross = ceilDiv(requiredNet * BPS, BPS - TRADE_FEE_BPS);
+  while (gross - feeOn(gross) > requiredNet) gross -= 1n;
+  while (gross - feeOn(gross) < requiredNet) gross += 1n;
+  return gross;
+}
+
+function quoteFreshCurveBuy(targetStep: number, offeredGross: bigint) {
+  if (offeredGross <= 0n) return 0n;
+  const graduationTarget = parseEther((targetStep / 100).toFixed(2));
+  const acceptedGross =
+    offeredGross < grossForExactNet(graduationTarget)
+      ? offeredGross
+      : grossForExactNet(graduationTarget);
+  const netBNB = acceptedGross - feeOn(acceptedGross);
+  const virtualBNBReserve = graduationTarget / 3n;
+  const invariant = virtualBNBReserve * INITIAL_VIRTUAL_TOKEN_RESERVE;
+  const newVirtualToken = ceilDiv(
+    invariant,
+    virtualBNBReserve + netBNB,
+  );
+  const tokensOut =
+    netBNB === graduationTarget
+      ? CURVE_TOKEN_SUPPLY
+      : INITIAL_VIRTUAL_TOKEN_RESERVE - newVirtualToken;
+  return (tokensOut * (BPS - SLIPPAGE_BPS)) / BPS;
+}
+
+function formatPreviewTokens(value: bigint) {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 3,
+  }).format(Number(formatEther(value)));
 }
 
 function readableWalletError(error: unknown, language: "zh" | "en" | "ko" | "ja") {
@@ -345,6 +395,7 @@ export default function CreateTokenPage() {
       setIsFindingVanity(false);
       setVanityProgress(0);
       const initialBuyWei = parseEther(initialBuy || "0");
+      const minimumInitialTokens = quoteFreshCurveBuy(target, initialBuyWei);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
       if (template === "liquidity" || template === "holders" || template === "lp") {
         const isRewardsTemplate = template === "holders" || template === "lp";
@@ -394,7 +445,7 @@ export default function CreateTokenPage() {
             args: [
               request,
               {
-                minTokensOut: 0n,
+                minTokensOut: minimumInitialTokens,
                 deadline,
                 refundRecipient: address,
               },
@@ -438,7 +489,7 @@ export default function CreateTokenPage() {
           metadataURI,
           vanitySalt,
         }, {
-          minTokensOut: 0n,
+          minTokensOut: minimumInitialTokens,
           deadline,
           refundRecipient: address,
         }],
@@ -467,6 +518,14 @@ export default function CreateTokenPage() {
   const sellTaxTotal = Object.values(sellTaxes).reduce((sum, value) => sum + value, 0);
   const taxInvalid =
     buyTaxTotal > MAX_SIDE_TAX || sellTaxTotal > MAX_SIDE_TAX;
+  const previewInitialBuyWei = safeInitialBuy(initialBuy)
+    ? parseEther(initialBuy || "0")
+    : 0n;
+  const previewMinimumTokens = quoteFreshCurveBuy(
+    target,
+    previewInitialBuyWei,
+  );
+  const previewTotalValue = CREATION_FEE_WEI + previewInitialBuyWei;
   const canSubmit =
     isConnected &&
     !wrongChain &&
@@ -856,6 +915,43 @@ export default function CreateTokenPage() {
                 : "Buy or sell tax exceeds the 10% maximum."}
             </p>
           )}
+
+          <section className="transaction-preview" aria-label={t("transactionPreview")}>
+            <div className="transaction-preview-heading">
+              <strong>{t("transactionPreview")}</strong>
+              <span>{t("slippageProtected")}</span>
+            </div>
+            <dl>
+              <div>
+                <dt>{t("destination")}</dt>
+                <dd title={factoryAddress}>
+                  {factoryAddress
+                    ? `${factoryAddress.slice(0, 8)}…${factoryAddress.slice(-6)}`
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt>{t("creationFee")}</dt>
+                <dd>{formatEther(CREATION_FEE_WEI)} BNB</dd>
+              </div>
+              <div>
+                <dt>{t("initialBuyValue")}</dt>
+                <dd>{formatEther(previewInitialBuyWei)} BNB</dd>
+              </div>
+              <div>
+                <dt>{t("totalSend")}</dt>
+                <dd>{formatEther(previewTotalValue)} BNB</dd>
+              </div>
+              <div>
+                <dt>{t("minimumReceive")}</dt>
+                <dd>
+                  {previewMinimumTokens > 0n
+                    ? `${formatPreviewTokens(previewMinimumTokens)} ${symbol.trim() || "TOKEN"}`
+                    : "—"}
+                </dd>
+              </div>
+            </dl>
+          </section>
 
           {wrongChain ? (
             <button

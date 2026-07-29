@@ -25,6 +25,7 @@ export function SiteHeader() {
     [t("today"), "/#market"],
     [t("create"), "/create"],
     [t("history"), "/#market"],
+    [t("securityCenter"), "/security"],
   ];
 
   useEffect(() => {

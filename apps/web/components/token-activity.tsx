@@ -79,13 +79,14 @@ export function TokenActivity({
   const [bnbUsd, setBnbUsd] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (token === zeroAddress || curve === zeroAddress) return;
     const controller = new AbortController();
 
     async function load() {
-      setIsLoading(true);
+      if (trades.length === 0 && holders.length === 0) setIsLoading(true);
       setLoadError(false);
       try {
         const response = await fetch(`/api/chain-data?curve=${curve}&token=${token}`, {
@@ -128,8 +129,6 @@ export function TokenActivity({
         });
       } catch {
         if (!controller.signal.aborted) {
-          setTrades([]);
-          setHolders([]);
           setLoadError(true);
         }
       } finally {
@@ -143,7 +142,7 @@ export function TokenActivity({
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [curve, onSummary, refreshKey, token]);
+  }, [curve, holders.length, onSummary, refreshKey, reloadKey, token, trades.length]);
 
   return (
     <section className="activity-terminal">
@@ -174,12 +173,23 @@ export function TokenActivity({
           </div>
           <span>{t("liveRefresh")}</span>
         </div>
+        {loadError && (trades.length > 0 || holders.length > 0) && (
+          <div className="data-reliability-banner compact" role="status">
+            <span>{t("staleDataNotice")}</span>
+            <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+              {t("retry")}
+            </button>
+          </div>
+        )}
         {activeTab === "trades" && (isLoading ? (
           <p className="activity-empty">{t("readingLogs")}</p>
         ) : loadError ? (
-          <p className="activity-empty activity-error">
-            {t("chainBusy")}
-          </p>
+          <div className="activity-empty activity-error">
+            <p>{t("chainBusy")}</p>
+            <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+              {t("retry")}
+            </button>
+          </div>
         ) : trades.length === 0 ? (
           <p className="activity-empty">{t("noTrades")}</p>
         ) : (
@@ -229,9 +239,12 @@ export function TokenActivity({
         {activeTab === "holders" && (isLoading ? (
           <p className="activity-empty">{t("readingLogs")}</p>
         ) : loadError ? (
-          <p className="activity-empty activity-error">
-            {t("holderSyncBusy")}
-          </p>
+          <div className="activity-empty activity-error">
+            <p>{t("holderSyncBusy")}</p>
+            <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+              {t("retry")}
+            </button>
+          </div>
         ) : holders.length === 0 ? (
           <p className="activity-empty">{t("noHolders")}</p>
         ) : (
