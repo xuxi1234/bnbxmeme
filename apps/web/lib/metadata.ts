@@ -12,6 +12,7 @@ export type TokenMetadata = {
   twitter?: string;
   debox?: string;
   qqGroupNumber?: string;
+  createdAt?: string;
 };
 
 export function resolveContentURI(uri?: string) {
@@ -71,6 +72,11 @@ function sanitizeMetadata(value: unknown): TokenMetadata | null {
     twitter: safeLink(source.twitter),
     debox: safeLink(source.debox),
     qqGroupNumber: safeQQGroupNumber(source.qqGroupNumber),
+    createdAt:
+      typeof source.createdAt === "string" &&
+      Number.isFinite(Date.parse(source.createdAt))
+        ? new Date(source.createdAt).toISOString()
+        : undefined,
   };
 }
 

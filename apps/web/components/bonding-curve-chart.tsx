@@ -77,10 +77,14 @@ function aggregate(points: Point[], period: Period) {
 
 export function BondingCurveChart({
   curve,
+  token,
+  pair,
   symbol,
   refreshKey,
 }: {
   curve: `0x${string}`;
+  token?: `0x${string}`;
+  pair?: `0x${string}`;
   symbol: string;
   refreshKey?: `0x${string}`;
 }) {
@@ -103,9 +107,12 @@ export function BondingCurveChart({
       setLoadError(false);
       if (!hasPoints.current) setStatusKey("chartSyncing");
       try {
-        const response = await fetch(`/api/chain-data?curve=${curve}`, {
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/chain-data?curve=${curve}${
+            token ? `&token=${token}` : ""
+          }${pair && pair !== zeroAddress ? `&pair=${pair}` : ""}`,
+          { signal: controller.signal },
+        );
         if (!response.ok) throw new Error("chain data");
         const data = (await response.json()) as {
           trades: Array<{
@@ -154,7 +161,7 @@ export function BondingCurveChart({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [curve, refreshKey, reloadKey]);
+  }, [curve, pair, refreshKey, reloadKey, token]);
 
   const candles = useMemo(() => aggregate(points, period), [period, points]);
   const sparse = points.length > 0 && points.length < 12;
@@ -342,7 +349,11 @@ export function BondingCurveChart({
     <section className="curve-chart" aria-label={`${symbol} / BNB K 线`}>
       <div className="chart-heading">
         <div>
-          <p className="eyebrow">BNBX INTERNAL MARKET</p>
+          <p className="eyebrow">
+            {pair && pair !== zeroAddress
+              ? "PANCAKESWAP V2 · ON-CHAIN"
+              : "BNBX BONDING CURVE · ON-CHAIN"}
+          </p>
           <h2>{symbol} / BNB</h2>
           <small>{t("priceUnit")}</small>
         </div>

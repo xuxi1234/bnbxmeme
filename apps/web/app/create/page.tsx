@@ -23,6 +23,7 @@ import {
   testnetFactoryAddress,
 } from "@/lib/web3";
 import { useLanguage } from "@/components/language-provider";
+import { validateCommunityLinks } from "@/lib/community-links";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 // Some injected mobile wallets incorrectly submit gasLimit=0 when estimation is
@@ -243,16 +244,23 @@ export default function CreateTokenPage() {
     if (!description && !image && !website && !telegram && !twitter && !debox && !qqGroupNumber) {
       return "";
     }
+    const community = validateCommunityLinks({
+      website,
+      telegram,
+      twitter,
+      debox,
+      qqGroupNumber,
+    });
 
     const form = new FormData();
     form.set("name", name.trim());
     form.set("symbol", symbol.trim());
     form.set("description", description.trim());
-    form.set("website", website.trim());
-    form.set("telegram", telegram.trim());
-    form.set("twitter", twitter.trim());
-    form.set("debox", debox.trim());
-    form.set("qqGroupNumber", qqGroupNumber.trim());
+    form.set("website", community.website);
+    form.set("telegram", community.telegram);
+    form.set("twitter", community.twitter);
+    form.set("debox", community.debox);
+    form.set("qqGroupNumber", community.qqGroupNumber);
     if (image) form.set("image", image);
 
     const response = await fetch("/api/metadata", { method: "POST", body: form });
@@ -518,6 +526,19 @@ export default function CreateTokenPage() {
   const sellTaxTotal = Object.values(sellTaxes).reduce((sum, value) => sum + value, 0);
   const taxInvalid =
     buyTaxTotal > MAX_SIDE_TAX || sellTaxTotal > MAX_SIDE_TAX;
+  let communityLinkError = "";
+  try {
+    validateCommunityLinks({
+      website,
+      telegram,
+      twitter,
+      debox,
+      qqGroupNumber,
+    });
+  } catch (linkError) {
+    communityLinkError =
+      linkError instanceof Error ? linkError.message : "社区链接格式无效";
+  }
   const previewInitialBuyWei = safeInitialBuy(initialBuy)
     ? parseEther(initialBuy || "0")
     : 0n;
@@ -531,6 +552,7 @@ export default function CreateTokenPage() {
     !wrongChain &&
     !unavailableTemplate &&
     !taxInvalid &&
+    !communityLinkError &&
     (!(template === "holders" || template === "lp") ||
       (buyTaxes.rewards + sellTaxes.rewards > 0 &&
         Number(minimumRewardBalance) > 0)) &&
@@ -549,16 +571,16 @@ export default function CreateTokenPage() {
       </header>
 
       <section className="form-shell">
-        <p className="eyebrow">02 / CONFIGURE · BNB MAINNET</p>
+        <p className="eyebrow">01 / CONFIGURE · BNB MAINNET</p>
         <h1 className="form-title">{t("createTitle")}</h1>
         <p className="lead">
           {language === "zh"
-            ? "零代码创建固定 10 亿供应的干净代币。永久 0 税、无增发权限，创建者首笔买入可与部署在同一笔交易内完成。"
+            ? "零代码创建固定 10 亿供应的代币。先选择公开模板与税费规则，创建者首笔买入可与部署在同一笔交易内完成。"
             : language === "ko"
-              ? "코딩 없이 10억 고정 공급, 영구 0% 세금 토큰을 생성합니다. 생성과 최초 구매를 한 거래에서 처리할 수 있습니다."
+              ? "코딩 없이 10억 고정 공급 토큰을 생성합니다. 공개 템플릿과 수수료 규칙을 선택하고 생성과 최초 구매를 한 거래에서 처리할 수 있습니다."
               : language === "ja"
-                ? "コード不要で10億固定供給・永久税率0%のトークンを作成。作成と初回購入を同一取引で実行できます。"
-                : "Create a fixed 1B supply, permanently zero-tax token without code. Creation and the initial buy can run atomically."}
+                ? "コード不要で10億固定供給トークンを作成。公開テンプレートと税設定を選択し、作成と初回購入を同一取引で実行できます。"
+                : "Create a fixed 1B supply token without code. Choose a disclosed template and fee model; creation and the initial buy can run atomically."}
         </p>
 
         <form className="launch-form" onSubmit={submit}>
@@ -569,31 +591,35 @@ export default function CreateTokenPage() {
                 const content = {
                   standard: {
                     name: language === "zh" ? "标准 0 税" : "Standard 0% Tax",
+                    badge: language === "zh" ? "推荐新手 · 永久 0 税" : "RECOMMENDED · PERMANENT 0%",
                     text:
                       language === "zh"
-                        ? "固定供应、无增发、无黑名单，推荐默认选择。"
-                        : "Fixed supply with no mint, blacklist, or token tax.",
+                        ? "低复杂度 · 无增发、无黑名单 · 创建费 0.001 BNB。"
+                        : "Low complexity · no mint or blacklist · 0.001 BNB creation fee.",
                   },
                   liquidity: {
                     name: language === "zh" ? "自动回流" : "Auto Liquidity",
+                    badge: language === "zh" ? "进阶 · 毕业后有税" : "ADVANCED · POST-GRAD TAX",
                     text:
                       language === "zh"
-                        ? "可配置销毁、自动加池和营销税。"
-                        : "Configurable burn, auto-liquidity, and marketing tax.",
+                        ? "中等复杂度 · 配置销毁、加池和营销税 · 创建费 0.001 BNB。"
+                        : "Medium complexity · burn, liquidity and marketing tax · 0.001 BNB fee.",
                   },
                   holders: {
                     name: language === "zh" ? "持币分红" : "Holder Rewards",
+                    badge: language === "zh" ? "高级 · 分红税" : "ADVANCED · REWARD TAX",
                     text:
                       language === "zh"
-                        ? "按合格持币数量分配指定奖励代币。"
-                        : "Distribute a selected reward token to eligible holders.",
+                        ? "高复杂度 · 按合格持币数量分配 BNB 奖励 · 创建费 0.001 BNB。"
+                        : "High complexity · BNB rewards for eligible holders · 0.001 BNB fee.",
                   },
                   lp: {
                     name: language === "zh" ? "LP 分红" : "LP Rewards",
+                    badge: language === "zh" ? "高级 · LP 分红税" : "ADVANCED · LP REWARDS",
                     text:
                       language === "zh"
-                        ? "毕业后按 Pancake LP 持仓分配奖励。"
-                        : "Reward qualifying Pancake LP holders after graduation.",
+                        ? "高复杂度 · 毕业后按 Pancake LP 份额分配 BNB 奖励 · 创建费 0.001 BNB。"
+                        : "High complexity · BNB rewards by Pancake LP share · 0.001 BNB fee.",
                   },
                 }[id];
                 const enabled =
@@ -615,7 +641,7 @@ export default function CreateTokenPage() {
                     }}
                     type="button"
                   >
-                    <span>{enabled ? t("available") : t("unavailable")}</span>
+                    <span>{enabled ? content.badge : t("unavailable")}</span>
                     <strong>{content.name}</strong>
                     <small>{content.text}</small>
                   </button>
@@ -826,6 +852,11 @@ export default function CreateTokenPage() {
               placeholder={t("qqPlaceholder")}
               onChange={(event) => setQqGroupNumber(event.target.value)}
             />
+            {communityLinkError && (
+              <p className="error" role="alert">
+                {communityLinkError}
+              </p>
+            )}
           </fieldset>
 
           <fieldset className="graduation-control">

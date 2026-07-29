@@ -30,6 +30,7 @@ import {
   TokenActivity,
 } from "@/components/token-activity";
 import { BondingCurveChart } from "@/components/bonding-curve-chart";
+import { ProjectDiscussion } from "@/components/project-discussion";
 import { useLanguage } from "@/components/language-provider";
 
 const SLIPPAGE_BPS = 100n;
@@ -166,11 +167,15 @@ export default function TokenTradingPage() {
   const [linksExpanded, setLinksExpanded] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
-    latestPriceBnb: 0,
+    latestPricePerMillionBnb: 0,
     bnbUsd: 0,
-    trackedVolumeBnb: 0,
+    volume24hBnb: 0,
+    priceChange24h: null,
+    liquidityBnb: null,
+    marketSource: "curve",
     holderCount: 0,
     holdersLimited: false,
+    top10ConcentrationPct: null,
   });
   const autoSellStarted = useRef(false);
   const pendingSell = useRef<{ amount: bigint; minimumBNB: bigint } | null>(null);
@@ -521,11 +526,17 @@ export default function TokenTradingPage() {
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
   const lpWei = safeParseEther(lpAmount);
   const marketCapUsd =
-    activitySummary.latestPriceBnb *
+    (activitySummary.latestPricePerMillionBnb / 1_000_000) *
     Number(formatEther(totalSupplyValue ?? 0n)) *
     activitySummary.bnbUsd;
-  const trackedVolumeUsd =
-    activitySummary.trackedVolumeBnb * activitySummary.bnbUsd;
+  const volume24hUsd =
+    activitySummary.volume24hBnb * activitySummary.bnbUsd;
+  const activePairAddress =
+    stateValue === 2 &&
+    liquidityPairAddress &&
+    liquidityPairAddress !== zeroAddress
+      ? liquidityPairAddress
+      : undefined;
   const handleActivitySummary = useCallback((summary: ActivitySummary) => {
     setActivitySummary(summary);
   }, []);
@@ -774,31 +785,70 @@ export default function TokenTradingPage() {
                 <strong>{copied ? t("copied") : t("copy")}</strong>
               </button>
               {creatorAddress && (
-                <a
+                <Link
                   className="creator-link"
-                  href={`${blockExplorerUrl}/address/${creatorAddress}`}
-                  target="_blank"
-                  rel="noreferrer"
+                  href={`/creator/${creatorAddress}`}
                 >
-                  {t("creator")} {creatorAddress.slice(0, 6)}…{creatorAddress.slice(-4)} ↗
-                </a>
+                  {t("creator")} {creatorAddress.slice(0, 6)}…{creatorAddress.slice(-4)} →
+                </Link>
+              )}
+              {metadata?.createdAt && (
+                <span className="creator-link">
+                  {t("launchTime")} {metadata.createdAt.slice(0, 10)}
+                </span>
               )}
             </div>
           </div>
           <div className="token-market-metrics">
             <div>
               <span>{t("currentPrice")}</span>
-              <strong>{formatMarketMetric(activitySummary.latestPriceBnb)} BNB</strong>
-              <small>{formatMarketMetric(activitySummary.latestPriceBnb * activitySummary.bnbUsd, true)}</small>
+              <strong>
+                {formatMarketMetric(activitySummary.latestPricePerMillionBnb)} BNB
+              </strong>
+              <small>
+                {formatMarketMetric(
+                  activitySummary.latestPricePerMillionBnb *
+                    activitySummary.bnbUsd,
+                  true,
+                )}{" "}
+                / 1M
+              </small>
+            </div>
+            <div>
+              <span>{t("change24h")}</span>
+              <strong
+                className={
+                  (activitySummary.priceChange24h ?? 0) >= 0
+                    ? "chart-up"
+                    : "chart-down"
+                }
+              >
+                {activitySummary.priceChange24h === null
+                  ? "—"
+                  : `${activitySummary.priceChange24h >= 0 ? "+" : ""}${activitySummary.priceChange24h.toFixed(2)}%`}
+              </strong>
             </div>
             <div>
               <span>{t("marketCap")}</span>
               <strong>{formatMarketMetric(marketCapUsd, true)}</strong>
             </div>
             <div>
-              <span>{t("onchainVolume")}</span>
-              <strong>{formatMarketMetric(trackedVolumeUsd, true)}</strong>
-              <small>{formatMarketMetric(activitySummary.trackedVolumeBnb)} BNB</small>
+              <span>{t("volume24h")}</span>
+              <strong>{formatMarketMetric(volume24hUsd, true)}</strong>
+              <small>{formatMarketMetric(activitySummary.volume24hBnb)} BNB</small>
+            </div>
+            <div>
+              <span>{t("liquidity")}</span>
+              <strong>
+                {activitySummary.liquidityBnb === null
+                  ? "—"
+                  : `${formatMarketMetric(activitySummary.liquidityBnb)} BNB`}
+              </strong>
+              <small>
+                {activitySummary.marketSource === "pancake"
+                  ? "PancakeSwap V2"
+                  : t("internal")}
+              </small>
             </div>
             <div>
               <span>{t("holders")}</span>
@@ -1000,6 +1050,13 @@ export default function TokenTradingPage() {
           {metadata?.website && <a href={metadata.website} target="_blank" rel="noreferrer">{t("officialSite")} ↗</a>}
           {metadata?.telegram && <a href={metadata.telegram} target="_blank" rel="noreferrer">Telegram ↗</a>}
           {metadata?.twitter && <a href={metadata.twitter} target="_blank" rel="noreferrer">X / Twitter ↗</a>}
+          <a
+            href={`${blockExplorerUrl}/token/${tokenAddress}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            BscScan ↗
+          </a>
           <button
             className="project-links-toggle"
             type="button"
@@ -1020,14 +1077,6 @@ export default function TokenTradingPage() {
               <strong aria-hidden="true">⧉</strong>
             </button>
           )}
-          <a
-            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
-            href={`${blockExplorerUrl}/token/${tokenAddress}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            BscScan ↗
-          </a>
           <a
             className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
             href={`https://ave.ai/token/${tokenAddress}-bsc`}
@@ -1051,22 +1100,6 @@ export default function TokenTradingPage() {
             rel="noreferrer"
           >
             DEXTools ↗
-          </a>
-          <a
-            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
-            href={`https://dex.coinmarketcap.com/token/BSC/${tokenAddress}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            CoinMarketCap ↗
-          </a>
-          <a
-            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
-            href={`https://gmgn.ai/bsc/token/bnbxmeme_${tokenAddress}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            GMGN.AI ↗
           </a>
         </div>
         {qqCopied && (
@@ -1356,6 +1389,8 @@ export default function TokenTradingPage() {
           {curveAddress !== zeroAddress && (
             <BondingCurveChart
               curve={curveAddress}
+              token={tokenAddress}
+              pair={activePairAddress}
               symbol={tokenSymbol ?? "—"}
               refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
             />
@@ -1364,9 +1399,14 @@ export default function TokenTradingPage() {
             <TokenActivity
               token={tokenAddress}
               curve={curveAddress}
+              pair={activePairAddress}
+              totalSupply={totalSupplyValue}
               refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
               onSummary={handleActivitySummary}
             />
+          )}
+          {tokenAddress !== zeroAddress && (
+            <ProjectDiscussion token={tokenAddress} />
           )}
         </div>
       </section>

@@ -14,7 +14,7 @@ const slides = [
   {
     eyebrow: "1111 VANITY CONTRACT",
     title: "每一枚代币，\n都有 BNBX 标记。",
-    description: "平台部署的代币合约地址统一以 1111 结尾，合约永久 0 税。",
+    description: "合约地址统一以 1111 结尾；标准模板永久 0 税，高级模板公开展示税费配置。",
     badge: "ENDS IN 1111",
   },
   {
@@ -47,7 +47,7 @@ export function HomeBanner() {
     {
       eyebrow: "1111 VANITY CONTRACT",
       title: language === "ko" ? "모든 토큰에\nBNBX 시그니처." : language === "ja" ? "すべてのトークンに\nBNBXの印。" : "Every token bears\nthe BNBX signature.",
-      description: language === "ko" ? "모든 토큰 주소는 1111로 끝나며 세금은 영구적으로 0%입니다." : language === "ja" ? "全トークンのアドレスは1111で終わり、税率は永久に0%です。" : "Every token address ends in 1111 and remains permanently zero-tax.",
+      description: language === "ko" ? "모든 주소는 1111로 끝납니다. 표준 템플릿은 영구 0% 세금이며 고급 템플릿은 세금 설정을 공개합니다." : language === "ja" ? "全アドレスは1111で終了。標準テンプレートは永久0%税、高機能テンプレートは税設定を公開します。" : "Every address ends in 1111. The standard template is permanently zero-tax; advanced templates disclose their tax settings.",
       badge: "ENDS IN 1111",
     },
     {
@@ -104,7 +104,7 @@ export function HomeBanner() {
         </button>
       </div>
       <div className="banner-foot">
-        <span>ZERO TAX TOKEN</span>
+        <span>VERIFIED TOKEN TEMPLATES</span>
         <span>ON-CHAIN BONDING CURVE</span>
         <span>AUTO PANCAKE V2</span>
       </div>

@@ -21,10 +21,10 @@ export function SiteHeader() {
   const languageMenu = useRef<HTMLDivElement>(null);
   const mobileMenu = useRef<HTMLDivElement>(null);
   const navigation = [
-    [t("market"), "/#market"],
-    [t("today"), "/#market"],
+    [t("market"), "/?market=hot#market"],
+    [t("today"), "/?market=graduating#market"],
     [t("create"), "/create"],
-    [t("history"), "/#market"],
+    [t("history"), "/?market=graduated#market"],
     [t("securityCenter"), "/security"],
   ];
 
@@ -70,7 +70,7 @@ export function SiteHeader() {
         />
         <span>
           <strong>BNBX</strong>
-          <small>ZERO-TAX LAUNCHPAD</small>
+          <small>BNB CHAIN LAUNCHPAD</small>
         </span>
       </Link>
 

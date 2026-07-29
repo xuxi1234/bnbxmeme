@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
@@ -15,6 +15,7 @@ type Trade = {
   blockNumber: bigint;
   transactionHash: `0x${string}`;
   timestamp: number;
+  source?: "curve" | "pancake";
 };
 
 type Holder = {
@@ -23,11 +24,15 @@ type Holder = {
 };
 
 export type ActivitySummary = {
-  latestPriceBnb: number;
+  latestPricePerMillionBnb: number;
   bnbUsd: number;
-  trackedVolumeBnb: number;
+  volume24hBnb: number;
+  priceChange24h: number | null;
+  liquidityBnb: number | null;
+  marketSource: "curve" | "pancake";
   holderCount: number;
   holdersLimited: boolean;
+  top10ConcentrationPct: number | null;
 };
 
 function shortAddress(address: string) {
@@ -63,23 +68,64 @@ function formatBnb(value: bigint, locale: string) {
 export function TokenActivity({
   token,
   curve,
+  pair,
+  totalSupply,
   refreshKey,
   onSummary,
 }: {
   token: `0x${string}`;
   curve: `0x${string}`;
+  pair?: `0x${string}`;
+  totalSupply?: bigint;
   refreshKey?: `0x${string}`;
   onSummary?: (summary: ActivitySummary) => void;
 }) {
   const { language, t } = useLanguage();
   const locale = languageLocales[language];
-  const [activeTab, setActiveTab] = useState<"trades" | "holders">("trades");
+  const [activeTab, setActiveTab] = useState<
+    "trades" | "holders" | "topTraders"
+  >("trades");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [holders, setHolders] = useState<Holder[]>([]);
   const [bnbUsd, setBnbUsd] = useState(0);
+  const [top10ConcentrationPct, setTop10ConcentrationPct] = useState<
+    number | null
+  >(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const topTraders = useMemo(() => {
+    const excluded = new Set(
+      [
+        curve,
+        pair,
+        zeroAddress,
+        "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+      ]
+        .filter(Boolean)
+        .map((address) => address!.toLowerCase()),
+    );
+    const totals = new Map<
+      string,
+      { account: `0x${string}`; volume: bigint; buys: number; sells: number }
+    >();
+    for (const trade of trades) {
+      if (!trade.account || excluded.has(trade.account.toLowerCase())) continue;
+      const key = trade.account.toLowerCase();
+      const current = totals.get(key) ?? {
+        account: trade.account,
+        volume: 0n,
+        buys: 0,
+        sells: 0,
+      };
+      current.volume += trade.bnb;
+      current[trade.side === "buy" ? "buys" : "sells"] += 1;
+      totals.set(key, current);
+    }
+    return [...totals.values()]
+      .sort((a, b) => (a.volume > b.volume ? -1 : 1))
+      .slice(0, 20);
+  }, [curve, pair, trades]);
 
   useEffect(() => {
     if (token === zeroAddress || curve === zeroAddress) return;
@@ -89,13 +135,25 @@ export function TokenActivity({
       if (trades.length === 0 && holders.length === 0) setIsLoading(true);
       setLoadError(false);
       try {
-        const response = await fetch(`/api/chain-data?curve=${curve}&token=${token}`, {
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/chain-data?curve=${curve}&token=${token}${
+            pair && pair !== zeroAddress ? `&pair=${pair}` : ""
+          }`,
+          { signal: controller.signal },
+        );
         if (!response.ok) throw new Error("chain data unavailable");
         const data = await response.json() as {
           trades: Array<Omit<Trade, "bnb" | "priceBNB" | "tokens" | "blockNumber"> & { bnb: string; priceBNB: string; tokens: string; blockNumber: string }>;
           holders: Array<{ address: `0x${string}`; balance: string }>;
+          holderCount?: number;
+          holdersLimited?: boolean;
+          market?: {
+            source: "curve" | "pancake";
+            pricePerMillionBnb: number | null;
+            volume24hBnb: number | null;
+            priceChange24h: number | null;
+            liquidityBnb: number | null;
+          };
           bnbUsd?: number;
         };
         const allActivity = data.trades.map((trade) => ({
@@ -108,24 +166,49 @@ export function TokenActivity({
           .sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1));
         const activity = allActivity.slice(0, 50);
         setTrades(activity);
-        setHolders(data.holders.map((holder) => ({ ...holder, balance: BigInt(holder.balance) })));
+        const nextHolders = data.holders.map((holder) => ({
+          ...holder,
+          balance: BigInt(holder.balance),
+        }));
+        setHolders(nextHolders);
+        const top10Balance = nextHolders
+          .slice(0, 10)
+          .reduce((sum, holder) => sum + holder.balance, 0n);
+        const nextTop10Concentration =
+          totalSupply && totalSupply > 0n
+            ? Number((top10Balance * 10_000n) / totalSupply) / 100
+            : null;
+        setTop10ConcentrationPct(nextTop10Concentration);
         const nextBnbUsd = Number(data.bnbUsd ?? 0);
         setBnbUsd(nextBnbUsd);
         const latestTrade = allActivity[0];
         const latestTokens = latestTrade ? Number(formatEther(latestTrade.tokens)) : 0;
-        const latestPriceBnb =
+        const fallbackPricePerMillionBnb =
           latestTrade && latestTokens > 0
-            ? Number(formatEther(latestTrade.priceBNB)) / latestTokens
+            ? (Number(formatEther(latestTrade.priceBNB)) / latestTokens) *
+              1_000_000
             : 0;
+        const cutoff24h = Math.floor(Date.now() / 1000) - 86_400;
+        const recentActivity = allActivity.filter(
+          (trade) => trade.timestamp >= cutoff24h,
+        );
         onSummary?.({
-          latestPriceBnb,
+          latestPricePerMillionBnb:
+            data.market?.pricePerMillionBnb ?? fallbackPricePerMillionBnb,
           bnbUsd: nextBnbUsd,
-          trackedVolumeBnb: allActivity.reduce(
+          volume24hBnb:
+            data.market?.volume24hBnb ??
+            recentActivity.reduce(
             (sum, trade) => sum + Number(formatEther(trade.bnb)),
             0,
           ),
-          holderCount: data.holders.length,
-          holdersLimited: data.holders.length >= 50,
+          priceChange24h: data.market?.priceChange24h ?? null,
+          liquidityBnb: data.market?.liquidityBnb ?? null,
+          marketSource: data.market?.source ?? "curve",
+          holderCount: data.holderCount ?? data.holders.length,
+          holdersLimited:
+            data.holdersLimited ?? data.holders.length >= 50,
+          top10ConcentrationPct: nextTop10Concentration,
         });
       } catch {
         if (!controller.signal.aborted) {
@@ -142,7 +225,7 @@ export function TokenActivity({
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [curve, holders.length, onSummary, refreshKey, reloadKey, token, trades.length]);
+  }, [curve, holders.length, onSummary, pair, refreshKey, reloadKey, token, totalSupply, trades.length]);
 
   return (
     <section className="activity-terminal">
@@ -168,6 +251,15 @@ export function TokenActivity({
                 onClick={() => setActiveTab("holders")}
               >
                 {t("holders")} <span>{holders.length}{holders.length >= 50 ? "+" : ""}</span>
+              </button>
+              <button
+                className={activeTab === "topTraders" ? "active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "topTraders"}
+                onClick={() => setActiveTab("topTraders")}
+              >
+                {t("topTraders")} <span>{topTraders.length}</span>
               </button>
             </div>
           </div>
@@ -249,6 +341,14 @@ export function TokenActivity({
           <p className="activity-empty">{t("noHolders")}</p>
         ) : (
           <div className="holder-list">
+            <div className="holder-concentration">
+              <span>{t("top10Concentration")}</span>
+              <strong>
+                {top10ConcentrationPct === null
+                  ? "—"
+                  : `${top10ConcentrationPct.toFixed(2)}%`}
+              </strong>
+            </div>
             {holders.map((holder, index) => (
               <a
                 key={holder.address}
@@ -259,6 +359,29 @@ export function TokenActivity({
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 <strong>{shortAddress(holder.address)}</strong>
                 <span title={formatEther(holder.balance)}>{formatCompact(holder.balance, locale)} {t("units")}</span>
+              </a>
+            ))}
+          </div>
+        ))}
+        {activeTab === "topTraders" && (isLoading ? (
+          <p className="activity-empty">{t("readingLogs")}</p>
+        ) : topTraders.length === 0 ? (
+          <p className="activity-empty">{t("noTopTraders")}</p>
+        ) : (
+          <div className="holder-list top-trader-list">
+            {topTraders.map((trader, index) => (
+              <a
+                key={trader.account}
+                href={`${blockExplorerUrl}/address/${trader.account}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{shortAddress(trader.account)}</strong>
+                <span>
+                  {formatBnb(trader.volume, locale)} BNB · {trader.buys} {t("buy")} /{" "}
+                  {trader.sells} {t("sell")}
+                </span>
               </a>
             ))}
           </div>

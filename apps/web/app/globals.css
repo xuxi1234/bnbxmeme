@@ -1492,7 +1492,7 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .creator-link:hover { color: var(--brand); }
 .token-market-metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   min-width: 0;
   border: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface) 82%, transparent);
@@ -1895,6 +1895,51 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .trade-explorer { color: var(--brand); font-size: 15px; text-align: center; }
 .holder-list a { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; padding: 13px 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-family: monospace; font-size: 11px; text-decoration: none; }
 .holder-list strong { color: var(--text); font-weight: 650; }
+.holder-concentration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--brand) 7%, var(--surface));
+  color: var(--muted);
+  font-size: 11px;
+}
+.holder-concentration strong { color: var(--brand); font-family: monospace; }
+.creator-profile { min-height: 62vh; }
+.creator-address { overflow-wrap: anywhere; font-family: monospace; }
+.project-discussion {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.project-discussion > .activity-heading { padding: 18px; }
+.project-discussion h2 { margin-top: 6px; font-size: 26px; }
+.project-discussion form {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 18px;
+}
+.project-discussion textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+.project-discussion form > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.project-discussion form small { color: var(--muted); font-family: monospace; }
+.project-discussion > .error { margin: 0 18px 16px; }
+.comment-list { display: grid; border-top: 1px solid var(--line); }
+.comment-list article { padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.comment-list article:last-child { border-bottom: 0; }
+.comment-list article > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.comment-list strong { color: var(--brand); font-family: monospace; font-size: 12px; }
+.comment-list time { color: var(--muted); font-family: monospace; font-size: 10px; }
+.comment-list p { margin: 10px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.6; }
 
 @media (max-width: 1120px) {
   .token-terminal-summary { grid-template-columns: 1fr; gap: 14px; }

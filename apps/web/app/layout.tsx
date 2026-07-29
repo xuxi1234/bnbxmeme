@@ -10,7 +10,7 @@ import { AnnouncementBar } from "@/components/announcement-bar";
 export const metadata: Metadata = {
   title: "BNBX — Build Next Bull System",
   description:
-    "BNB Chain 0% 代币税公平发射平台。固定 10 亿供应、联合曲线交易、自动迁移 PancakeSwap V2。",
+    "BNB Chain 模块化 Meme 代币发射平台。固定 10 亿供应、公开模板与税费、联合曲线交易、自动迁移 PancakeSwap V2。",
 };
 
 export const viewport: Viewport = {
