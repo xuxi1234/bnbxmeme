@@ -14,6 +14,10 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { formatEther, zeroAddress } from "viem";
+import {
+  chartPricePrecision,
+  formatTokenPriceUsdt,
+} from "@/lib/market-format";
 import { useLanguage } from "./language-provider";
 
 type Period = 60 | 300 | 900 | 3600 | 14400 | 86400;
@@ -49,11 +53,6 @@ function compact(value: number) {
     notation: "compact",
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function priceLabel(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return "—";
-  return value < 0.000001 ? value.toExponential(3) : value.toFixed(8);
 }
 
 function aggregate(points: Point[], period: Period) {
@@ -121,8 +120,13 @@ export function BondingCurveChart({
             timestamp: number;
             bnb: string;
           }>;
+          bnbUsd?: number;
           refreshedAt?: string;
         };
+        const bnbUsd = Number(data.bnbUsd ?? 0);
+        if (!Number.isFinite(bnbUsd) || bnbUsd <= 0) {
+          throw new Error("BNB/USDT price unavailable");
+        }
         const next = data.trades
           .map((trade): Point | null => {
             const tokenWei = BigInt(trade.tokens);
@@ -135,7 +139,7 @@ export function BondingCurveChart({
             }
             return {
               timestamp: trade.timestamp,
-              price: (bnb / tokens) * 1_000_000,
+              price: (bnb / tokens) * bnbUsd,
               volume: Number(formatEther(BigInt(trade.bnb))),
             };
           })
@@ -173,6 +177,18 @@ export function BondingCurveChart({
       : 0;
   const totalVolume = points.reduce((sum, point) => sum + point.volume, 0);
   const visibleOhlc = hover ?? latest ?? null;
+  const priceFormat = useMemo(
+    () => chartPricePrecision(latest?.close),
+    [latest?.close],
+  );
+  const locale =
+    language === "zh"
+      ? "zh-CN"
+      : language === "ko"
+        ? "ko-KR"
+        : language === "ja"
+          ? "ja-JP"
+          : "en-US";
 
   useEffect(() => {
     const container = chartContainer.current;
@@ -271,8 +287,8 @@ export function BondingCurveChart({
         lastValueVisible: true,
         priceFormat: {
           type: "price",
-          precision: 8,
-          minMove: 0.00000001,
+          precision: priceFormat.precision,
+          minMove: priceFormat.minMove,
         },
       });
       const lineData: LineData<UTCTimestamp>[] = points.map((point) => ({
@@ -308,8 +324,8 @@ export function BondingCurveChart({
         lastValueVisible: true,
         priceFormat: {
           type: "price",
-          precision: 8,
-          minMove: 0.00000001,
+          precision: priceFormat.precision,
+          minMove: priceFormat.minMove,
         },
       });
       const candleData: CandlestickData<UTCTimestamp>[] = candles.map(
@@ -343,10 +359,17 @@ export function BondingCurveChart({
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [candles, language, points, sparse]);
+  }, [
+    candles,
+    language,
+    points,
+    priceFormat.minMove,
+    priceFormat.precision,
+    sparse,
+  ]);
 
   return (
-    <section className="curve-chart" aria-label={`${symbol} / BNB K 线`}>
+    <section className="curve-chart" aria-label={`${symbol} / USDT K 线`}>
       <div className="chart-heading">
         <div>
           <p className="eyebrow">
@@ -354,11 +377,11 @@ export function BondingCurveChart({
               ? "PANCAKESWAP V2 · ON-CHAIN"
               : "BNBX BONDING CURVE · ON-CHAIN"}
           </p>
-          <h2>{symbol} / BNB</h2>
+          <h2>{symbol} / USDT</h2>
           <small>{t("priceUnit")}</small>
         </div>
         <div className="chart-summary">
-          <strong>{priceLabel(latest?.close ?? 0)}</strong>
+          <strong>{formatTokenPriceUsdt(latest?.close, locale)}</strong>
           <span className={change >= 0 ? "chart-up" : "chart-down"}>
             {change >= 0 ? "+" : ""}
             {change.toFixed(2)}%
@@ -388,13 +411,7 @@ export function BondingCurveChart({
         <span>
           {refreshedAt
             ? `${t("lastUpdated")} ${new Intl.DateTimeFormat(
-                language === "zh"
-                  ? "zh-CN"
-                  : language === "ko"
-                    ? "ko-KR"
-                    : language === "ja"
-                      ? "ja-JP"
-                      : "en-US",
+                  locale,
                 { hour: "2-digit", minute: "2-digit", second: "2-digit" },
               ).format(new Date(refreshedAt))}`
             : t("loading")}
@@ -426,10 +443,10 @@ export function BondingCurveChart({
       </div>
       {visibleOhlc && (
         <div className="chart-ohlc">
-          <span>O {priceLabel(visibleOhlc.open)}</span>
-          <span>H {priceLabel(visibleOhlc.high)}</span>
-          <span>L {priceLabel(visibleOhlc.low)}</span>
-          <span>C {priceLabel(visibleOhlc.close)}</span>
+          <span>O {formatTokenPriceUsdt(visibleOhlc.open, locale)}</span>
+          <span>H {formatTokenPriceUsdt(visibleOhlc.high, locale)}</span>
+          <span>L {formatTokenPriceUsdt(visibleOhlc.low, locale)}</span>
+          <span>C {formatTokenPriceUsdt(visibleOhlc.close, locale)}</span>
           <span>VOL {visibleOhlc.volume.toFixed(4)} BNB</span>
         </div>
       )}

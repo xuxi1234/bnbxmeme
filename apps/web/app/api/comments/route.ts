@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress, verifyMessage } from "viem";
 import { buildCommentMessage } from "@/lib/comment-message";
+import {
+  findBlockedTerm,
+  readCommentModerationSettings,
+  supabaseServiceHeaders,
+  supabaseTableEndpoint,
+} from "@/lib/comments-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const supabaseUrl =
-  process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseSecret =
-  process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 type CommentRow = {
   id: string;
@@ -18,21 +19,8 @@ type CommentRow = {
   created_at: string;
 };
 
-function serviceHeaders() {
-  if (!supabaseSecret) return null;
-  const headers: Record<string, string> = {
-    apikey: supabaseSecret,
-    "Content-Type": "application/json",
-  };
-  if (supabaseSecret.startsWith("eyJ")) {
-    headers.Authorization = `Bearer ${supabaseSecret}`;
-  }
-  return headers;
-}
-
 function commentsEndpoint() {
-  if (!supabaseUrl) return null;
-  return new URL("/rest/v1/token_comments", supabaseUrl);
+  return supabaseTableEndpoint("token_comments");
 }
 
 function publicComment(row: CommentRow) {
@@ -46,7 +34,7 @@ function publicComment(row: CommentRow) {
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
-  const headers = serviceHeaders();
+  const headers = supabaseServiceHeaders();
   const endpoint = commentsEndpoint();
   if (!token || !isAddress(token)) {
     return NextResponse.json({ error: "Invalid token address" }, { status: 400 });
@@ -55,6 +43,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: "Community service is not configured" },
       { status: 503 },
+    );
+  }
+  const settings = await readCommentModerationSettings();
+  if (!settings) {
+    return NextResponse.json(
+      { error: "Community moderation service is unavailable" },
+      { status: 503 },
+    );
+  }
+  if (!settings.commentsEnabled) {
+    return NextResponse.json(
+      { enabled: false, comments: [] },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15",
+        },
+      },
     );
   }
   endpoint.searchParams.set(
@@ -78,13 +83,13 @@ export async function GET(request: NextRequest) {
   }
   const rows = (await response.json()) as CommentRow[];
   return NextResponse.json(
-    { comments: rows.map(publicComment) },
+    { enabled: true, comments: rows.map(publicComment) },
     { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30" } },
   );
 }
 
 export async function POST(request: NextRequest) {
-  const headers = serviceHeaders();
+  const headers = supabaseServiceHeaders();
   const endpoint = commentsEndpoint();
   if (!headers || !endpoint) {
     return NextResponse.json(
@@ -120,6 +125,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "Comment must contain 1–280 valid characters" },
       { status: 400 },
+    );
+  }
+  const settings = await readCommentModerationSettings();
+  if (!settings) {
+    return NextResponse.json(
+      {
+        code: "MODERATION_UNAVAILABLE",
+        error: "Community moderation service is unavailable",
+      },
+      { status: 503 },
+    );
+  }
+  if (!settings.commentsEnabled) {
+    return NextResponse.json(
+      { code: "COMMENTS_DISABLED", error: "Project discussions are disabled" },
+      { status: 403 },
+    );
+  }
+  if (findBlockedTerm(body, settings.blockedTerms)) {
+    return NextResponse.json(
+      {
+        code: "CONTENT_BLOCKED",
+        error: "This comment does not meet the community rules",
+      },
+      { status: 422 },
     );
   }
   const signedTime = Date.parse(signedAt);

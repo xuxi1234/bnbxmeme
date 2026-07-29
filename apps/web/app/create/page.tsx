@@ -634,6 +634,7 @@ export default function CreateTokenPage() {
                     key={id}
                     onClick={() => {
                       setTemplate(id);
+                      setUploadError("");
                       if (id === "standard") {
                         setBuyTaxes({ ...emptyTaxes });
                         setSellTaxes({ ...emptyTaxes });
@@ -649,6 +650,27 @@ export default function CreateTokenPage() {
               })}
             </div>
           </fieldset>
+
+          {advancedTemplate && (
+            <div className="advanced-template-warning" role="status">
+              <strong>
+                {{
+                  zh: "你选择的是毕业后有税模板",
+                  en: "You selected a post-graduation tax template",
+                  ko: "졸업 후 세금이 적용되는 템플릿을 선택했습니다",
+                  ja: "卒業後に税が適用されるテンプレートです",
+                }[language]}
+              </strong>
+              <p>
+                {{
+                  zh: "内盘交易和毕业加池期间不收代币税；进入 PancakeSwap V2 后，才按下方公开配置启用买入税和卖出税。请确认税率、营销钱包和分红门槛后再创建。",
+                  en: "Token tax remains off during the bonding curve and migration. The disclosed buy and sell taxes activate only after the PancakeSwap V2 launch. Confirm every tax, the marketing wallet, and any reward threshold before creating.",
+                  ko: "본딩 커브와 유동성 이전 중에는 토큰 세금이 없습니다. 아래 공개된 매수·매도 세금은 PancakeSwap V2 출시 후에만 적용됩니다. 생성 전에 세율, 마케팅 지갑, 보상 기준을 확인하세요.",
+                  ja: "ボンディングカーブと流動性移行中はトークン税がかかりません。下記の公開された売買税はPancakeSwap V2移行後のみ有効です。作成前に税率、マーケティングウォレット、報酬条件を確認してください。",
+                }[language]}
+              </p>
+            </div>
+          )}
 
           {advancedTemplate && (
             <fieldset className="tax-config">

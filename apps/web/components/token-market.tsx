@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useTokenMetadata } from "@/lib/metadata";
+import {
+  formatTokenPriceUsdt,
+  tokenPriceUsdt,
+} from "@/lib/market-format";
 import { useLanguage } from "./language-provider";
 
 type MarketFilter = "hot" | "latest" | "graduating" | "graduated";
@@ -52,11 +56,6 @@ function compactMetric(value: number) {
   }).format(value);
 }
 
-function priceMetric(value: number | undefined) {
-  if (!value || !Number.isFinite(value)) return "—";
-  return value < 0.000001 ? value.toExponential(2) : value.toFixed(6);
-}
-
 function TokenCard({
   entry,
   score,
@@ -73,6 +72,10 @@ function TokenCard({
     principal !== undefined && target !== undefined && target > 0n
       ? Math.min(100, Number((principal * 10_000n) / target) / 100)
       : null;
+  const priceUsdt = tokenPriceUsdt(
+    score?.pricePerMillion,
+    score?.bnbUsd,
+  );
 
   return (
     <Link className="token-card" href={`/token/${entry.token}`}>
@@ -120,9 +123,9 @@ function TokenCard({
       <div className="token-card-market">
         <div>
           <span>{t("currentPrice")}</span>
-          <strong>{priceMetric(score?.pricePerMillion)} BNB</strong>
+          <strong>{formatTokenPriceUsdt(priceUsdt)} USDT</strong>
           <small>
-            / 1M
+            / 1 {entry.symbol ?? t("token")}
             {score?.priceChange24h !== undefined
               ? ` · ${score.priceChange24h >= 0 ? "+" : ""}${score.priceChange24h.toFixed(2)}%`
               : ""}
