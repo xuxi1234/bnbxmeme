@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { validateCommunityLinks } from "@/lib/community-links";
 
 export const runtime = "nodejs";
 
@@ -14,41 +15,6 @@ const ALLOWED_IMAGE_TYPES = new Set([
 function text(form: FormData, key: string, maxLength: number) {
   const value = form.get(key);
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
-}
-
-type CommunityLinkKind = "website" | "telegram" | "twitter" | "debox";
-
-function safeUrl(value: string, kind: CommunityLinkKind) {
-  if (!value) return "";
-  const trimmed = value.trim().slice(0, MAX_COMMUNITY_TEXT_LENGTH);
-  const withoutAt = trimmed.replace(/^@/, "");
-  let candidate = trimmed;
-
-  if (!/^https?:\/\//i.test(candidate)) {
-    const looksLikeAddress = candidate.includes(".") || candidate.includes("/");
-    if (kind === "telegram" && !looksLikeAddress) {
-      candidate = `https://t.me/${encodeURIComponent(withoutAt)}`;
-    } else if (kind === "twitter" && !looksLikeAddress) {
-      candidate = `https://x.com/${encodeURIComponent(withoutAt)}`;
-    } else if (kind === "debox" && !looksLikeAddress) {
-      candidate = `https://m.debox.pro/${encodeURIComponent(withoutAt)}`;
-    } else {
-      candidate = `https://${candidate}`;
-    }
-  } else if (/^http:\/\//i.test(candidate)) {
-    candidate = candidate.replace(/^http:\/\//i, "https://");
-  }
-
-  try {
-    const url = new URL(candidate);
-    return url.protocol === "https:" ? url.toString() : "";
-  } catch {
-    return "";
-  }
-}
-
-function safeQQGroupNumber(value: string) {
-  return value.trim().slice(0, MAX_COMMUNITY_TEXT_LENGTH);
 }
 
 async function pinImage(image: File, jwt: string) {
@@ -101,18 +67,22 @@ export async function POST(request: Request) {
       imageURI = await pinImage(image, jwt);
     }
 
+    const community = validateCommunityLinks({
+      website: text(form, "website", MAX_COMMUNITY_TEXT_LENGTH),
+      telegram: text(form, "telegram", MAX_COMMUNITY_TEXT_LENGTH),
+      twitter: text(form, "twitter", MAX_COMMUNITY_TEXT_LENGTH),
+      debox: text(form, "debox", MAX_COMMUNITY_TEXT_LENGTH),
+      qqGroupNumber: text(form, "qqGroupNumber", MAX_COMMUNITY_TEXT_LENGTH),
+    });
     const metadata = {
       name,
       symbol,
       description,
       image: imageURI,
-      website: safeUrl(text(form, "website", MAX_COMMUNITY_TEXT_LENGTH), "website"),
-      telegram: safeUrl(text(form, "telegram", MAX_COMMUNITY_TEXT_LENGTH), "telegram"),
-      twitter: safeUrl(text(form, "twitter", MAX_COMMUNITY_TEXT_LENGTH), "twitter"),
-      debox: safeUrl(text(form, "debox", MAX_COMMUNITY_TEXT_LENGTH), "debox"),
-      qqGroupNumber: safeQQGroupNumber(text(form, "qqGroupNumber", MAX_COMMUNITY_TEXT_LENGTH)),
+      ...community,
       createdBy: "BNBX",
-      chainId: 97,
+      createdAt: new Date().toISOString(),
+      chainId: 56,
     };
 
     const response = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {

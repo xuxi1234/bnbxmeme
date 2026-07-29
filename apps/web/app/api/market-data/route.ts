@@ -204,6 +204,11 @@ async function readMarket() {
             functionName: "symbol" as const,
           },
           {
+            address: token,
+            abi: tokenReadAbi,
+            functionName: "totalSupply" as const,
+          },
+          {
             address: factory,
             abi: factoryReadAbi,
             functionName: "tokenMetadataURI" as const,
@@ -219,7 +224,7 @@ async function readMarket() {
       })
     : [];
   const curves = records.map((_, position) =>
-    successful<`0x${string}`>(identityResults[position * 4 + 3]),
+    successful<`0x${string}`>(identityResults[position * 5 + 4]),
   );
   const curveResults = curves.length
     ? await serverPublicClient.multicall({
@@ -242,6 +247,16 @@ async function readMarket() {
                   abi: curveReadAbi,
                   functionName: "state" as const,
                 },
+                {
+                  address: curve,
+                  abi: curveReadAbi,
+                  functionName: "creator" as const,
+                },
+                {
+                  address: curve,
+                  abi: curveReadAbi,
+                  functionName: "liquidityPair" as const,
+                },
               ]
             : [],
         ),
@@ -254,23 +269,29 @@ async function readMarket() {
     const curve = curves[position];
     const hasCurve = Boolean(curve && curve !== zeroAddress);
     const stats = hasCurve
-      ? curveResults.slice(curveResultPosition, curveResultPosition + 3)
+      ? curveResults.slice(curveResultPosition, curveResultPosition + 5)
       : [];
-    if (hasCurve) curveResultPosition += 3;
-    const name = successful<string>(identityResults[position * 4]);
-    const symbol = successful<string>(identityResults[position * 4 + 1]);
-    const metadataURI = successful<string>(identityResults[position * 4 + 2]);
+    if (hasCurve) curveResultPosition += 5;
+    const name = successful<string>(identityResults[position * 5]);
+    const symbol = successful<string>(identityResults[position * 5 + 1]);
+    const totalSupply = successful<bigint>(identityResults[position * 5 + 2]);
+    const metadataURI = successful<string>(identityResults[position * 5 + 3]);
     const principal = successful<bigint>(stats[0]);
     const target = successful<bigint>(stats[1]);
     const state = successful<number>(stats[2]);
+    const creator = successful<`0x${string}`>(stats[3]);
+    const liquidityPair = successful<`0x${string}`>(stats[4]);
     if (
       !name ||
       !symbol ||
+      totalSupply === undefined ||
       !metadataURI ||
       !hasCurve ||
       principal === undefined ||
       target === undefined ||
-      state === undefined
+      state === undefined ||
+      !creator ||
+      !liquidityPair
     ) {
       partial = true;
     }
@@ -281,10 +302,13 @@ async function readMarket() {
       creationIndex: record.creationIndex,
       name: name ?? null,
       symbol: symbol ?? null,
+      totalSupply: totalSupply?.toString() ?? null,
       metadataURI: metadataURI ?? null,
       principal: principal?.toString() ?? null,
       target: target?.toString() ?? null,
       state: state ?? null,
+      creator: creator ?? null,
+      liquidityPair: liquidityPair ?? null,
     };
   });
 
