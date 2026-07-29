@@ -77,6 +77,9 @@ export default function TokenTradingPage() {
   const [copied, setCopied] = useState(false);
   const [qqCopied, setQQCopied] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [securityExpanded, setSecurityExpanded] = useState(false);
+  const [linksExpanded, setLinksExpanded] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
     latestPriceBnb: 0,
@@ -86,6 +89,7 @@ export default function TokenTradingPage() {
     holdersLimited: false,
   });
   const autoSellStarted = useRef(false);
+  const pendingSell = useRef<{ amount: bigint; minimumBNB: bigint } | null>(null);
   const tradeWrite = useWriteContract();
   const approvalWrite = useWriteContract();
   const rewardWrite = useWriteContract();
@@ -169,7 +173,7 @@ export default function TokenTradingPage() {
     args: [tokenAddress],
     query: { enabled: factoryAddress !== zeroAddress && tokenAddress !== zeroAddress },
   });
-  const { metadata } = useTokenMetadata(metadataURI.data);
+  const { metadata, isLoading: metadataLoading } = useTokenMetadata(metadataURI.data);
 
   const name = useReadContract({
     address: tokenAddress,
@@ -382,6 +386,7 @@ export default function TokenTradingPage() {
   const handleActivitySummary = useCallback((summary: ActivitySummary) => {
     setActivitySummary(summary);
   }, []);
+  const tokenDescription = metadata?.description?.trim() ?? "";
 
   function buy() {
     if (!user) return;
@@ -394,23 +399,29 @@ export default function TokenTradingPage() {
     });
   }
 
-  const executeSell = useCallback(() => {
+  const executeSell = useCallback((order?: { amount: bigint; minimumBNB: bigint }) => {
+    const amount = order?.amount ?? sellWei;
+    const minimumBNB = order?.minimumBNB ?? minimumAfterSlippage(quotedSellBNB);
     tradeWrite.writeContract({
       address: factoryAddress,
       abi: factoryAbi,
       functionName: "sell",
-      args: [tokenAddress, sellWei, minimumAfterSlippage(quotedSellBNB), deadline()],
+      args: [tokenAddress, amount, minimumBNB, deadline()],
     });
   }, [factoryAddress, quotedSellBNB, sellWei, tokenAddress, tradeWrite]);
 
   function sell() {
     if (needsApproval) {
       autoSellStarted.current = false;
+      pendingSell.current = {
+        amount: sellWei,
+        minimumBNB: minimumAfterSlippage(quotedSellBNB),
+      };
       setContinueAfterApproval(true);
       approvalWrite.writeContract({
-      address: tokenAddress,
-      abi: tokenAbi,
-      functionName: "approve",
+        address: tokenAddress,
+        abi: tokenAbi,
+        functionName: "approve",
         args: [curveAddress, maxUint256],
       });
       return;
@@ -422,13 +433,30 @@ export default function TokenTradingPage() {
     if (
       continueAfterApproval &&
       approvalReceipt.isSuccess &&
-      !autoSellStarted.current
+      !autoSellStarted.current &&
+      pendingSell.current
     ) {
       autoSellStarted.current = true;
       setContinueAfterApproval(false);
-      executeSell();
+      const order = pendingSell.current;
+      pendingSell.current = null;
+      void allowance.refetch();
+      executeSell(order);
     }
-  }, [approvalReceipt.isSuccess, continueAfterApproval, executeSell]);
+  }, [allowance, approvalReceipt.isSuccess, continueAfterApproval, executeSell]);
+
+  useEffect(() => {
+    if (!approvalReceipt.isError && !approvalWrite.error) return;
+    autoSellStarted.current = false;
+    pendingSell.current = null;
+    setContinueAfterApproval(false);
+  }, [approvalReceipt.isError, approvalWrite.error]);
+
+  useEffect(() => {
+    autoSellStarted.current = false;
+    pendingSell.current = null;
+    setContinueAfterApproval(false);
+  }, [curveAddress, tokenAddress, user]);
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -599,9 +627,22 @@ export default function TokenTradingPage() {
             </div>
           </div>
         </div>
-        {metadata?.description && (
-          <p className="token-description">{metadata.description}</p>
-        )}
+        <section className="token-description-card" aria-labelledby="token-description-title">
+          <strong id="token-description-title">{t("tokenDescription")}</strong>
+          <p className={`token-description${descriptionExpanded ? " expanded" : ""}`}>
+            {metadataLoading
+              ? t("loading")
+              : tokenDescription || t("noTokenDescription")}
+          </p>
+          {tokenDescription.length > 120 && (
+            <button
+              type="button"
+              onClick={() => setDescriptionExpanded((expanded) => !expanded)}
+            >
+              {descriptionExpanded ? t("collapseDescription") : t("expandDescription")}
+            </button>
+          )}
+        </section>
         {isAdvancedTemplate && (
           <section className="tax-template-card">
             <div className="tax-template-heading">
@@ -769,10 +810,18 @@ export default function TokenTradingPage() {
           {metadata?.website && <a href={metadata.website} target="_blank" rel="noreferrer">{t("officialSite")} ↗</a>}
           {metadata?.telegram && <a href={metadata.telegram} target="_blank" rel="noreferrer">Telegram ↗</a>}
           {metadata?.twitter && <a href={metadata.twitter} target="_blank" rel="noreferrer">X / Twitter ↗</a>}
-          {metadata?.debox && <a href={metadata.debox} target="_blank" rel="noreferrer">DeBox ↗</a>}
+          <button
+            className="project-links-toggle"
+            type="button"
+            aria-expanded={linksExpanded}
+            onClick={() => setLinksExpanded((expanded) => !expanded)}
+          >
+            {linksExpanded ? t("hideLinks") : t("moreLinks")} {linksExpanded ? "−" : "+"}
+          </button>
+          {metadata?.debox && <a className={`project-link-secondary${linksExpanded ? " expanded" : ""}`} href={metadata.debox} target="_blank" rel="noreferrer">DeBox ↗</a>}
           {metadata?.qqGroupNumber && (
             <button
-              className="qq-group-copy"
+              className={`qq-group-copy project-link-secondary${linksExpanded ? " expanded" : ""}`}
               type="button"
               onClick={copyQQGroupNumber}
               title={t("copy")}
@@ -782,6 +831,7 @@ export default function TokenTradingPage() {
             </button>
           )}
           <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
             href={`${blockExplorerUrl}/token/${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
@@ -789,6 +839,7 @@ export default function TokenTradingPage() {
             BscScan ↗
           </a>
           <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
             href={`https://ave.ai/token/${tokenAddress}-bsc`}
             target="_blank"
             rel="noreferrer"
@@ -796,6 +847,7 @@ export default function TokenTradingPage() {
             AVE.AI ↗
           </a>
           <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
             href={`https://dexscreener.com/bsc/${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
@@ -803,6 +855,7 @@ export default function TokenTradingPage() {
             DexScreener ↗
           </a>
           <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
             href={`https://www.dextools.io/app/en/bnb/pair-explorer/${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
@@ -810,6 +863,7 @@ export default function TokenTradingPage() {
             DEXTools ↗
           </a>
           <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
             href={`https://dex.coinmarketcap.com/token/BSC/${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
@@ -817,6 +871,7 @@ export default function TokenTradingPage() {
             CoinMarketCap ↗
           </a>
           <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
             href={`https://gmgn.ai/bsc/token/bnbxmeme_${tokenAddress}`}
             target="_blank"
             rel="noreferrer"
@@ -949,6 +1004,17 @@ export default function TokenTradingPage() {
                 <strong>{tradeWrite.data.slice(0, 10)}…{tradeWrite.data.slice(-8)} ↗</strong>
               </a>
             )}
+            {!tradeWrite.data && approvalWrite.data && (
+              <a
+                className="trade-tx-link"
+                href={`${blockExplorerUrl}/tx/${approvalWrite.data}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span>{t("approving")}</span>
+                <strong>{approvalWrite.data.slice(0, 10)}…{approvalWrite.data.slice(-8)} ↗</strong>
+              </a>
+            )}
             {(approvalWrite.isPending || approvalWrite.data || tradeWrite.isPending || tradeWrite.data || receipt.isLoading || receipt.isSuccess) && (
               <div className="transaction-status" role="status" aria-live="polite">
                 <strong>{t("txStatus")}</strong>
@@ -961,8 +1027,10 @@ export default function TokenTradingPage() {
               </div>
             )}
             {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
-            {(tradeWrite.error || approvalWrite.error) && (
-              <p className="error">{(tradeWrite.error ?? approvalWrite.error)?.message}</p>
+            {(tradeWrite.error || approvalWrite.error || approvalReceipt.error) && (
+              <p className="error">
+                {(tradeWrite.error ?? approvalWrite.error ?? approvalReceipt.error)?.message}
+              </p>
             )}
           </article>
 
@@ -991,7 +1059,19 @@ export default function TokenTradingPage() {
           </div>
           <p className="graduation-note">{t("automaticMigration")}</p>
           <span>{t("myBalance")}：{formatEther(balance.data ?? 0n)}</span>
-          <div className="security-facts">
+          <button
+            className="security-toggle"
+            type="button"
+            aria-expanded={securityExpanded}
+            onClick={() => setSecurityExpanded((expanded) => !expanded)}
+          >
+            <span>
+              {securityExpanded ? t("hideSecurityDetails") : t("securityDetails")}
+            </span>
+            <strong aria-hidden="true">{securityExpanded ? "−" : "+"}</strong>
+          </button>
+          <div className={`security-details${securityExpanded ? " expanded" : ""}`}>
+            <div className="security-facts">
             <div>
               <span>{t("verifiedFactory")}</span>
               <a href={`${blockExplorerUrl}/address/${factoryAddress}`} target="_blank" rel="noreferrer">{t("verified")} ↗</a>
@@ -1044,6 +1124,7 @@ export default function TokenTradingPage() {
               <strong>
                 {pairUnlocked.data ? t("unlocked") : t("protected")}
               </strong>
+            </div>
             </div>
           </div>
           </article>
