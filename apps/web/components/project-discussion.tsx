@@ -21,6 +21,7 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
   const { signMessageAsync, isPending } = useSignMessage();
   const { language, t } = useLanguage();
   const [comments, setComments] = useState<ProjectComment[]>([]);
+  const [enabled, setEnabled] = useState(true);
   const [body, setBody] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
@@ -30,8 +31,14 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
     try {
       const response = await fetch(`/api/comments?token=${token}`, { signal });
       if (!response.ok) throw new Error("comments unavailable");
-      const data = (await response.json()) as { comments: ProjectComment[] };
-      if (!signal?.aborted) setComments(data.comments);
+      const data = (await response.json()) as {
+        enabled: boolean;
+        comments: ProjectComment[];
+      };
+      if (!signal?.aborted) {
+        setEnabled(data.enabled);
+        setComments(data.comments);
+      }
     } catch {
       if (!signal?.aborted) setError(t("commentsUnavailable"));
     } finally {
@@ -51,11 +58,12 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
     setError("");
     setIsPosting(true);
     try {
+      const trimmedBody = body.trim();
       const signedAt = new Date().toISOString();
       const message = buildCommentMessage({
         token,
         wallet: address,
-        body,
+        body: trimmedBody,
         signedAt,
       });
       const signature = await signMessageAsync({ message });
@@ -65,16 +73,24 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
         body: JSON.stringify({
           token,
           wallet: address,
-          body: body.trim(),
+          body: trimmedBody,
           signedAt,
           signature,
         }),
       });
       const result = (await response.json()) as {
         comment?: ProjectComment;
+        code?: string;
         error?: string;
       };
       if (!response.ok || !result.comment) {
+        if (result.code === "CONTENT_BLOCKED") {
+          throw new Error(t("commentBlocked"));
+        }
+        if (result.code === "COMMENTS_DISABLED") {
+          setEnabled(false);
+          throw new Error(t("commentsDisabled"));
+        }
         throw new Error(result.error ?? t("commentFailed"));
       }
       setComments((current) => [result.comment!, ...current]);
@@ -96,6 +112,8 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
         : language === "ja"
           ? "ja-JP"
           : "en-US";
+
+  if (!isLoading && !enabled) return null;
 
   return (
     <section className="project-discussion">

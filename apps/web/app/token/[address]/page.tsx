@@ -26,6 +26,10 @@ import {
 } from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
 import {
+  formatTokenPriceUsdt,
+  tokenPriceUsdt,
+} from "@/lib/market-format";
+import {
   type ActivitySummary,
   TokenActivity,
 } from "@/components/token-activity";
@@ -525,10 +529,13 @@ export default function TokenTradingPage() {
       : undefined;
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
   const lpWei = safeParseEther(lpAmount);
+  const currentTokenPriceUsdt = tokenPriceUsdt(
+    activitySummary.latestPricePerMillionBnb,
+    activitySummary.bnbUsd,
+  );
   const marketCapUsd =
-    (activitySummary.latestPricePerMillionBnb / 1_000_000) *
-    Number(formatEther(totalSupplyValue ?? 0n)) *
-    activitySummary.bnbUsd;
+    (currentTokenPriceUsdt ?? 0) *
+    Number(formatEther(totalSupplyValue ?? 0n));
   const volume24hUsd =
     activitySummary.volume24hBnb * activitySummary.bnbUsd;
   const activePairAddress =
@@ -803,16 +810,9 @@ export default function TokenTradingPage() {
             <div>
               <span>{t("currentPrice")}</span>
               <strong>
-                {formatMarketMetric(activitySummary.latestPricePerMillionBnb)} BNB
+                {formatTokenPriceUsdt(currentTokenPriceUsdt)} USDT
               </strong>
-              <small>
-                {formatMarketMetric(
-                  activitySummary.latestPricePerMillionBnb *
-                    activitySummary.bnbUsd,
-                  true,
-                )}{" "}
-                / 1M
-              </small>
+              <small>/ 1 {tokenSymbol ?? t("token")}</small>
             </div>
             <div>
               <span>{t("change24h")}</span>
