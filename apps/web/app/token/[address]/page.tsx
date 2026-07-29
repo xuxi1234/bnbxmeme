@@ -751,6 +751,7 @@ export default function TokenTradingPage() {
 
       <section className="trade-layout" id="trade">
         <article className="card progress-card">
+          <h2 className="section-title">{t("safetyTitle")}</h2>
           <span>{t("progress")}</span>
           <strong>{progress.toFixed(2)}%</strong>
           <div className="progress-track">
@@ -761,6 +762,16 @@ export default function TokenTradingPage() {
           </span>
           <span>{t("myBalance")}：{formatEther(balance.data ?? 0n)}</span>
           <div className="security-facts">
+            <div>
+              <span>{t("verifiedFactory")}</span>
+              <a href={`${blockExplorerUrl}/address/${factoryAddress}`} target="_blank" rel="noreferrer">{t("verified")} ↗</a>
+            </div>
+            <div>
+              <span>{t("tokenTax")}</span>
+              <strong>{isAdvancedTemplate ? `${taxPercent(buyTaxTotal)} / ${taxPercent(sellTaxTotal)}` : t("zeroTax")}</strong>
+            </div>
+            <div><span>{t("fixedFee")}</span><strong>0.5%</strong></div>
+            <div><span>{t("slippage")}</span><strong>1%</strong></div>
             <div>
               <span>{t("supply")}</span>
               <strong>
@@ -922,6 +933,17 @@ export default function TokenTradingPage() {
               <span>{t("txHash")}</span>
               <strong>{tradeWrite.data.slice(0, 10)}…{tradeWrite.data.slice(-8)} ↗</strong>
             </a>
+          )}
+          {(approvalWrite.isPending || approvalWrite.data || tradeWrite.isPending || tradeWrite.data || receipt.isLoading || receipt.isSuccess) && (
+            <div className="transaction-status" role="status" aria-live="polite">
+              <strong>{t("txStatus")}</strong>
+              <ol>
+                <li className={tradeWrite.data || approvalWrite.data ? "done" : "active"}>{t("walletStep")}</li>
+                <li className={tradeWrite.data ? "done" : approvalWrite.data || tradeWrite.isPending ? "active" : ""}>{t("broadcastStep")}</li>
+                <li className={receipt.isSuccess ? "done" : tradeWrite.data ? "active" : ""}>{t("confirmStep")}</li>
+                <li className={receipt.isSuccess ? "done" : ""}>{t("syncStep")}</li>
+              </ol>
+            </div>
           )}
           {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
           {(tradeWrite.error || approvalWrite.error) && (
