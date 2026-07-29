@@ -47,14 +47,21 @@ function safeQQGroupNumber(value: unknown) {
 function sanitizeMetadata(value: unknown): TokenMetadata | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, unknown>;
+  const properties =
+    source.properties && typeof source.properties === "object"
+      ? (source.properties as Record<string, unknown>)
+      : {};
+  const descriptionSource =
+    typeof source.description === "string"
+      ? source.description
+      : typeof properties.description === "string"
+        ? properties.description
+        : undefined;
   return {
     name: typeof source.name === "string" ? source.name.slice(0, 40) : undefined,
     symbol:
       typeof source.symbol === "string" ? source.symbol.slice(0, 10) : undefined,
-    description:
-      typeof source.description === "string"
-        ? source.description.slice(0, 500)
-        : undefined,
+    description: descriptionSource?.trim().slice(0, 500) || undefined,
     image:
       typeof source.image === "string"
         ? resolveContentURI(source.image)

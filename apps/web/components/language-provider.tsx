@@ -60,6 +60,10 @@ const messages: Record<Language, Record<string, string>> = {
     automaticMigration: "打满后自动迁移至 PancakeSwap V2，LP 永久销毁。",
     token: "代币", creator: "创建者", currentPrice: "当前价格", marketCap: "估算市值",
     onchainVolume: "链上成交量", marketData: "市场数据", officialSite: "官网",
+    tokenDescription: "代币介绍", noTokenDescription: "创建者暂未填写代币介绍。",
+    expandDescription: "展开全文", collapseDescription: "收起", securityDetails: "查看完整安全信息",
+    hideSecurityDetails: "收起安全信息", mobileMenu: "打开菜单", language: "语言",
+    moreLinks: "更多", hideLinks: "收起",
   },
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
@@ -115,6 +119,10 @@ const messages: Record<Language, Record<string, string>> = {
     automaticMigration: "At 100%, liquidity migrates to PancakeSwap V2 and LP is burned permanently.",
     token: "Token", creator: "Creator", currentPrice: "Current price", marketCap: "Estimated market cap",
     onchainVolume: "On-chain volume", marketData: "Market data", officialSite: "Website",
+    tokenDescription: "Token description", noTokenDescription: "The creator has not added a token description.",
+    expandDescription: "Read more", collapseDescription: "Show less", securityDetails: "View full safety details",
+    hideSecurityDetails: "Hide safety details", mobileMenu: "Open menu", language: "Language",
+    moreLinks: "More", hideLinks: "Show less",
   },
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
@@ -170,6 +178,10 @@ const messages: Record<Language, Record<string, string>> = {
     automaticMigration: "100% 달성 시 PancakeSwap V2로 자동 이전되고 LP는 영구 소각됩니다.",
     token: "토큰", creator: "생성자", currentPrice: "현재 가격", marketCap: "추정 시가총액",
     onchainVolume: "온체인 거래량", marketData: "시장 데이터", officialSite: "웹사이트",
+    tokenDescription: "토큰 소개", noTokenDescription: "생성자가 토큰 소개를 입력하지 않았습니다.",
+    expandDescription: "전체 보기", collapseDescription: "접기", securityDetails: "전체 보안 정보 보기",
+    hideSecurityDetails: "보안 정보 접기", mobileMenu: "메뉴 열기", language: "언어",
+    moreLinks: "더보기", hideLinks: "접기",
   },
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
@@ -225,6 +237,10 @@ const messages: Record<Language, Record<string, string>> = {
     automaticMigration: "100%到達後PancakeSwap V2へ自動移行し、LPは永久バーンされます。",
     token: "トークン", creator: "作成者", currentPrice: "現在価格", marketCap: "推定時価総額",
     onchainVolume: "オンチェーン出来高", marketData: "市場データ", officialSite: "公式サイト",
+    tokenDescription: "トークン紹介", noTokenDescription: "作成者はトークン紹介を入力していません。",
+    expandDescription: "全文を表示", collapseDescription: "閉じる", securityDetails: "安全情報をすべて表示",
+    hideSecurityDetails: "安全情報を閉じる", mobileMenu: "メニューを開く", language: "言語",
+    moreLinks: "その他", hideLinks: "閉じる",
   },
 };
 
