@@ -25,6 +25,32 @@ function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+const languageLocales = {
+  zh: "zh-CN",
+  en: "en-US",
+  ko: "ko-KR",
+  ja: "ja-JP",
+} as const;
+
+function accountColor(address: string) {
+  const hue = Number.parseInt(address.slice(2, 8), 16) % 360;
+  return `hsl(${hue} 68% 52%)`;
+}
+
+function formatCompact(value: bigint, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    notation: "compact",
+    maximumFractionDigits: 3,
+  }).format(Number(formatEther(value)));
+}
+
+function formatBnb(value: bigint, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(Number(formatEther(value)));
+}
+
 export function TokenActivity({
   token,
   curve,
@@ -34,7 +60,8 @@ export function TokenActivity({
   curve: `0x${string}`;
   refreshKey?: `0x${string}`;
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const locale = languageLocales[language];
   const [trades, setTrades] = useState<Trade[]>([]);
   const [holders, setHolders] = useState<Holder[]>([]);
   const [bnbUsd, setBnbUsd] = useState(0);
@@ -127,12 +154,25 @@ export function TokenActivity({
                 <strong className={trade.side === "buy" ? "trade-buy" : "trade-sell"}>
                   {t(trade.side)}
                 </strong>
-                <span>{shortAddress(trade.account)}</span>
-                <span>${(Number(formatEther(trade.bnb)) * bnbUsd).toFixed(2)}</span>
-                <span>{Number(formatEther(trade.bnb)).toFixed(4)}</span>
-                <span>{Number(formatEther(trade.tokens)).toLocaleString()}</span>
-                <span>{new Date(trade.timestamp * 1000).toLocaleString()}</span>
-                <strong>↗</strong>
+                <span className="trade-account">
+                  <i style={{ background: accountColor(trade.account) }} aria-hidden="true">
+                    {trade.account.slice(2, 4).toUpperCase()}
+                  </i>
+                  {shortAddress(trade.account)}
+                </span>
+                <span>{bnbUsd > 0 ? `$${(Number(formatEther(trade.bnb)) * bnbUsd).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</span>
+                <span>{formatBnb(trade.bnb, locale)}</span>
+                <span title={`${formatEther(trade.tokens)} ${t("units")}`}>{formatCompact(trade.tokens, locale)}</span>
+                <time dateTime={new Date(trade.timestamp * 1000).toISOString()}>
+                  {new Intl.DateTimeFormat(locale, {
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  }).format(new Date(trade.timestamp * 1000))}
+                </time>
+                <strong className="trade-explorer" aria-label={t("viewExplorer")}>↗</strong>
               </a>
             ))}
           </div>
@@ -166,7 +206,7 @@ export function TokenActivity({
               >
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 <strong>{shortAddress(holder.address)}</strong>
-                <span>{Number(formatEther(holder.balance)).toLocaleString()} {t("units")}</span>
+                <span title={formatEther(holder.balance)}>{formatCompact(holder.balance, locale)} {t("units")}</span>
               </a>
             ))}
           </div>
