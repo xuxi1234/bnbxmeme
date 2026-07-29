@@ -14,14 +14,11 @@ export type TokenMetadata = {
   qqGroupNumber?: string;
 };
 
-const gateway =
-  process.env.NEXT_PUBLIC_IPFS_GATEWAY?.replace(/\/+$/, "") ??
-  "https://ipfs.io/ipfs";
-
 export function resolveContentURI(uri?: string) {
   if (!uri) return "";
   if (uri.startsWith("ipfs://")) {
-    return `${gateway}/${uri.slice("ipfs://".length).replace(/^ipfs\//, "")}`;
+    const path = uri.slice("ipfs://".length).replace(/^ipfs\//, "");
+    return `/api/ipfs/${path.split("/").map(encodeURIComponent).join("/")}`;
   }
   try {
     const url = new URL(uri);

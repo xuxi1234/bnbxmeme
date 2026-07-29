@@ -56,6 +56,7 @@ export default function TokenTradingPage() {
   const [lpAmount, setLPAmount] = useState("0");
   const [copied, setCopied] = useState(false);
   const [qqCopied, setQQCopied] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
   const autoSellStarted = useRef(false);
   const tradeWrite = useWriteContract();
@@ -481,9 +482,17 @@ export default function TokenTradingPage() {
       <section className="token-heading">
         <p className="eyebrow">{[t("curveTrading"), t("preparing"), t("pancake")][Number(state.data ?? 0)]}</p>
         <div className="token-identity">
-          {metadata?.image && (
+          {metadata?.image && !imageFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={metadata.image} alt="" />
+            <img
+              src={metadata.image}
+              alt=""
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <span className="token-detail-avatar" aria-hidden="true">
+              {String(symbol.data ?? "?").slice(0, 2)}
+            </span>
           )}
           <div>
             <h1 className="form-title">{name.data ?? "代币"}</h1>

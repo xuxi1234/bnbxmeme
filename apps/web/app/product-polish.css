@@ -154,9 +154,11 @@
     gap: 12px;
   }
 
-  .token-identity > img {
+  .token-identity > img,
+  .token-detail-avatar {
     width: 58px;
     height: 58px;
+    flex-basis: 58px;
     border-radius: 5px;
   }
 
