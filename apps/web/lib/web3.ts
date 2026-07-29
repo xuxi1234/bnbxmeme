@@ -366,6 +366,13 @@ export const autoLiquidityFactoryAbi = [
 export const curveAbi = [
   {
     type: "function",
+    name: "creator",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
     name: "liquidityPair",
     stateMutability: "view",
     inputs: [],

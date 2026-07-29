@@ -58,6 +58,8 @@ const messages: Record<Language, Record<string, string>> = {
     networkRoadmap: "BNBX 多链发射路线", networkSoonHelp: "目前仅 BNB Chain 可用，其他链将在完成合约部署与安全验收后开放。",
     raisedBnb: "当前已募集", remainingBnb: "距离打满还需", curveRemaining: "内盘剩余代币",
     automaticMigration: "打满后自动迁移至 PancakeSwap V2，LP 永久销毁。",
+    token: "代币", creator: "创建者", currentPrice: "当前价格", marketCap: "估算市值",
+    onchainVolume: "链上成交量", marketData: "市场数据", officialSite: "官网",
   },
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
@@ -111,6 +113,8 @@ const messages: Record<Language, Record<string, string>> = {
     networkRoadmap: "BNBX multichain roadmap", networkSoonHelp: "Only BNB Chain is live. Other chains unlock after contract deployment and security verification.",
     raisedBnb: "BNB raised", remainingBnb: "BNB to graduation", curveRemaining: "Tokens remaining",
     automaticMigration: "At 100%, liquidity migrates to PancakeSwap V2 and LP is burned permanently.",
+    token: "Token", creator: "Creator", currentPrice: "Current price", marketCap: "Estimated market cap",
+    onchainVolume: "On-chain volume", marketData: "Market data", officialSite: "Website",
   },
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
@@ -164,6 +168,8 @@ const messages: Record<Language, Record<string, string>> = {
     networkRoadmap: "BNBX 멀티체인 로드맵", networkSoonHelp: "현재 BNB Chain만 사용할 수 있습니다. 다른 체인은 컨트랙트 배포와 보안 검증 후 지원됩니다.",
     raisedBnb: "현재 모금액", remainingBnb: "졸업까지 남은 BNB", curveRemaining: "본딩 커브 잔여 토큰",
     automaticMigration: "100% 달성 시 PancakeSwap V2로 자동 이전되고 LP는 영구 소각됩니다.",
+    token: "토큰", creator: "생성자", currentPrice: "현재 가격", marketCap: "추정 시가총액",
+    onchainVolume: "온체인 거래량", marketData: "시장 데이터", officialSite: "웹사이트",
   },
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
@@ -217,6 +223,8 @@ const messages: Record<Language, Record<string, string>> = {
     networkRoadmap: "BNBXマルチチェーン構想", networkSoonHelp: "現在はBNB Chainのみ利用可能です。他のチェーンはコントラクト配備と安全確認後に対応します。",
     raisedBnb: "現在の調達額", remainingBnb: "卒業まで残り", curveRemaining: "カーブ残りトークン",
     automaticMigration: "100%到達後PancakeSwap V2へ自動移行し、LPは永久バーンされます。",
+    token: "トークン", creator: "作成者", currentPrice: "現在価格", marketCap: "推定時価総額",
+    onchainVolume: "オンチェーン出来高", marketData: "市場データ", officialSite: "公式サイト",
   },
 };
 

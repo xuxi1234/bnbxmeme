@@ -25,7 +25,10 @@ import {
   tokenAbi,
 } from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
-import { TokenActivity } from "@/components/token-activity";
+import {
+  type ActivitySummary,
+  TokenActivity,
+} from "@/components/token-activity";
 import { BondingCurveChart } from "@/components/bonding-curve-chart";
 import { useLanguage } from "@/components/language-provider";
 
@@ -51,6 +54,16 @@ function formatTokenAmount(value: bigint) {
   }).format(Number(formatEther(value)));
 }
 
+function formatMarketMetric(value: number, currency = false) {
+  if (!Number.isFinite(value) || value <= 0) return "—";
+  return new Intl.NumberFormat("en-US", {
+    notation: value >= 1_000 ? "compact" : "standard",
+    maximumFractionDigits: value >= 1 ? 2 : 8,
+    style: currency ? "currency" : "decimal",
+    currency: currency ? "USD" : undefined,
+  }).format(value);
+}
+
 export default function TokenTradingPage() {
   const params = useParams<{ address: string }>();
   const tokenAddress = isAddress(params.address) ? params.address : zeroAddress;
@@ -65,6 +78,13 @@ export default function TokenTradingPage() {
   const [qqCopied, setQQCopied] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
+  const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
+    latestPriceBnb: 0,
+    bnbUsd: 0,
+    trackedVolumeBnb: 0,
+    holderCount: 0,
+    holdersLimited: false,
+  });
   const autoSellStarted = useRef(false);
   const tradeWrite = useWriteContract();
   const approvalWrite = useWriteContract();
@@ -208,6 +228,12 @@ export default function TokenTradingPage() {
     functionName: "realBNBPrincipal",
     query: { enabled: curveAddress !== zeroAddress },
   });
+  const creator = useReadContract({
+    address: curveAddress,
+    abi: curveAbi,
+    functionName: "creator",
+    query: { enabled: curveAddress !== zeroAddress },
+  });
   const target = useReadContract({
     address: curveAddress,
     abi: curveAbi,
@@ -347,6 +373,15 @@ export default function TokenTradingPage() {
       : 0n;
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
   const lpWei = safeParseEther(lpAmount);
+  const marketCapUsd =
+    activitySummary.latestPriceBnb *
+    Number(formatEther(totalSupply.data ?? 0n)) *
+    activitySummary.bnbUsd;
+  const trackedVolumeUsd =
+    activitySummary.trackedVolumeBnb * activitySummary.bnbUsd;
+  const handleActivitySummary = useCallback((summary: ActivitySummary) => {
+    setActivitySummary(summary);
+  }, []);
 
   function buy() {
     if (!user) return;
@@ -499,31 +534,69 @@ export default function TokenTradingPage() {
 
       <section className="token-heading">
         <p className="eyebrow">{[t("curveTrading"), t("preparing"), t("pancake")][Number(state.data ?? 0)]}</p>
-        <div className="token-identity">
-          {metadata?.image && !imageFailed ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={metadata.image}
-              alt=""
-              onError={() => setImageFailed(true)}
-            />
-          ) : (
-            <span className="token-detail-avatar" aria-hidden="true">
-              {String(symbol.data ?? "?").slice(0, 2)}
-            </span>
-          )}
-          <div>
-            <h1 className="form-title">{name.data ?? "代币"}</h1>
-            <p className="lead">${symbol.data ?? "—"}</p>
-            <button
-              className="copy-address"
-              type="button"
-              onClick={copyTokenAddress}
-              title={t("copy")}
-            >
-              <span>{tokenAddress}</span>
-              <strong>{copied ? t("copied") : t("copy")}</strong>
-            </button>
+        <div className="token-terminal-summary">
+          <div className="token-identity">
+            {metadata?.image && !imageFailed ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={metadata.image}
+                alt=""
+                onError={() => setImageFailed(true)}
+              />
+            ) : (
+              <span className="token-detail-avatar" aria-hidden="true">
+                {String(symbol.data ?? "?").slice(0, 2)}
+              </span>
+            )}
+            <div>
+              <div className="token-name-line">
+                <h1 className="form-title">{name.data ?? t("token")}</h1>
+                <span>${symbol.data ?? "—"}</span>
+              </div>
+              <button
+                className="copy-address"
+                type="button"
+                onClick={copyTokenAddress}
+                title={t("copy")}
+              >
+                <span>CA {tokenAddress}</span>
+                <strong>{copied ? t("copied") : t("copy")}</strong>
+              </button>
+              {creator.data && (
+                <a
+                  className="creator-link"
+                  href={`${blockExplorerUrl}/address/${creator.data}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("creator")} {creator.data.slice(0, 6)}…{creator.data.slice(-4)} ↗
+                </a>
+              )}
+            </div>
+          </div>
+          <div className="token-market-metrics">
+            <div>
+              <span>{t("currentPrice")}</span>
+              <strong>{formatMarketMetric(activitySummary.latestPriceBnb)} BNB</strong>
+              <small>{formatMarketMetric(activitySummary.latestPriceBnb * activitySummary.bnbUsd, true)}</small>
+            </div>
+            <div>
+              <span>{t("marketCap")}</span>
+              <strong>{formatMarketMetric(marketCapUsd, true)}</strong>
+            </div>
+            <div>
+              <span>{t("onchainVolume")}</span>
+              <strong>{formatMarketMetric(trackedVolumeUsd, true)}</strong>
+              <small>{formatMarketMetric(activitySummary.trackedVolumeBnb)} BNB</small>
+            </div>
+            <div>
+              <span>{t("holders")}</span>
+              <strong>{activitySummary.holderCount ? `${activitySummary.holderCount}${activitySummary.holdersLimited ? "+" : ""}` : "—"}</strong>
+            </div>
+            <div>
+              <span>{t("progress")}</span>
+              <strong>{progress.toFixed(2)}%</strong>
+            </div>
           </div>
         </div>
         {metadata?.description && (
@@ -693,7 +766,7 @@ export default function TokenTradingPage() {
           </section>
         )}
         <div className="project-links">
-          {metadata?.website && <a href={metadata.website} target="_blank" rel="noreferrer">官网 ↗</a>}
+          {metadata?.website && <a href={metadata.website} target="_blank" rel="noreferrer">{t("officialSite")} ↗</a>}
           {metadata?.telegram && <a href={metadata.telegram} target="_blank" rel="noreferrer">Telegram ↗</a>}
           {metadata?.twitter && <a href={metadata.twitter} target="_blank" rel="noreferrer">X / Twitter ↗</a>}
           {metadata?.debox && <a href={metadata.debox} target="_blank" rel="noreferrer">DeBox ↗</a>}
@@ -916,7 +989,7 @@ export default function TokenTradingPage() {
                 />
               </label>
               <div className="amount-presets">
-                {[25n, 50n, 100n].map((percent) => (
+                {[25n, 50n, 75n, 100n].map((percent) => (
                   <button key={percent.toString()} type="button" onClick={() => setSellPercent(percent)}>
                     {percent.toString()}%
                   </button>
@@ -983,14 +1056,15 @@ export default function TokenTradingPage() {
           )}
         </article>
       </section>
-      </section>
       {tokenAddress !== zeroAddress && curveAddress !== zeroAddress && (
         <TokenActivity
           token={tokenAddress}
           curve={curveAddress}
           refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
+          onSummary={handleActivitySummary}
         />
       )}
+      </section>
     </main>
   );
 }
