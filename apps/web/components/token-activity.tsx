@@ -10,6 +10,7 @@ type Trade = {
   side: "buy" | "sell";
   account: `0x${string}`;
   bnb: bigint;
+  priceBNB: bigint;
   tokens: bigint;
   blockNumber: bigint;
   transactionHash: `0x${string}`;
@@ -19,6 +20,14 @@ type Trade = {
 type Holder = {
   address: `0x${string}`;
   balance: bigint;
+};
+
+export type ActivitySummary = {
+  latestPriceBnb: number;
+  bnbUsd: number;
+  trackedVolumeBnb: number;
+  holderCount: number;
+  holdersLimited: boolean;
 };
 
 function shortAddress(address: string) {
@@ -55,13 +64,16 @@ export function TokenActivity({
   token,
   curve,
   refreshKey,
+  onSummary,
 }: {
   token: `0x${string}`;
   curve: `0x${string}`;
   refreshKey?: `0x${string}`;
+  onSummary?: (summary: ActivitySummary) => void;
 }) {
   const { language, t } = useLanguage();
   const locale = languageLocales[language];
+  const [activeTab, setActiveTab] = useState<"trades" | "holders">("trades");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [holders, setHolders] = useState<Holder[]>([]);
   const [bnbUsd, setBnbUsd] = useState(0);
@@ -81,21 +93,39 @@ export function TokenActivity({
         });
         if (!response.ok) throw new Error("chain data unavailable");
         const data = await response.json() as {
-          trades: Array<Omit<Trade, "bnb" | "tokens" | "blockNumber"> & { bnb: string; tokens: string; blockNumber: string }>;
+          trades: Array<Omit<Trade, "bnb" | "priceBNB" | "tokens" | "blockNumber"> & { bnb: string; priceBNB: string; tokens: string; blockNumber: string }>;
           holders: Array<{ address: `0x${string}`; balance: string }>;
           bnbUsd?: number;
         };
-        const activity = data.trades.map((trade) => ({
+        const allActivity = data.trades.map((trade) => ({
           ...trade,
           bnb: BigInt(trade.bnb),
+          priceBNB: BigInt(trade.priceBNB),
           tokens: BigInt(trade.tokens),
           blockNumber: BigInt(trade.blockNumber),
         }))
-          .sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1))
-          .slice(0, 50);
+          .sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1));
+        const activity = allActivity.slice(0, 50);
         setTrades(activity);
         setHolders(data.holders.map((holder) => ({ ...holder, balance: BigInt(holder.balance) })));
-        setBnbUsd(Number(data.bnbUsd ?? 0));
+        const nextBnbUsd = Number(data.bnbUsd ?? 0);
+        setBnbUsd(nextBnbUsd);
+        const latestTrade = allActivity[0];
+        const latestTokens = latestTrade ? Number(formatEther(latestTrade.tokens)) : 0;
+        const latestPriceBnb =
+          latestTrade && latestTokens > 0
+            ? Number(formatEther(latestTrade.priceBNB)) / latestTokens
+            : 0;
+        onSummary?.({
+          latestPriceBnb,
+          bnbUsd: nextBnbUsd,
+          trackedVolumeBnb: allActivity.reduce(
+            (sum, trade) => sum + Number(formatEther(trade.bnb)),
+            0,
+          ),
+          holderCount: data.holders.length,
+          holdersLimited: data.holders.length >= 50,
+        });
       } catch {
         if (!controller.signal.aborted) {
           setTrades([]);
@@ -113,19 +143,38 @@ export function TokenActivity({
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [curve, refreshKey, token]);
+  }, [curve, onSummary, refreshKey, token]);
 
   return (
-    <section className="activity-layout">
+    <section className="activity-terminal">
       <article className="activity-panel">
         <div className="activity-heading">
           <div>
             <p className="eyebrow">ON-CHAIN ACTIVITY</p>
-            <h2>{t("recentTrades")}</h2>
+            <div className="activity-tabs" role="tablist" aria-label={t("marketData")}>
+              <button
+                className={activeTab === "trades" ? "active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "trades"}
+                onClick={() => setActiveTab("trades")}
+              >
+                {t("recentTrades")} <span>{trades.length}</span>
+              </button>
+              <button
+                className={activeTab === "holders" ? "active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "holders"}
+                onClick={() => setActiveTab("holders")}
+              >
+                {t("holders")} <span>{holders.length}{holders.length >= 50 ? "+" : ""}</span>
+              </button>
+            </div>
           </div>
-          <span>{trades.length} {t("items")}</span>
+          <span>{t("liveRefresh")}</span>
         </div>
-        {isLoading ? (
+        {activeTab === "trades" && (isLoading ? (
           <p className="activity-empty">{t("readingLogs")}</p>
         ) : loadError ? (
           <p className="activity-empty activity-error">
@@ -176,18 +225,8 @@ export function TokenActivity({
               </a>
             ))}
           </div>
-        )}
-      </article>
-
-      <article className="activity-panel">
-        <div className="activity-heading">
-          <div>
-            <p className="eyebrow">HOLDERS</p>
-            <h2>{t("holders")}</h2>
-          </div>
-          <span>{holders.length} {t("addresses")}</span>
-        </div>
-        {isLoading ? (
+        ))}
+        {activeTab === "holders" && (isLoading ? (
           <p className="activity-empty">{t("readingLogs")}</p>
         ) : loadError ? (
           <p className="activity-empty activity-error">
@@ -210,7 +249,7 @@ export function TokenActivity({
               </a>
             ))}
           </div>
-        )}
+        ))}
       </article>
     </section>
   );
