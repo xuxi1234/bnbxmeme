@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { WalletButton } from "./wallet-button";
+import { NetworkMenu } from "./network-menu";
 import { useLanguage, type Language } from "./language-provider";
 
 const languageLabels: Record<Language, string> = {
@@ -103,10 +104,7 @@ export function SiteHeader() {
         >
           {theme === "dark" ? "☀" : "◐"}
         </button>
-        <span className="network-chip">
-          <i />
-          MAINNET
-        </span>
+        <NetworkMenu />
         <WalletButton />
       </div>
       <nav className="mobile-nav" aria-label="移动端导航">
