@@ -226,8 +226,25 @@ export function TokenMarket() {
   if (counts.isLoading || tokenResults.isLoading) return <MarketEmpty title={t("loading")} message="BNB Chain Mainnet" />;
   if (tokens.length === 0) return <MarketEmpty title={t("noMatch")} message="" />;
 
+  const marketStats = [
+    [t("totalProjects"), entries.length],
+    [t("activeProjects"), entries.filter((entry) => entry.state < 2).length],
+    [t("nearGraduation"), entries.filter((entry) =>
+      entry.state < 2 && entry.target > 0n && entry.principal * 100n >= entry.target * 75n
+    ).length],
+    [t("completedProjects"), entries.filter((entry) => entry.state === 2).length],
+  ] as const;
+
   return (
     <>
+      <div className="market-overview" aria-label={t("projects")}>
+        {marketStats.map(([label, value]) => (
+          <div key={label}>
+            <strong>{value}</strong>
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
       <div className="market-toolbar">
         <label className="market-search">
           <span aria-hidden="true">⌕</span>
