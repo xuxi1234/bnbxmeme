@@ -832,16 +832,141 @@ export default function TokenTradingPage() {
       </section>
 
       <section className="token-workspace">
-      {curveAddress !== zeroAddress && (
-        <BondingCurveChart
-          curve={curveAddress}
-          symbol={symbol.data ?? "TOKEN"}
-          refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
-        />
-      )}
+        <aside className="trade-sidebar" id="trade">
+          <article className="launch-form trade-box">
+            <div className="trade-tabs">
+              <button
+                className={tradeMode === "buy" ? "active buy" : ""}
+                type="button"
+                onClick={() => setTradeMode("buy")}
+              >{t("buy")}</button>
+              <button
+                className={tradeMode === "sell" ? "active sell" : ""}
+                type="button"
+                onClick={() => setTradeMode("sell")}
+              >{t("sell")}</button>
+            </div>
 
-      <section className="trade-layout" id="trade">
-        <article className="card progress-card">
+            {tradeMode === "buy" ? (
+              <>
+                <label>
+                  {t("buyWith")}
+                  <input
+                    min="0.000000001"
+                    step="0.000000001"
+                    value={buyAmount}
+                    onChange={(event) => setBuyAmount(event.target.value)}
+                  />
+                </label>
+                <div className="amount-presets">
+                  {["0.1", "0.5", "1"].map((amount) => (
+                    <button key={amount} type="button" onClick={() => setBuyAmount(amount)}>
+                      {amount} BNB
+                    </button>
+                  ))}
+                </div>
+                <div className="quote-row">
+                  <span>{t("expectedGet")}</span>
+                  <strong>{formatEther(quotedTokens)} {symbol.data ?? "TOKEN"}</strong>
+                </div>
+                {!user ? (
+                  <WalletButton
+                    className="button wide trade-submit buy"
+                    connectLabel={`${t("buy")} · ${t("connectWallet")}`}
+                  />
+                ) : chainId !== bsc.id ? (
+                  <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
+                    {t("switchNetwork")}
+                  </button>
+                ) : (
+                  <button
+                    className="button wide trade-submit buy"
+                    type="button"
+                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || buyWei === 0n || quotedTokens === 0n || tradeWrite.isPending || Number(state.data ?? 0) !== 0}
+                    onClick={buy}
+                  >{t("buy")}</button>
+                )}
+              </>
+            ) : (
+              <>
+                <label>
+                  {t("sellToken")}
+                  <input
+                    min="0"
+                    step="0.000000001"
+                    value={sellAmount}
+                    onChange={(event) => setSellAmount(event.target.value)}
+                  />
+                </label>
+                <div className="amount-presets">
+                  {[25n, 50n, 75n, 100n].map((percent) => (
+                    <button key={percent.toString()} type="button" onClick={() => setSellPercent(percent)}>
+                      {percent.toString()}%
+                    </button>
+                  ))}
+                </div>
+                <div className="trade-balance">{t("balance")}: {formatEther(balance.data ?? 0n)} {symbol.data ?? "TOKEN"}</div>
+                <div className="quote-row">
+                  <span>{t("expectedReceive")}</span>
+                  <strong>{formatEther(quotedSellBNB)} BNB</strong>
+                </div>
+                {!user ? (
+                  <WalletButton
+                    className="button wide trade-submit sell"
+                    connectLabel={`${t("sell")} · ${t("connectWallet")}`}
+                  />
+                ) : chainId !== bsc.id ? (
+                  <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
+                    {t("switchNetwork")}
+                  </button>
+                ) : (
+                  <button
+                    className="button wide trade-submit sell"
+                    type="button"
+                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || sellWei === 0n || quotedSellBNB === 0n || tradeWrite.isPending || approvalWrite.isPending || approvalReceipt.isLoading || Number(state.data ?? 0) !== 0}
+                    onClick={sell}
+                  >
+                    {approvalWrite.isPending || approvalReceipt.isLoading
+                      ? t("approving")
+                      : tradeWrite.isPending
+                        ? t("selling")
+                        : needsApproval
+                          ? t("firstApproveSell")
+                          : t("sell")}
+                  </button>
+                )}
+              </>
+            )}
+
+            {tradeWrite.data && (
+              <a
+                className="trade-tx-link"
+                href={`${blockExplorerUrl}/tx/${tradeWrite.data}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span>{t("txHash")}</span>
+                <strong>{tradeWrite.data.slice(0, 10)}…{tradeWrite.data.slice(-8)} ↗</strong>
+              </a>
+            )}
+            {(approvalWrite.isPending || approvalWrite.data || tradeWrite.isPending || tradeWrite.data || receipt.isLoading || receipt.isSuccess) && (
+              <div className="transaction-status" role="status" aria-live="polite">
+                <strong>{t("txStatus")}</strong>
+                <ol>
+                  <li className={tradeWrite.data || approvalWrite.data ? "done" : "active"}>{t("walletStep")}</li>
+                  <li className={tradeWrite.data ? "done" : approvalWrite.data || tradeWrite.isPending ? "active" : ""}>{t("broadcastStep")}</li>
+                  <li className={receipt.isSuccess ? "done" : tradeWrite.data ? "active" : ""}>{t("confirmStep")}</li>
+                  <li className={receipt.isSuccess ? "done" : ""}>{t("syncStep")}</li>
+                </ol>
+              </div>
+            )}
+            {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
+            {(tradeWrite.error || approvalWrite.error) && (
+              <p className="error">{(tradeWrite.error ?? approvalWrite.error)?.message}</p>
+            )}
+          </article>
+
+          <article className="card progress-card">
           <h2 className="section-title">{t("safetyTitle")}</h2>
           <span>{t("progress")}</span>
           <strong>{progress.toFixed(2)}%</strong>
@@ -921,149 +1046,26 @@ export default function TokenTradingPage() {
               </strong>
             </div>
           </div>
-        </article>
+          </article>
+        </aside>
 
-        <article className="launch-form trade-box">
-          <div className="trade-tabs">
-            <button
-              className={tradeMode === "buy" ? "active buy" : ""}
-              type="button"
-              onClick={() => setTradeMode("buy")}
-            >{t("buy")}</button>
-            <button
-              className={tradeMode === "sell" ? "active sell" : ""}
-              type="button"
-              onClick={() => setTradeMode("sell")}
-            >{t("sell")}</button>
-          </div>
-
-          {tradeMode === "buy" ? (
-            <>
-              <label>
-                {t("buyWith")}
-                <input
-                  min="0.000000001"
-                  step="0.000000001"
-                  value={buyAmount}
-                  onChange={(event) => setBuyAmount(event.target.value)}
-                />
-              </label>
-              <div className="amount-presets">
-                {["0.1", "0.5", "1"].map((amount) => (
-                  <button key={amount} type="button" onClick={() => setBuyAmount(amount)}>
-                    {amount} BNB
-                  </button>
-                ))}
-              </div>
-              <div className="quote-row">
-                <span>{t("expectedGet")}</span>
-                <strong>{formatEther(quotedTokens)} {symbol.data ?? "TOKEN"}</strong>
-              </div>
-              {!user ? (
-                <WalletButton
-                  className="button wide trade-submit buy"
-                  connectLabel={`${t("buy")} · ${t("connectWallet")}`}
-                />
-              ) : chainId !== bsc.id ? (
-                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
-                  {t("switchNetwork")}
-                </button>
-              ) : (
-                <button
-                  className="button wide trade-submit buy"
-                  type="button"
-                  disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || buyWei === 0n || quotedTokens === 0n || tradeWrite.isPending || Number(state.data ?? 0) !== 0}
-                  onClick={buy}
-                >{t("buy")}</button>
-              )}
-            </>
-          ) : (
-            <>
-              <label>
-                {t("sellToken")}
-                <input
-                  min="0"
-                  step="0.000000001"
-                  value={sellAmount}
-                  onChange={(event) => setSellAmount(event.target.value)}
-                />
-              </label>
-              <div className="amount-presets">
-                {[25n, 50n, 75n, 100n].map((percent) => (
-                  <button key={percent.toString()} type="button" onClick={() => setSellPercent(percent)}>
-                    {percent.toString()}%
-                  </button>
-                ))}
-              </div>
-              <div className="trade-balance">{t("balance")}: {formatEther(balance.data ?? 0n)} {symbol.data ?? "TOKEN"}</div>
-              <div className="quote-row">
-                <span>{t("expectedReceive")}</span>
-                <strong>{formatEther(quotedSellBNB)} BNB</strong>
-              </div>
-              {!user ? (
-                <WalletButton
-                  className="button wide trade-submit sell"
-                  connectLabel={`${t("sell")} · ${t("connectWallet")}`}
-                />
-              ) : chainId !== bsc.id ? (
-                <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
-                  {t("switchNetwork")}
-                </button>
-              ) : (
-            <button
-                  className="button wide trade-submit sell"
-              type="button"
-                  disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || sellWei === 0n || quotedSellBNB === 0n || tradeWrite.isPending || approvalWrite.isPending || approvalReceipt.isLoading || Number(state.data ?? 0) !== 0}
-              onClick={sell}
-            >
-                  {approvalWrite.isPending || approvalReceipt.isLoading
-                    ? t("approving")
-                    : tradeWrite.isPending
-                      ? t("selling")
-                      : needsApproval
-                        ? t("firstApproveSell")
-                        : t("sell")}
-            </button>
-              )}
-            </>
+        <div className="market-column">
+          {curveAddress !== zeroAddress && (
+            <BondingCurveChart
+              curve={curveAddress}
+              symbol={symbol.data ?? "TOKEN"}
+              refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
+            />
           )}
-
-          {tradeWrite.data && (
-            <a
-              className="trade-tx-link"
-              href={`${blockExplorerUrl}/tx/${tradeWrite.data}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <span>{t("txHash")}</span>
-              <strong>{tradeWrite.data.slice(0, 10)}…{tradeWrite.data.slice(-8)} ↗</strong>
-            </a>
+          {tokenAddress !== zeroAddress && curveAddress !== zeroAddress && (
+            <TokenActivity
+              token={tokenAddress}
+              curve={curveAddress}
+              refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
+              onSummary={handleActivitySummary}
+            />
           )}
-          {(approvalWrite.isPending || approvalWrite.data || tradeWrite.isPending || tradeWrite.data || receipt.isLoading || receipt.isSuccess) && (
-            <div className="transaction-status" role="status" aria-live="polite">
-              <strong>{t("txStatus")}</strong>
-              <ol>
-                <li className={tradeWrite.data || approvalWrite.data ? "done" : "active"}>{t("walletStep")}</li>
-                <li className={tradeWrite.data ? "done" : approvalWrite.data || tradeWrite.isPending ? "active" : ""}>{t("broadcastStep")}</li>
-                <li className={receipt.isSuccess ? "done" : tradeWrite.data ? "active" : ""}>{t("confirmStep")}</li>
-                <li className={receipt.isSuccess ? "done" : ""}>{t("syncStep")}</li>
-              </ol>
-            </div>
-          )}
-          {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
-          {(tradeWrite.error || approvalWrite.error) && (
-            <p className="error">{(tradeWrite.error ?? approvalWrite.error)?.message}</p>
-          )}
-        </article>
-      </section>
-      {tokenAddress !== zeroAddress && curveAddress !== zeroAddress && (
-        <TokenActivity
-          token={tokenAddress}
-          curve={curveAddress}
-          refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
-          onSummary={handleActivitySummary}
-        />
-      )}
+        </div>
       </section>
     </main>
   );
