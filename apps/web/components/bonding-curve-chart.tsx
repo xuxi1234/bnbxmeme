@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
+import { useLanguage } from "./language-provider";
 
 type Period = 60 | 300 | 900 | 3600 | 14400 | 86400;
 type Point = { timestamp: number; price: number; volume: number };
@@ -15,12 +16,12 @@ type Candle = {
 };
 
 const periods: ReadonlyArray<{ label: string; value: Period }> = [
-  { label: "1分", value: 60 },
-  { label: "5分", value: 300 },
-  { label: "15分", value: 900 },
-  { label: "1时", value: 3600 },
-  { label: "4时", value: 14400 },
-  { label: "1日", value: 86400 },
+  { label: "1m", value: 60 },
+  { label: "5m", value: 300 },
+  { label: "15m", value: 900 },
+  { label: "1h", value: 3600 },
+  { label: "4h", value: 14400 },
+  { label: "1D", value: 86400 },
 ];
 
 function compact(value: number) {
@@ -64,9 +65,10 @@ export function BondingCurveChart({
   symbol: string;
   refreshKey?: `0x${string}`;
 }) {
+  const { t } = useLanguage();
   const [points, setPoints] = useState<Point[]>([]);
   const [period, setPeriod] = useState<Period>(300);
-  const [status, setStatus] = useState("正在同步链上成交…");
+  const [statusKey, setStatusKey] = useState("chartSyncing");
 
   useEffect(() => {
     if (curve === zeroAddress) return;
@@ -94,10 +96,10 @@ export function BondingCurveChart({
           .sort((a, b) => a.timestamp - b.timestamp);
         if (!cancelled) {
           setPoints(next);
-          setStatus(next.length ? "" : "暂无成交，首笔买入后生成第一根 K 线。");
+          setStatusKey(next.length ? "" : "chartEmpty");
         }
       } catch {
-        if (!cancelled) setStatus("RPC 日志读取繁忙，K 线将在下一轮自动重试。");
+        if (!cancelled) setStatusKey("chartBusy");
       }
     }
 
@@ -143,14 +145,14 @@ export function BondingCurveChart({
         <div>
           <p className="eyebrow">BONDING CURVE CHART</p>
           <h2>{symbol} / BNB</h2>
-          <small>价格单位：BNB / 100万枚代币</small>
+          <small>{t("priceUnit")}</small>
         </div>
         <div className="chart-summary">
           <strong>{priceLabel(latest?.close ?? 0)}</strong>
           <span className={change >= 0 ? "chart-up" : "chart-down"}>
             {change >= 0 ? "+" : ""}{change.toFixed(2)}%
           </span>
-          <span>成交量 {compact(totalVolume)} BNB</span>
+          <span>{t("volume")} {compact(totalVolume)} BNB</span>
         </div>
       </div>
       <div className="chart-toolbar" aria-label="K线周期">
@@ -164,7 +166,7 @@ export function BondingCurveChart({
             {item.label}
           </button>
         ))}
-        <span>链上实时 · 15秒刷新</span>
+        <span>{t("liveRefresh")}</span>
       </div>
       <div className="chart-stage">
         {chart ? (
@@ -218,8 +220,8 @@ export function BondingCurveChart({
         ) : (
           <div className="chart-empty">
             <span className="chart-pulse" />
-            <strong>{status}</strong>
-            <p>K 线只使用 BNB Chain Mainnet 上真实的内盘买卖事件，不生成模拟数据。</p>
+            <strong>{statusKey ? t(statusKey) : ""}</strong>
+            <p>{t("chartTruth")}</p>
           </div>
         )}
       </div>
