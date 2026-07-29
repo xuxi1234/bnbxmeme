@@ -44,6 +44,13 @@ function safeParseEther(value: string) {
   }
 }
 
+function formatTokenAmount(value: bigint) {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 3,
+  }).format(Number(formatEther(value)));
+}
+
 export default function TokenTradingPage() {
   const params = useParams<{ address: string }>();
   const tokenAddress = isAddress(params.address) ? params.address : zeroAddress;
@@ -162,6 +169,13 @@ export default function TokenTradingPage() {
     functionName: "balanceOf",
     args: [user ?? zeroAddress],
     query: { enabled: Boolean(user) && tokenAddress !== zeroAddress },
+  });
+  const curveTokenBalance = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "balanceOf",
+    args: [curveAddress],
+    query: { enabled: curveAddress !== zeroAddress && tokenAddress !== zeroAddress },
   });
   const totalSupply = useReadContract({
     address: tokenAddress,
@@ -327,6 +341,10 @@ export default function TokenTradingPage() {
     target.data && target.data > 0n
       ? Math.min(100, Number(((principal.data ?? 0n) * 10_000n) / target.data) / 100)
       : 0;
+  const remainingBNB =
+    (target.data ?? 0n) > (principal.data ?? 0n)
+      ? (target.data ?? 0n) - (principal.data ?? 0n)
+      : 0n;
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
   const lpWei = safeParseEther(lpAmount);
 
@@ -757,9 +775,23 @@ export default function TokenTradingPage() {
           <div className="progress-track">
             <div style={{ width: `${progress}%` }} />
           </div>
-          <span>
-            {formatEther(principal.data ?? 0n)} / {formatEther(target.data ?? 0n)} BNB
-          </span>
+          <div className="graduation-metrics">
+            <div>
+              <span>{t("raisedBnb")}</span>
+              <strong>{formatEther(principal.data ?? 0n)} BNB</strong>
+            </div>
+            <div>
+              <span>{t("remainingBnb")}</span>
+              <strong>{formatEther(remainingBNB)} BNB</strong>
+            </div>
+            <div>
+              <span>{t("curveRemaining")}</span>
+              <strong title={formatEther(curveTokenBalance.data ?? 0n)}>
+                {formatTokenAmount(curveTokenBalance.data ?? 0n)} {symbol.data ?? "TOKEN"}
+              </strong>
+            </div>
+          </div>
+          <p className="graduation-note">{t("automaticMigration")}</p>
           <span>{t("myBalance")}：{formatEther(balance.data ?? 0n)}</span>
           <div className="security-facts">
             <div>
