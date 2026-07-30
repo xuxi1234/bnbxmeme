@@ -36,6 +36,11 @@ export function supabaseTableEndpoint(table: string) {
   return new URL(`/rest/v1/${table}`, supabaseUrl);
 }
 
+export function supabaseRpcEndpoint(functionName: string) {
+  if (!supabaseUrl) return null;
+  return new URL(`/rest/v1/rpc/${functionName}`, supabaseUrl);
+}
+
 export async function readCommentModerationSettings() {
   const headers = supabaseServiceHeaders();
   const endpoint = supabaseTableEndpoint("comment_moderation_settings");
