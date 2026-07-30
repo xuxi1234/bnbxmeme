@@ -1047,11 +1047,24 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .empty-market a { color: var(--brand); font-size: 13px; font-weight: 850; text-decoration: none; }
 .market-no-results {
   display: grid;
-  min-height: 180px;
+  min-height: 220px;
   margin-top: 20px;
+  padding: 32px 20px;
   place-items: center;
+  align-content: center;
+  gap: 12px;
   border: 1px dashed var(--line);
   color: var(--muted);
+  text-align: center;
+}
+.market-no-results strong { color: var(--text); font-size: 20px; }
+.market-no-results p { max-width: 620px; margin: 0; line-height: 1.65; }
+.market-no-results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
 }
 .security-page {
   width: min(1180px, calc(100% - 32px));

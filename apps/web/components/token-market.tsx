@@ -17,6 +17,7 @@ import {
   summarizeCompleteMarketActivity,
   type MarketFilter,
 } from "@/lib/market-ranking-core";
+import { resolveMarketNoResults } from "@/lib/market-empty-state-core";
 import { useLanguage } from "./language-provider";
 import { accessibilityCopy, interpolate } from "@/lib/localization-copy";
 
@@ -433,6 +434,10 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       compareMarketEntries(filter, scores, a, b),
     );
   }, [entries, filter, query, scores]);
+  const noResults = useMemo(
+    () => resolveMarketNoResults(query, filter),
+    [filter, query],
+  );
 
   if (isLoading && !payload) {
     return <MarketNotice title={t("loading")} message="BNB Chain Mainnet" />;
@@ -551,7 +556,48 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         </div>
       </div>
       {ranked.length === 0 ? (
-        <div className="market-no-results">{t("noMatch")}</div>
+        <section
+          className="market-no-results"
+          role="status"
+          aria-live="polite"
+        >
+          <strong>
+            {noResults.kind === "search"
+              ? interpolate(t("searchNoResultsTitle"), {
+                  query: noResults.query,
+                })
+              : interpolate(t("filterNoResultsTitle"), {
+                  filter: t(noResults.filter),
+                })}
+          </strong>
+          <p>
+            {noResults.kind === "search"
+              ? interpolate(t("searchNoResultsHelp"), {
+                  filter: t(noResults.filter),
+                })
+              : t("filterNoResultsHelp")}
+          </p>
+          <div className="market-no-results-actions">
+            {noResults.kind === "search" && (
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setQuery("")}
+              >
+                {t("clearSearch")}
+              </button>
+            )}
+            {noResults.showHotAction && (
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => chooseFilter("hot")}
+              >
+                {t("showHotProjects")}
+              </button>
+            )}
+          </div>
+        </section>
       ) : (
         <div className="token-grid">
           {ranked.map((entry) => (

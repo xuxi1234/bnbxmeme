@@ -64,6 +64,12 @@ test("keeps empty, unavailable, and 404 states present in all four languages", a
   );
   const requiredKeys = [
     "noMatch",
+    "searchNoResultsTitle",
+    "searchNoResultsHelp",
+    "filterNoResultsTitle",
+    "filterNoResultsHelp",
+    "clearSearch",
+    "showHotProjects",
     "noTrades",
     "noHolders",
     "noProjectsYet",
