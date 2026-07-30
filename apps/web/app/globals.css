@@ -2281,6 +2281,30 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   border-radius: 8px;
   background: var(--surface);
 }
+.moderation-audit {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.moderation-audit-list { display: grid; }
+.moderation-audit-list article {
+  display: grid;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+.moderation-audit-list article > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.moderation-audit-list code {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 11px;
+}
 .moderation-ban-list { display: grid; }
 .moderation-ban-list article {
   display: flex;

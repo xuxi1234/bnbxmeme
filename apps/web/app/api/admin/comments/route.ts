@@ -11,6 +11,10 @@ import {
   supabaseServiceHeaders,
   supabaseTableEndpoint,
 } from "@/lib/comments-server";
+import {
+  buildModerationAuditCsv,
+  type ModerationAuditExportRow,
+} from "@/lib/moderation-audit-core";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,6 +44,15 @@ type WalletBanRow = {
   banned_by: string;
   updated_at: string;
   updated_by: string;
+};
+
+type ModerationAuditRow = {
+  id: string;
+  admin_wallet: string;
+  action: string;
+  comment_id: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
 };
 
 function unauthorized() {
@@ -88,6 +101,29 @@ function publicWalletBan(row: WalletBanRow) {
   };
 }
 
+function publicAudit(row: ModerationAuditRow) {
+  return {
+    id: row.id,
+    adminWallet: row.admin_wallet,
+    action: row.action,
+    commentId: row.comment_id,
+    details: row.details,
+    createdAt: row.created_at,
+  };
+}
+
+function auditEndpoint(limit: number) {
+  const endpoint = supabaseTableEndpoint("comment_moderation_audit");
+  if (!endpoint) return null;
+  endpoint.searchParams.set(
+    "select",
+    "id,admin_wallet,action,comment_id,details,created_at",
+  );
+  endpoint.searchParams.set("order", "created_at.desc");
+  endpoint.searchParams.set("limit", String(limit));
+  return endpoint;
+}
+
 async function writeAudit(
   adminWallet: string,
   action: string,
@@ -113,10 +149,55 @@ export async function GET(request: NextRequest) {
   const adminWallet = await readCommentAdminSession(request);
   if (!adminWallet) return unauthorized();
   const headers = supabaseServiceHeaders();
+  if (!headers) {
+    return NextResponse.json(
+      { error: "Moderation service is not configured" },
+      { status: 503 },
+    );
+  }
+
+  if (request.nextUrl.searchParams.get("export") === "audit") {
+    const endpoint = auditEndpoint(5000);
+    if (!endpoint) {
+      return NextResponse.json(
+        { error: "Moderation service is not configured" },
+        { status: 503 },
+      );
+    }
+    const response = await fetch(endpoint, {
+      headers,
+      cache: "no-store",
+    }).catch(() => null);
+    if (!response?.ok) {
+      return NextResponse.json(
+        { error: "Audit export is temporarily unavailable" },
+        { status: 502 },
+      );
+    }
+    const rows = (await response.json()) as ModerationAuditRow[];
+    const exportRows: ModerationAuditExportRow[] = rows.map((row) => ({
+      createdAt: row.created_at,
+      adminWallet: row.admin_wallet,
+      action: row.action,
+      commentId: row.comment_id,
+      details: row.details,
+    }));
+    return new NextResponse(buildModerationAuditCsv(exportRows), {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Content-Disposition":
+          'attachment; filename="bnbx-comment-moderation-audit.csv"',
+        "Content-Type": "text/csv; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  }
+
   const endpoint = supabaseTableEndpoint("token_comments");
   const reportsEndpoint = supabaseTableEndpoint("comment_reports");
   const bansEndpoint = supabaseTableEndpoint("comment_wallet_bans");
-  if (!headers || !endpoint || !reportsEndpoint || !bansEndpoint) {
+  const auditsEndpoint = auditEndpoint(250);
+  if (!endpoint || !reportsEndpoint || !bansEndpoint || !auditsEndpoint) {
     return NextResponse.json(
       { error: "Moderation service is not configured" },
       { status: 503 },
@@ -137,27 +218,37 @@ export async function GET(request: NextRequest) {
   bansEndpoint.searchParams.set("active", "eq.true");
   bansEndpoint.searchParams.set("order", "updated_at.desc");
   bansEndpoint.searchParams.set("limit", "1000");
-  const [settings, commentsResponse, reportsResponse, bansResponse] =
-    await Promise.all([
-      readCommentModerationSettings(),
-      fetch(endpoint, {
-        headers: { ...headers, Prefer: "count=exact" },
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(reportsEndpoint, {
-        headers,
-        cache: "no-store",
-      }).catch(() => null),
-      fetch(bansEndpoint, {
-        headers,
-        cache: "no-store",
-      }).catch(() => null),
-    ]);
+  const [
+    settings,
+    commentsResponse,
+    reportsResponse,
+    bansResponse,
+    auditsResponse,
+  ] = await Promise.all([
+    readCommentModerationSettings(),
+    fetch(endpoint, {
+      headers: { ...headers, Prefer: "count=exact" },
+      cache: "no-store",
+    }).catch(() => null),
+    fetch(reportsEndpoint, {
+      headers,
+      cache: "no-store",
+    }).catch(() => null),
+    fetch(bansEndpoint, {
+      headers,
+      cache: "no-store",
+    }).catch(() => null),
+    fetch(auditsEndpoint, {
+      headers,
+      cache: "no-store",
+    }).catch(() => null),
+  ]);
   if (
     !settings ||
     !commentsResponse?.ok ||
     !reportsResponse?.ok ||
-    !bansResponse?.ok
+    !bansResponse?.ok ||
+    !auditsResponse?.ok
   ) {
     return NextResponse.json(
       { error: "Moderation data is temporarily unavailable" },
@@ -167,6 +258,7 @@ export async function GET(request: NextRequest) {
   const rows = (await commentsResponse.json()) as AdminCommentRow[];
   const reports = (await reportsResponse.json()) as CommentReportRow[];
   const bans = (await bansResponse.json()) as WalletBanRow[];
+  const audits = (await auditsResponse.json()) as ModerationAuditRow[];
   const bansByWallet = new Map(
     bans.map((ban) => [ban.wallet_address, ban] as const),
   );
@@ -193,6 +285,7 @@ export async function GET(request: NextRequest) {
         ),
       ),
       bans: bans.map(publicWalletBan),
+      audits: audits.map(publicAudit),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );

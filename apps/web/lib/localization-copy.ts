@@ -555,6 +555,10 @@ type AdminCopy = {
   unbanConfirm: string;
   bannedWallets: string;
   bannedWalletsSummary: string;
+  auditTitle: string;
+  auditSummary: string;
+  exportAudit: string;
+  noAudit: string;
   searchPlaceholder: string;
   noMatches: string;
   hidden: string;
@@ -600,6 +604,10 @@ export const adminCopy: Record<Language, AdminCopy> = {
     unbanConfirm: "确定解除该钱包的评论封禁吗？",
     bannedWallets: "已封禁钱包",
     bannedWalletsSummary: "当前 {count} 个钱包被禁止参与评论和举报",
+    auditTitle: "审核日志",
+    auditSummary: "显示最近 {count} 条管理员操作",
+    exportAudit: "导出 CSV",
+    noAudit: "尚无管理员操作记录。",
     searchPlaceholder: "搜索评论、钱包或代币地址",
     noMatches: "没有符合条件的评论。",
     hidden: "已隐藏",
@@ -645,6 +653,10 @@ export const adminCopy: Record<Language, AdminCopy> = {
     bannedWallets: "Banned wallets",
     bannedWalletsSummary:
       "{count} wallets are currently blocked from comments and reports",
+    auditTitle: "Moderation audit",
+    auditSummary: "Showing the latest {count} admin actions",
+    exportAudit: "Export CSV",
+    noAudit: "No admin actions have been recorded.",
     searchPlaceholder: "Search comments, wallets, or token addresses",
     noMatches: "No comments match the current search.",
     hidden: "Hidden",
@@ -690,6 +702,10 @@ export const adminCopy: Record<Language, AdminCopy> = {
     bannedWallets: "차단된 지갑",
     bannedWalletsSummary:
       "현재 {count}개 지갑이 댓글 및 신고에서 차단되었습니다",
+    auditTitle: "관리 감사 로그",
+    auditSummary: "최근 관리자 작업 {count}개 표시",
+    exportAudit: "CSV 내보내기",
+    noAudit: "기록된 관리자 작업이 없습니다.",
     searchPlaceholder: "댓글, 지갑 또는 토큰 주소 검색",
     noMatches: "조건에 맞는 댓글이 없습니다.",
     hidden: "숨김",
@@ -735,6 +751,10 @@ export const adminCopy: Record<Language, AdminCopy> = {
     bannedWallets: "ブロック済みウォレット",
     bannedWalletsSummary:
       "現在 {count} ウォレットがコメントと報告を制限されています",
+    auditTitle: "モデレーション監査ログ",
+    auditSummary: "最新の管理操作 {count} 件を表示",
+    exportAudit: "CSVを書き出す",
+    noAudit: "管理操作の記録はありません。",
     searchPlaceholder: "コメント、ウォレット、トークンアドレスを検索",
     noMatches: "条件に一致するコメントはありません。",
     hidden: "非表示",

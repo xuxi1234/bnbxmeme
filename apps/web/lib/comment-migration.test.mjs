@@ -30,6 +30,13 @@ const walletBanMigration = readFileSync(
   ),
   "utf8",
 );
+const auditMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260730111835_improve_comment_audit.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("enforces comment limits on both legacy inserts and the new RPC", () => {
   assert.match(atomicMigration, /before insert on public\.token_comments/i);
@@ -97,4 +104,13 @@ test("enforces active wallet bans inside the atomic comment trigger", () => {
   );
   assert.match(walletBanMigration, /'ban_wallet'/i);
   assert.match(walletBanMigration, /'unban_wallet'/i);
+});
+
+test("bounds and indexes the moderation audit trail", () => {
+  assert.match(
+    auditMigration,
+    /comment_moderation_audit_details_size[\s\S]*pg_column_size\(details\) <= 8192/i,
+  );
+  assert.match(auditMigration, /comment_moderation_audit_action_created_idx/i);
+  assert.match(auditMigration, /comment_moderation_audit_admin_created_idx/i);
 });

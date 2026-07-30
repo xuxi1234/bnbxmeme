@@ -38,6 +38,15 @@ type WalletBan = {
   updatedBy: string;
 };
 
+type ModerationAudit = {
+  id: string;
+  adminWallet: string;
+  action: string;
+  commentId: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+};
+
 type ModerationPayload = {
   adminWallet: string;
   totalComments: number;
@@ -49,6 +58,7 @@ type ModerationPayload = {
   };
   comments: AdminComment[];
   bans: WalletBan[];
+  audits: ModerationAudit[];
 };
 
 function shortAddress(value: string) {
@@ -419,6 +429,49 @@ export default function CommentModerationPage() {
                           {copy.delete}
                         </button>
                       </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="moderation-audit">
+              <div className="moderation-comments-heading">
+                <div>
+                  <h2>{copy.auditTitle}</h2>
+                  <span>
+                    {interpolate(copy.auditSummary, {
+                      count: payload.audits.length,
+                    })}
+                  </span>
+                </div>
+                <a
+                  className="button"
+                  href="/api/admin/comments?export=audit"
+                  download
+                >
+                  {copy.exportAudit}
+                </a>
+              </div>
+              {payload.audits.length === 0 ? (
+                <p className="activity-empty">{copy.noAudit}</p>
+              ) : (
+                <div className="moderation-audit-list">
+                  {payload.audits.map((audit) => (
+                    <article key={audit.id}>
+                      <div>
+                        <strong>{audit.action}</strong>
+                        <span>{shortAddress(audit.adminWallet)}</span>
+                        {audit.commentId && (
+                          <code>{shortAddress(audit.commentId)}</code>
+                        )}
+                        <time dateTime={audit.createdAt}>
+                          {new Date(audit.createdAt).toLocaleString(
+                            localeByLanguage[language],
+                          )}
+                        </time>
+                      </div>
+                      <code>{JSON.stringify(audit.details)}</code>
                     </article>
                   ))}
                 </div>
