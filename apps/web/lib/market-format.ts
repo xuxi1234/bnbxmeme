@@ -48,3 +48,8 @@ export function chartPricePrecision(value: number | null | undefined) {
     minMove: 10 ** -precision,
   };
 }
+
+export function formatExactCount(value: number | null | undefined) {
+  if (value == null || !Number.isSafeInteger(value) || value < 0) return "—";
+  return String(value);
+}

@@ -25,6 +25,7 @@ import {
 } from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
 import {
+  formatExactCount,
   formatTokenPriceUsdt,
   tokenPriceUsdt,
 } from "@/lib/market-format";
@@ -861,7 +862,9 @@ export function TokenTradingPage({
             </div>
             <div>
               <span>{t("holders")}</span>
-              <strong>{activitySummary.holderCount ? `${activitySummary.holderCount}${activitySummary.holdersLimited ? "+" : ""}` : "—"}</strong>
+              <strong>
+                {formatExactCount(activitySummary.holderCount)}
+              </strong>
             </div>
             <div>
               <span>{t("progress")}</span>
