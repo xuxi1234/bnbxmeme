@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildFactorySlots, chunkItems } from "./market-data-core.ts";
+import {
+  buildFactorySlots,
+  buildMarketScoreRefreshKey,
+  chunkItems,
+} from "./market-data-core.ts";
 
 test("keeps the homepage bounded to the newest Factory slots", () => {
   assert.deepEqual(
@@ -29,4 +33,37 @@ test("enumerates every Factory slot for complete creator history", () => {
 
 test("chunks complete history reads without dropping records", () => {
   assert.deepEqual(chunkItems([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
+});
+
+test("keeps the market score refresh key stable for non-score updates", () => {
+  const target = {
+    token: "0xAa",
+    curve: "0xBb",
+    state: 1,
+    liquidityPair: "0xCc",
+  };
+  assert.equal(
+    buildMarketScoreRefreshKey([target]),
+    buildMarketScoreRefreshKey([{ ...target, liquidityPair: "0xDd" }]),
+  );
+});
+
+test("refreshes market scores when their request identity changes", () => {
+  const target = {
+    token: "0xAa",
+    curve: "0xBb",
+    state: 1,
+    liquidityPair: "0xCc",
+  };
+  const initial = buildMarketScoreRefreshKey([target]);
+  assert.notEqual(
+    initial,
+    buildMarketScoreRefreshKey([{ ...target, curve: "0xBc" }]),
+  );
+  assert.notEqual(
+    initial,
+    buildMarketScoreRefreshKey([
+      { ...target, state: 2, liquidityPair: "0xDd" },
+    ]),
+  );
 });

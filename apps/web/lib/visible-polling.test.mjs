@@ -102,3 +102,17 @@ test("wires visible polling into every production API poller", async () => {
     assert.match(source, /startVisiblePolling/);
   }
 });
+
+test("polls market scores independently once per minute", async () => {
+  const source = await readFile(
+    new URL("../components/token-market.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /const SCORE_POLL_INTERVAL_MS = 60_000/);
+  assert.match(
+    source,
+    /startVisiblePolling\(\s*refreshScores,\s*SCORE_POLL_INTERVAL_MS,\s*\)/,
+  );
+  assert.match(source, /\[indexReloadKey, scoreRefreshKey\]/);
+});
