@@ -29,6 +29,7 @@ import {
   interpolate,
   localeByLanguage,
 } from "@/lib/localization-copy";
+import { fetchSharedChainData } from "@/lib/shared-chain-data";
 import { startVisiblePolling } from "@/lib/visible-polling";
 import { useLanguage } from "./language-provider";
 
@@ -93,14 +94,7 @@ export function BondingCurveChart({
       setLoadError(false);
       if (!hasPoints.current) setStatusKey("chartSyncing");
       try {
-        const response = await fetch(
-          `/api/chain-data?curve=${curve}${
-            token ? `&token=${token}` : ""
-          }${pair && pair !== zeroAddress ? `&pair=${pair}` : ""}`,
-          { signal: controller.signal },
-        );
-        if (!response.ok) throw new Error("chain data");
-        const data = (await response.json()) as {
+        const data = await fetchSharedChainData<{
           trades: Array<{
             tokens: string;
             priceBNB: string;
@@ -109,7 +103,7 @@ export function BondingCurveChart({
           }>;
           bnbUsd?: number;
           refreshedAt?: string;
-        };
+        }>({ curve, token, pair }, controller.signal);
         const bnbUsd = Number(data.bnbUsd ?? 0);
         if (!Number.isFinite(bnbUsd) || bnbUsd <= 0) {
           throw new Error("BNB/USDT price unavailable");
