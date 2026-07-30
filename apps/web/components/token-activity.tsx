@@ -69,14 +69,12 @@ export function TokenActivity({
   token,
   curve,
   pair,
-  totalSupply,
   refreshKey,
   onSummary,
 }: {
   token: `0x${string}`;
   curve: `0x${string}`;
   pair?: `0x${string}`;
-  totalSupply?: bigint;
   refreshKey?: `0x${string}`;
   onSummary?: (summary: ActivitySummary) => void;
 }) {
@@ -148,6 +146,8 @@ export function TokenActivity({
           holders: Array<{ address: `0x${string}`; balance: string }>;
           holderCount?: number;
           holdersLimited?: boolean;
+          holderSupply?: string;
+          top10ConcentrationPct?: number | null;
           market?: {
             source: "curve" | "pancake";
             pricePerMillionBnb: number | null;
@@ -193,12 +193,10 @@ export function TokenActivity({
           balance: BigInt(holder.balance),
         }));
         setHolders(nextHolders);
-        const top10Balance = nextHolders
-          .slice(0, 10)
-          .reduce((sum, holder) => sum + holder.balance, 0n);
         const nextTop10Concentration =
-          totalSupply && totalSupply > 0n
-            ? Number((top10Balance * 10_000n) / totalSupply) / 100
+          typeof data.top10ConcentrationPct === "number" &&
+          Number.isFinite(data.top10ConcentrationPct)
+            ? Math.min(100, Math.max(0, data.top10ConcentrationPct))
             : null;
         setTop10ConcentrationPct(nextTop10Concentration);
         const nextBnbUsd = Number(data.bnbUsd ?? 0);
@@ -247,7 +245,7 @@ export function TokenActivity({
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [curve, holders.length, onSummary, pair, refreshKey, reloadKey, token, totalSupply, trades.length]);
+  }, [curve, holders.length, onSummary, pair, refreshKey, reloadKey, token, trades.length]);
 
   return (
     <section className="activity-terminal">

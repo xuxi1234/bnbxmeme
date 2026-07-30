@@ -224,7 +224,30 @@ test("excludes Curve, Pair, zero and burn addresses from holder counts", () => {
     holders: [{ address: buyer, balance: "30" }],
     holderCount: 2,
     holdersLimited: true,
+    holderSupply: "50",
+    top10ConcentrationPct: 100,
   });
+});
+
+test("uses all eligible holder supply as the Top 10 denominator", () => {
+  const holderBalances = Object.fromEntries(
+    Array.from({ length: 11 }, (_, index) => [
+      `0x${String(index + 1).padStart(40, "0")}`,
+      String(11 - index),
+    ]),
+  );
+  const snapshot = materializeHolders(
+    {
+      ...holderBalances,
+      [curve]: "1000",
+      [pair]: "2000",
+      [dead]: "3000",
+    },
+    [curve, pair, dead],
+  );
+  assert.equal(snapshot.holderSupply, "66");
+  assert.equal(snapshot.holderCount, 11);
+  assert.equal(snapshot.top10ConcentrationPct, 98.4848);
 });
 
 test("graduated 24h metrics count Pancake swaps without curve trades", () => {

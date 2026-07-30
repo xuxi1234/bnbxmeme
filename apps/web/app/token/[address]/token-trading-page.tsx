@@ -1404,7 +1404,6 @@ export function TokenTradingPage({
               token={tokenAddress}
               curve={curveAddress}
               pair={activePairAddress}
-              totalSupply={totalSupplyValue}
               refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
               onSummary={handleActivitySummary}
             />

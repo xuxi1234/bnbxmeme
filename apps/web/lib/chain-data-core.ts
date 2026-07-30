@@ -186,11 +186,24 @@ export function materializeHolders(
       }
       return leftBalance > rightBalance ? -1 : 1;
     });
+  const holderSupply = all.reduce(
+    (sum, holder) => sum + BigInt(holder.balance),
+    0n,
+  );
+  const top10Balance = all
+    .slice(0, 10)
+    .reduce((sum, holder) => sum + BigInt(holder.balance), 0n);
+  const top10ConcentrationPct =
+    holderSupply > 0n
+      ? Number((top10Balance * 1_000_000n) / holderSupply) / 10_000
+      : null;
 
   return {
     holders: all.slice(0, limit),
     holderCount: all.length,
     holdersLimited: all.length > limit,
+    holderSupply: holderSupply.toString(),
+    top10ConcentrationPct,
   };
 }
 

@@ -62,6 +62,8 @@ type ChainDataPayload = {
   holders: Array<{ address: string; balance: string }>;
   holderCount?: number;
   holdersLimited?: boolean;
+  holderSupply?: string;
+  top10ConcentrationPct?: number | null;
   market?: MarketSnapshot;
   bnbUsd: number;
   refreshedAt?: string;
