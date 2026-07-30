@@ -22,6 +22,11 @@
   --muted: #616a5c;
   --brand-dark: #171000;
   --emphasis-border: #171a15;
+  --light-control-surface: #f4f5f0;
+  --light-disabled-surface: #e4e8de;
+  --light-disabled-text: #4b5346;
+  --light-navigation: #394035;
+  --light-placeholder: #596253;
 }
 :root[data-theme="light"] body { background: radial-gradient(circle at 78% 4%, rgba(243,186,47,.16), transparent 28rem), var(--bg); }
 :root[data-theme="light"] .site-header { background: rgba(255,255,255,.9); }
@@ -64,7 +69,43 @@
 }
 :root[data-theme="light"] .project-links a,
 :root[data-theme="light"] .project-links button,
-:root[data-theme="light"] .desktop-nav a { color: #394035; }
+:root[data-theme="light"] .desktop-nav a { color: var(--light-navigation); }
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder {
+  color: var(--light-placeholder);
+  opacity: 1;
+}
+:root[data-theme="light"] input:disabled,
+:root[data-theme="light"] textarea:disabled {
+  background: var(--light-disabled-surface);
+  color: var(--light-disabled-text);
+  opacity: 1;
+  -webkit-text-fill-color: var(--light-disabled-text);
+}
+:root[data-theme="light"] .network-list button,
+:root[data-theme="light"] .wallet-options button {
+  background: var(--light-control-surface);
+  color: var(--text);
+}
+:root[data-theme="light"] .network-list button:disabled,
+:root[data-theme="light"] .button:disabled,
+:root[data-theme="light"] .graduation-slider-row > button:disabled,
+:root[data-theme="light"] .moderation-actions button:disabled {
+  border-color: #687262;
+  background: var(--light-disabled-surface);
+  color: var(--light-disabled-text);
+  opacity: 1;
+}
+:root[data-theme="light"] .template-card.disabled {
+  border-color: #687262;
+  background: var(--light-disabled-surface);
+  color: var(--light-disabled-text);
+  filter: none;
+  opacity: 1;
+}
+:root[data-theme="light"] .template-card.disabled > span {
+  color: var(--light-disabled-text);
+}
 :root[data-theme="light"] .template-card:hover,
 :root[data-theme="light"] .template-card.selected {
   background: #fff9e8;
