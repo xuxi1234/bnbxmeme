@@ -35,6 +35,15 @@ export function formatTokenPriceUsdt(
   }).format(value);
 }
 
+export function formatCompactTokenPriceUsdt(
+  value: number | null | undefined,
+  locale = "en-US",
+) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "—";
+  if (value < 0.000001) return value.toExponential(6);
+  return formatTokenPriceUsdt(value, locale);
+}
+
 export function chartPricePrecision(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value) || value <= 0) {
     return { precision: 8, minMove: 0.00000001 };
