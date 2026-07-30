@@ -1926,6 +1926,27 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .trade-balance { color: var(--muted); font-family: monospace; font-size: 11px; text-align: right; }
 .trade-submit.buy { background: #55ad40; border-color: var(--line); color: #061005; }
 .trade-submit.sell { background: #ad4d43; border-color: var(--line); color: #160503; }
+.trade-destination {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(243, 186, 47, .04);
+}
+.trade-destination > strong { color: var(--brand); font-size: 17px; }
+.trade-destination p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.trade-destination small { margin: 0; }
+.pancake-trade-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pancake-trade-actions .button {
+  min-height: 50px;
+  justify-content: center;
+  text-decoration: none;
+}
 .trade-tx-link {
   display: flex;
   min-width: 0;
@@ -2585,12 +2606,18 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
     box-shadow: 0 18px 48px rgba(0, 0, 0, .48);
     backdrop-filter: blur(16px);
   }
-  .mobile-trade-dock button {
+  .mobile-trade-dock button,
+  .mobile-trade-dock a {
+    display: flex;
     min-height: 46px;
+    align-items: center;
+    justify-content: center;
     border: 0;
     border-radius: 7px;
     color: #071006;
+    cursor: pointer;
     font-weight: 900;
+    text-decoration: none;
   }
   .mobile-trade-dock .buy { background: #55ad40; }
   .mobile-trade-dock .sell { background: #d65b50; color: #fff; }

@@ -39,6 +39,10 @@ import { BondingCurveChart } from "@/components/bonding-curve-chart";
 import { ProjectDiscussion } from "@/components/project-discussion";
 import { useLanguage } from "@/components/language-provider";
 import { resolveLpBurnStatus } from "@/lib/lp-security-core";
+import {
+  buildPancakeSwapTradeLinks,
+  resolveTradeDestination,
+} from "@/lib/trade-destination-core";
 import { publicQuoteReadConfig } from "@/lib/trade-quote-core";
 import {
   accessibilityCopy,
@@ -607,6 +611,8 @@ export function TokenTradingPage({
     setActivitySummary(summary);
   }, []);
   const tokenDescription = metadata?.description?.trim() ?? "";
+  const tradeDestination = resolveTradeDestination(stateValue);
+  const pancakeTradeLinks = buildPancakeSwapTradeLinks(tokenAddress);
 
   function buy() {
     if (!user) return;
@@ -1198,20 +1204,55 @@ export function TokenTradingPage({
       <section className="token-workspace">
         <aside className="trade-sidebar" id="trade">
           <article className="launch-form trade-box">
-            <div className="trade-tabs">
-              <button
-                className={tradeMode === "buy" ? "active buy" : ""}
-                type="button"
-                onClick={() => setTradeMode("buy")}
-              >{t("buy")}</button>
-              <button
-                className={tradeMode === "sell" ? "active sell" : ""}
-                type="button"
-                onClick={() => setTradeMode("sell")}
-              >{t("sell")}</button>
-            </div>
+            {tradeDestination === "curve" && (
+              <div className="trade-tabs">
+                <button
+                  className={tradeMode === "buy" ? "active buy" : ""}
+                  type="button"
+                  onClick={() => setTradeMode("buy")}
+                >{t("buy")}</button>
+                <button
+                  className={tradeMode === "sell" ? "active sell" : ""}
+                  type="button"
+                  onClick={() => setTradeMode("sell")}
+                >{t("sell")}</button>
+              </div>
+            )}
 
-            {tradeMode === "buy" ? (
+            {tradeDestination === "loading" ? (
+              <div className="trade-destination" role="status">
+                <strong>{t("tradeStateLoading")}</strong>
+              </div>
+            ) : tradeDestination === "migrating" ? (
+              <div className="trade-destination" role="status">
+                <strong>{t("migrationTradingPaused")}</strong>
+                <p>{t("migrationTradingPausedHelp")}</p>
+              </div>
+            ) : tradeDestination === "pancake" ? (
+              <div className="trade-destination">
+                <strong>{t("pancakeTradingReady")}</strong>
+                <p>{t("pancakeTradingHelp")}</p>
+                <div className="pancake-trade-actions">
+                  <a
+                    className="button wide trade-submit buy"
+                    href={pancakeTradeLinks.buy}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t("buyOnPancake")}
+                  </a>
+                  <a
+                    className="button wide trade-submit sell"
+                    href={pancakeTradeLinks.sell}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t("sellOnPancake")}
+                  </a>
+                </div>
+                <small>{t("pancakeTradeSafety")}</small>
+              </div>
+            ) : tradeMode === "buy" ? (
               <>
                 <label>
                   {t("buyWith")}
@@ -1520,14 +1561,36 @@ export function TokenTradingPage({
           )}
         </div>
       </section>
-      <nav className="mobile-trade-dock" aria-label={t("marketData")}>
-        <button className="buy" type="button" onClick={() => openMobileTrade("buy")}>
-          {t("buy")}
-        </button>
-        <button className="sell" type="button" onClick={() => openMobileTrade("sell")}>
-          {t("sell")}
-        </button>
-      </nav>
+      {tradeDestination === "curve" && (
+        <nav className="mobile-trade-dock" aria-label={t("marketData")}>
+          <button className="buy" type="button" onClick={() => openMobileTrade("buy")}>
+            {t("buy")}
+          </button>
+          <button className="sell" type="button" onClick={() => openMobileTrade("sell")}>
+            {t("sell")}
+          </button>
+        </nav>
+      )}
+      {tradeDestination === "pancake" && (
+        <nav className="mobile-trade-dock" aria-label="PancakeSwap V2">
+          <a
+            className="buy"
+            href={pancakeTradeLinks.buy}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t("buyOnPancake")}
+          </a>
+          <a
+            className="sell"
+            href={pancakeTradeLinks.sell}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t("sellOnPancake")}
+          </a>
+        </nav>
+      )}
     </main>
   );
 }
