@@ -28,9 +28,10 @@ test("keeps the production admin allowlist and signature checks server-side", as
     "utf8",
   );
   assert.match(source, /import "server-only"/);
-  assert.match(source, /process\.env\.BNBX_COMMENT_ADMIN_WALLETS/);
-  assert.match(source, /officialFactoryAddresses/);
-  assert.match(source, /functionName:\s*"feeRecipient"/);
+  assert.match(source, /process\.env\.BNBX_ADMIN_SIGNING_WALLET/);
+  assert.match(source, /resolveAdminSigningWallet/);
+  assert.doesNotMatch(source, /officialFactoryAddresses/);
+  assert.doesNotMatch(source, /feeRecipient/);
   assert.match(source, /isSupportedWalletSignature/);
   assert.match(source, /verifyWalletMessage/);
   assert.match(source, /LOGIN_WINDOW_MS\s*=\s*10\s*\*\s*60_000/);

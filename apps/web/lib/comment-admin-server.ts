@@ -2,13 +2,12 @@ import "server-only";
 
 import { NextRequest } from "next/server";
 import { isAddress } from "viem";
+import { resolveAdminSigningWallet } from "@/lib/admin-signing-wallet";
 import {
   isSupportedWalletSignature,
   MAX_ADMIN_SIGNATURE_BYTES,
 } from "@/lib/comment-signature-core";
 import { verifyWalletMessage } from "@/lib/comment-signature-server";
-import { officialFactoryAddresses } from "@/lib/deployments";
-import { serverPublicClient } from "@/lib/server-chain";
 import { buildCommentAdminLoginMessage } from "@/lib/comment-admin-message";
 
 export const COMMENT_ADMIN_COOKIE = "bnbx_comment_admin";
@@ -21,57 +20,14 @@ type AdminSession = {
   signature: string;
 };
 
-const feeRecipientAbi = [
-  {
-    type: "function",
-    name: "feeRecipient",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }],
-  },
-] as const;
-
-let cachedAdminWallets:
-  | { expiresAt: number; wallets: Set<string> }
-  | undefined;
-
-async function allowedAdminWallets() {
-  if (cachedAdminWallets && cachedAdminWallets.expiresAt > Date.now()) {
-    return cachedAdminWallets.wallets;
-  }
-  const configured = (process.env.BNBX_COMMENT_ADMIN_WALLETS ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value): value is `0x${string}` => isAddress(value))
-    .map((value) => value.toLowerCase());
-  const results = await serverPublicClient.multicall({
-    allowFailure: true,
-    contracts: officialFactoryAddresses.map((address) => ({
-      address,
-      abi: feeRecipientAbi,
-      functionName: "feeRecipient" as const,
-    })),
-  });
-  const onchain = results.flatMap((result) =>
-    result.status === "success" && isAddress(result.result)
-      ? [result.result.toLowerCase()]
-      : [],
-  );
-  const wallets = new Set([...configured, ...onchain]);
-  cachedAdminWallets = {
-    expiresAt: Date.now() + 5 * 60_000,
-    wallets,
-  };
-  return wallets;
+function allowedAdminWallet() {
+  return resolveAdminSigningWallet(process.env.BNBX_ADMIN_SIGNING_WALLET);
 }
 
 async function verifyAdminSignature(session: AdminSession, lifetimeMs: number) {
   if (
     !isAddress(session.wallet) ||
-    !isSupportedWalletSignature(
-      session.signature,
-      MAX_ADMIN_SIGNATURE_BYTES,
-    )
+    !isSupportedWalletSignature(session.signature, MAX_ADMIN_SIGNATURE_BYTES)
   ) {
     return null;
   }
@@ -83,8 +39,7 @@ async function verifyAdminSignature(session: AdminSession, lifetimeMs: number) {
   ) {
     return null;
   }
-  const wallets = await allowedAdminWallets().catch(() => new Set<string>());
-  if (!wallets.has(session.wallet.toLowerCase())) return null;
+  if (session.wallet.toLowerCase() !== allowedAdminWallet()) return null;
   const message = buildCommentAdminLoginMessage({
     wallet: session.wallet,
     signedAt: session.signedAt,
