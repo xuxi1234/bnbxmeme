@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useTokenMetadata } from "@/lib/metadata";
 import { pancakeRouterAddress } from "@/lib/deployments";
-import { chunkItems } from "@/lib/market-data-core";
+import { buildMarketScoreRefreshKey, chunkItems } from "@/lib/market-data-core";
 import {
   formatCompactMetric,
   formatCompactTokenPriceUsdt,
@@ -61,6 +61,7 @@ type MarketScore = {
 type MarketScoreResult = readonly [string, MarketScore, boolean];
 
 const SCORE_REQUEST_BATCH_SIZE = 8;
+const SCORE_POLL_INTERVAL_MS = 60_000;
 
 function asBigInt(value: string | null) {
   return value === null ? undefined : BigInt(value);
@@ -193,6 +194,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   const [reloadKey, setReloadKey] = useState(0);
   const [indexReloadKey, setIndexReloadKey] = useState(0);
   const hasPayload = useRef(false);
+  const scoreEntriesRef = useRef<MarketEntry[]>([]);
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -264,9 +266,16 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       ),
     [creator, payload?.entries],
   );
+  const scoreRefreshKey = useMemo(
+    () => buildMarketScoreRefreshKey(entries),
+    [entries],
+  );
+  useEffect(() => {
+    scoreEntriesRef.current = entries;
+  }, [entries]);
 
   useEffect(() => {
-    if (entries.length === 0) return;
+    if (!scoreRefreshKey) return;
     const controller = new AbortController();
     let retryTimer: number | undefined;
     let needsIndexRetry = false;
@@ -384,30 +393,41 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     };
     const loadScores = async () => {
       const result: MarketScoreResult[] = [];
-      for (const batch of chunkItems(entries, SCORE_REQUEST_BATCH_SIZE)) {
+      for (const batch of chunkItems(
+        scoreEntriesRef.current,
+        SCORE_REQUEST_BATCH_SIZE,
+      )) {
         if (controller.signal.aborted) break;
         result.push(...(await Promise.all(batch.map(loadScore))));
       }
       return result;
     };
-    void loadScores().then((result) => {
+    const refreshScores = async () => {
+      needsIndexRetry = false;
+      const result = await loadScores();
       if (controller.signal.aborted) return;
       setScores(
         Object.fromEntries(result.map(([token, score]) => [token, score])),
       );
       setScoreLoadPartial(result.some(([, , complete]) => !complete));
       if (needsIndexRetry) {
+        if (retryTimer !== undefined) window.clearTimeout(retryTimer);
         retryTimer = window.setTimeout(
           () => setIndexReloadKey((value) => value + 1),
           15_000,
         );
       }
-    });
+    };
+    const stopPolling = startVisiblePolling(
+      refreshScores,
+      SCORE_POLL_INTERVAL_MS,
+    );
     return () => {
       controller.abort();
+      stopPolling();
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
-  }, [entries, indexReloadKey]);
+  }, [indexReloadKey, scoreRefreshKey]);
 
   const ranked = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -523,7 +543,13 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
           <span>
             {loadError ? t("staleDataNotice") : t("partialDataNotice")}
           </span>
-          <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+          <button
+            type="button"
+            onClick={() => {
+              setReloadKey((value) => value + 1);
+              setIndexReloadKey((value) => value + 1);
+            }}
+          >
             {isRefreshing ? t("loading") : t("retry")}
           </button>
         </div>

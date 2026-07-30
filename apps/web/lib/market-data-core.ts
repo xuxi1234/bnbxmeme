@@ -3,6 +3,28 @@ export type FactoryCount<Factory extends string = string> = {
   count: bigint;
 };
 
+export type MarketScoreTarget = {
+  token: string;
+  curve: string | null;
+  state: number | null;
+  liquidityPair: string | null;
+};
+
+export function buildMarketScoreRefreshKey(entries: MarketScoreTarget[]) {
+  return entries
+    .map(({ token, curve, state, liquidityPair }) => {
+      const graduatedPair =
+        state === 2 ? (liquidityPair?.toLowerCase() ?? "") : "";
+      return [
+        token.toLowerCase(),
+        curve?.toLowerCase() ?? "",
+        state ?? "",
+        graduatedPair,
+      ].join(":");
+    })
+    .join("|");
+}
+
 export function buildFactorySlots<Factory extends string>(
   factories: FactoryCount<Factory>[],
   maxPerFactory?: number,
