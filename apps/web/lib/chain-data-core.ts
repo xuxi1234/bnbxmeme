@@ -51,6 +51,64 @@ function sameAddress(left: string | null, right: string | null) {
   return left?.toLowerCase() === right?.toLowerCase();
 }
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+type OfficialMarketPairResolution =
+  | { status: "ok"; pair: `0x${string}` | null }
+  | {
+      status: "mismatch";
+      reason: "PAIR_NOT_ACTIVE" | "PAIR_MISMATCH";
+    }
+  | {
+      status: "unavailable";
+      reason: "INVALID_CURVE_STATE" | "OFFICIAL_PAIR_MISSING";
+    };
+
+export function resolveOfficialMarketPair({
+  state,
+  officialPair,
+  requestedPair,
+}: {
+  state: number;
+  officialPair: `0x${string}`;
+  requestedPair: `0x${string}` | null;
+}): OfficialMarketPairResolution {
+  if (state !== 0 && state !== 1 && state !== 2) {
+    return { status: "unavailable", reason: "INVALID_CURVE_STATE" } as const;
+  }
+
+  if (state !== 2) {
+    return requestedPair
+      ? { status: "mismatch", reason: "PAIR_NOT_ACTIVE" as const }
+      : { status: "ok", pair: null };
+  }
+
+  if (sameAddress(officialPair, ZERO_ADDRESS)) {
+    return { status: "unavailable", reason: "OFFICIAL_PAIR_MISSING" } as const;
+  }
+  if (requestedPair && !sameAddress(requestedPair, officialPair)) {
+    return { status: "mismatch", reason: "PAIR_MISMATCH" } as const;
+  }
+  return { status: "ok", pair: officialPair };
+}
+
+export function isExpectedWrappedPair({
+  token0,
+  token1,
+  token,
+  wrappedNative,
+}: {
+  token0: `0x${string}`;
+  token1: `0x${string}`;
+  token: `0x${string}`;
+  wrappedNative: `0x${string}`;
+}) {
+  return (
+    (sameAddress(token0, token) && sameAddress(token1, wrappedNative)) ||
+    (sameAddress(token1, token) && sameAddress(token0, wrappedNative))
+  );
+}
+
 function isUnsignedInteger(value: unknown): value is string {
   return typeof value === "string" && /^\d+$/.test(value);
 }

@@ -7,9 +7,11 @@ import {
   exactCheckpointFilter,
   indexCoversCheckpoint,
   isCompatibleIndexState,
+  isExpectedWrappedPair,
   materializeHolders,
   mergeIndexedTrades,
   pricePerMillionBnb,
+  resolveOfficialMarketPair,
   resolveSwapAccount,
   resolveScanWindow,
   summarizeTrades,
@@ -122,6 +124,27 @@ const curveReserveReadAbi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "state",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "liquidityPair",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "wbnb",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
   },
 ] as const;
 
@@ -344,6 +367,7 @@ async function getSwapLogs(
 async function readPairSnapshot(
   pairAddress: `0x${string}`,
   tokenAddress: `0x${string}`,
+  wrappedNativeAddress: `0x${string}`,
   blockNumber: bigint,
 ) {
   const [token0, token1, reserves] = await Promise.all([
@@ -366,9 +390,17 @@ async function readPairSnapshot(
       blockNumber,
     }),
   ]);
+  if (
+    !isExpectedWrappedPair({
+      token0,
+      token1,
+      token: tokenAddress,
+      wrappedNative: wrappedNativeAddress,
+    })
+  ) {
+    return null;
+  }
   const tokenIs0 = token0.toLowerCase() === tokenAddress.toLowerCase();
-  const tokenIs1 = token1.toLowerCase() === tokenAddress.toLowerCase();
-  if (!tokenIs0 && !tokenIs1) return null;
   const tokenReserve = tokenIs0 ? reserves[0] : reserves[1];
   const bnbReserve = tokenIs0 ? reserves[1] : reserves[0];
   const bnb = Number(formatEther(bnbReserve));
@@ -381,6 +413,30 @@ async function readPairSnapshot(
     pricePerMillionBnb: currentPrice,
     liquidityBnb: bnb * 2,
   };
+}
+
+async function readCurveMarketConfig(curveAddress: `0x${string}`) {
+  const [state, liquidityPair, wrappedNative] = await client.multicall({
+    allowFailure: false,
+    contracts: [
+      {
+        address: curveAddress,
+        abi: curveReserveReadAbi,
+        functionName: "state",
+      },
+      {
+        address: curveAddress,
+        abi: curveReserveReadAbi,
+        functionName: "liquidityPair",
+      },
+      {
+        address: curveAddress,
+        abi: curveReserveReadAbi,
+        functionName: "wbnb",
+      },
+    ],
+  });
+  return { state, liquidityPair, wrappedNative };
 }
 
 async function readCurvePrice(
@@ -528,7 +584,43 @@ export async function GET(request: NextRequest) {
 
   const curveAddress = project.curve;
   const tokenAddress = project.token;
-  const pairAddress = pair as `0x${string}` | null;
+  const requestedPair = pair as `0x${string}` | null;
+  let curveMarketConfig: Awaited<ReturnType<typeof readCurveMarketConfig>>;
+  try {
+    curveMarketConfig = await readCurveMarketConfig(curveAddress);
+  } catch {
+    return NextResponse.json(
+      {
+        code: "PROJECT_MARKET_CONFIG_UNAVAILABLE",
+        error: "BNB Chain market configuration is temporarily unavailable",
+      },
+      { status: 503 },
+    );
+  }
+  const pairResolution = resolveOfficialMarketPair({
+    state: curveMarketConfig.state,
+    officialPair: curveMarketConfig.liquidityPair,
+    requestedPair,
+  });
+  if (pairResolution.status === "mismatch") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_PAIR_MISMATCH",
+        error: "Pair does not match the active BNBX project market",
+      },
+      { status: 404 },
+    );
+  }
+  if (pairResolution.status === "unavailable") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_MARKET_CONFIG_UNAVAILABLE",
+        error: "BNB Chain market configuration is temporarily unavailable",
+      },
+      { status: 503 },
+    );
+  }
+  const pairAddress = pairResolution.pair;
   const deploymentBlock = resolveFactoryDeploymentBlock(project.factory);
   if (deploymentBlock === null) {
     return NextResponse.json(
@@ -632,12 +724,19 @@ export async function GET(request: NextRequest) {
         client.getBlock({ blockNumber: latest }),
         scanPromise,
         pairAddress
-          ? readPairSnapshot(pairAddress, tokenAddress, latest).then(
-              (snapshot) => {
-                if (!snapshot) throw new Error("Pair does not match token");
-                return snapshot;
-              },
-            )
+          ? readPairSnapshot(
+              pairAddress,
+              tokenAddress,
+              curveMarketConfig.wrappedNative,
+              latest,
+            ).then((snapshot) => {
+              if (!snapshot) {
+                throw new Error(
+                  "Official Pair does not match token and wrapped native asset",
+                );
+              }
+              return snapshot;
+            })
           : Promise.resolve(null),
         pairAddress
           ? Promise.resolve(null)

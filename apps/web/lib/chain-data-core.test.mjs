@@ -7,9 +7,11 @@ import {
   exactCheckpointFilter,
   indexCoversCheckpoint,
   isCompatibleIndexState,
+  isExpectedWrappedPair,
   materializeHolders,
   mergeIndexedTrades,
   pricePerMillionBnb,
+  resolveOfficialMarketPair,
   resolveSwapAccount,
   resolveScanWindow,
   summarizeTrades,
@@ -21,6 +23,7 @@ const factory = "0xdb189396ae2a350c484ddd749a6af96baebc124b";
 const token = "0x1111111111111111111111111111111111111111";
 const curve = "0x2222222222222222222222222222222222222222";
 const pair = "0x3333333333333333333333333333333333333333";
+const wrappedNative = "0x6666666666666666666666666666666666666666";
 const buyer = "0x4444444444444444444444444444444444444444";
 const seller = "0x5555555555555555555555555555555555555555";
 const zero = "0x0000000000000000000000000000000000000000";
@@ -177,6 +180,74 @@ test("rejects legacy, mismatched Pair, and malformed holder cache states", () =>
     false,
   );
   assert.equal(isCompatibleIndexState(indexState(), identity), true);
+});
+
+test("derives graduated market mode from the official Curve Pair", () => {
+  assert.deepEqual(
+    resolveOfficialMarketPair({
+      state: 2,
+      officialPair: pair,
+      requestedPair: null,
+    }),
+    { status: "ok", pair },
+  );
+  assert.deepEqual(
+    resolveOfficialMarketPair({
+      state: 2,
+      officialPair: pair,
+      requestedPair: "0x7777777777777777777777777777777777777777",
+    }),
+    { status: "mismatch", reason: "PAIR_MISMATCH" },
+  );
+});
+
+test("rejects Pair parameters before graduation instead of changing cache mode", () => {
+  assert.deepEqual(
+    resolveOfficialMarketPair({
+      state: 0,
+      officialPair: pair,
+      requestedPair: null,
+    }),
+    { status: "ok", pair: null },
+  );
+  assert.deepEqual(
+    resolveOfficialMarketPair({
+      state: 1,
+      officialPair: pair,
+      requestedPair: pair,
+    }),
+    { status: "mismatch", reason: "PAIR_NOT_ACTIVE" },
+  );
+});
+
+test("requires a graduated Pair to contain only the token and Curve WBNB", () => {
+  assert.equal(
+    isExpectedWrappedPair({
+      token0: token,
+      token1: wrappedNative,
+      token,
+      wrappedNative,
+    }),
+    true,
+  );
+  assert.equal(
+    isExpectedWrappedPair({
+      token0: wrappedNative,
+      token1: token,
+      token,
+      wrappedNative,
+    }),
+    true,
+  );
+  assert.equal(
+    isExpectedWrappedPair({
+      token0: token,
+      token1: "0x7777777777777777777777777777777777777777",
+      token,
+      wrappedNative,
+    }),
+    false,
+  );
 });
 
 test("deduplicates overlapping logs by transaction hash and log index", () => {
