@@ -1543,6 +1543,7 @@ export function TokenTradingPage({
               curve={curveAddress}
               token={tokenAddress}
               pair={activePairAddress}
+              name={tokenName ?? tokenSymbol ?? "—"}
               symbol={tokenSymbol ?? "—"}
               refreshKey={receipt.isSuccess ? tradeWrite.data : undefined}
             />
