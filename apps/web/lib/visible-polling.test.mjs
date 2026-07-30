@@ -116,3 +116,18 @@ test("polls market scores independently once per minute", async () => {
   );
   assert.match(source, /\[indexReloadKey, scoreRefreshKey\]/);
 });
+
+test("does not restart activity polling when result counts change", async () => {
+  const source = await readFile(
+    new URL("../components/token-activity.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /const hasActivityData = useRef\(false\)/);
+  assert.match(source, /if \(!hasActivityData\.current\) setIsLoading\(true\)/);
+  assert.match(source, /hasActivityData\.current = true/);
+  assert.doesNotMatch(
+    source,
+    /\}, \[[^\]]*(?:holders|trades)\.length[^\]]*\]\);/,
+  );
+});

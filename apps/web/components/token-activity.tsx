@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
@@ -95,6 +95,8 @@ export function TokenActivity({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const hasActivityData = useRef(false);
+  const activityIdentity = useRef<string | null>(null);
   const topTraders = useMemo(() => {
     const excluded = new Set(
       [
@@ -131,10 +133,21 @@ export function TokenActivity({
 
   useEffect(() => {
     if (token === zeroAddress || curve === zeroAddress) return;
+    const nextIdentity = `${curve}:${token}:${pair ?? zeroAddress}`;
+    if (
+      activityIdentity.current !== null &&
+      activityIdentity.current !== nextIdentity
+    ) {
+      hasActivityData.current = false;
+      setTrades([]);
+      setHolders([]);
+      setIsLoading(true);
+    }
+    activityIdentity.current = nextIdentity;
     const controller = new AbortController();
 
     async function load() {
-      if (trades.length === 0 && holders.length === 0) setIsLoading(true);
+      if (!hasActivityData.current) setIsLoading(true);
       setLoadError(false);
       let isBackfilling = false;
       try {
@@ -190,6 +203,7 @@ export function TokenActivity({
           balance: BigInt(holder.balance),
         }));
         setHolders(nextHolders);
+        hasActivityData.current = true;
         const nextTop10Concentration =
           typeof data.top10ConcentrationPct === "number" &&
           Number.isFinite(data.top10ConcentrationPct)
@@ -241,7 +255,7 @@ export function TokenActivity({
       controller.abort();
       stopPolling();
     };
-  }, [curve, holders.length, onSummary, pair, refreshKey, reloadKey, token, trades.length]);
+  }, [curve, onSummary, pair, refreshKey, reloadKey, token]);
 
   return (
     <section className="activity-terminal">
