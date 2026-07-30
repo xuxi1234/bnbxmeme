@@ -5,6 +5,7 @@ import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
 import { pancakeRouterAddress } from "@/lib/deployments";
+import { fetchSharedChainData } from "@/lib/shared-chain-data";
 import { startVisiblePolling } from "@/lib/visible-polling";
 
 type Trade = {
@@ -137,14 +138,7 @@ export function TokenActivity({
       setLoadError(false);
       let isBackfilling = false;
       try {
-        const response = await fetch(
-          `/api/chain-data?curve=${curve}&token=${token}${
-            pair && pair !== zeroAddress ? `&pair=${pair}` : ""
-          }`,
-          { signal: controller.signal },
-        );
-        if (!response.ok) throw new Error("chain data unavailable");
-        const data = await response.json() as {
+        const data = await fetchSharedChainData<{
           trades: Array<Omit<Trade, "bnb" | "priceBNB" | "tokens" | "blockNumber"> & { bnb: string; priceBNB: string; tokens: string; blockNumber: string }>;
           holders: Array<{ address: `0x${string}`; balance: string }>;
           holderCount?: number;
@@ -162,7 +156,7 @@ export function TokenActivity({
             status: "backfilling" | "complete";
           };
           bnbUsd?: number;
-        };
+        }>({ curve, token, pair }, controller.signal);
         if (data.index?.status === "backfilling") {
           isBackfilling = true;
           onSummary?.({
