@@ -68,6 +68,8 @@ test("keeps empty, unavailable, and 404 states present in all four languages", a
     "noHolders",
     "noProjectsYet",
     "noProjectsHelp",
+    "pageNotFoundTitle",
+    "pageNotFoundHelp",
     "projectNotFoundTitle",
     "projectNotFoundHelp",
     "projectUnavailableTitle",
