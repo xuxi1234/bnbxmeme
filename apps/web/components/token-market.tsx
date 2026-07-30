@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useTokenMetadata } from "@/lib/metadata";
 import { pancakeRouterAddress } from "@/lib/deployments";
+import { chunkItems } from "@/lib/market-data-core";
 import {
   formatCompactMetric,
   formatTokenPriceUsdt,
@@ -50,6 +51,9 @@ type MarketScore = {
   graduatedAt?: number;
   hotScore?: number;
 };
+type MarketScoreResult = readonly [string, MarketScore, boolean];
+
+const SCORE_REQUEST_BATCH_SIZE = 8;
 
 function asBigInt(value: string | null) {
   return value === null ? undefined : BigInt(value);
@@ -194,42 +198,46 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     window.history.replaceState(null, "", url);
   }, []);
 
-  const loadMarket = useCallback(async (signal: AbortSignal) => {
-    setLoadError(false);
-    setIsRefreshing(hasPayload.current);
-    if (!hasPayload.current) setIsLoading(true);
-    try {
-      const response = await fetch("/api/market-data", {
-        signal,
-      });
-      if (!response.ok) throw new Error("market data unavailable");
-      const next = (await response.json()) as MarketPayload;
-      if (!signal.aborted) {
-        hasPayload.current = true;
-        setPayload(next);
+  const loadMarket = useCallback(
+    async (signal: AbortSignal) => {
+      setLoadError(false);
+      setIsRefreshing(hasPayload.current);
+      if (!hasPayload.current) setIsLoading(true);
+      try {
+        const endpoint = creator
+          ? `/api/market-data?creator=${encodeURIComponent(creator)}`
+          : "/api/market-data";
+        const response = await fetch(endpoint, { signal });
+        if (!response.ok) throw new Error("market data unavailable");
+        const next = (await response.json()) as MarketPayload;
+        if (!signal.aborted) {
+          hasPayload.current = true;
+          setPayload(next);
+        }
+      } catch {
+        if (!signal.aborted) setLoadError(true);
+      } finally {
+        if (!signal.aborted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
-    } catch {
-      if (!signal.aborted) setLoadError(true);
-    } finally {
-      if (!signal.aborted) {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    }
-  }, []);
+    },
+    [creator],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void loadMarket(controller.signal);
     const interval = window.setInterval(
       () => void loadMarket(controller.signal),
-      15_000,
+      creator ? 60_000 : 15_000,
     );
     return () => {
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [loadMarket, reloadKey]);
+  }, [creator, loadMarket, reloadKey]);
 
   const entries = useMemo(
     () =>
@@ -246,119 +254,127 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     const controller = new AbortController();
     let retryTimer: number | undefined;
     let needsIndexRetry = false;
-    void Promise.all(
-      entries.map(async (entry) => {
-        if (!entry.curve || entry.curve === zeroAddress) {
-          return [entry.token, {}, false] as const;
-        }
-        try {
-          const response = await fetch(
-            `/api/chain-data?curve=${entry.curve}&token=${entry.token}${
-              entry.state === 2 &&
-              entry.liquidityPair &&
-              entry.liquidityPair !== zeroAddress
-                ? `&pair=${entry.liquidityPair}`
-                : ""
-            }`,
-            { signal: controller.signal },
-          );
-          if (!response.ok) throw new Error("unavailable");
-          const data = (await response.json()) as {
-            trades: Array<{
-              bnb: string;
-              priceBNB: string;
-              tokens: string;
-              blockNumber: string;
-              timestamp: number;
-              account?: string;
-              side?: "buy" | "sell";
-              source?: "curve" | "pancake";
-            }>;
-            holders: Array<unknown>;
-            holderCount?: number;
-            market?: {
-              pricePerMillionBnb?: number | null;
-              volume24hBnb?: number | null;
-              priceChange24h?: number | null;
-              liquidityBnb?: number | null;
-              buys24h?: number | null;
-              sells24h?: number | null;
-              graduatedAt?: number | null;
-            };
-            bnbUsd?: number;
-            index?: {
-              status: "backfilling" | "complete";
-            };
+    const loadScore = async (
+      entry: MarketEntry,
+    ): Promise<MarketScoreResult> => {
+      if (!entry.curve || entry.curve === zeroAddress) {
+        return [entry.token, {}, false] as const;
+      }
+      try {
+        const response = await fetch(
+          `/api/chain-data?curve=${entry.curve}&token=${entry.token}${
+            entry.state === 2 &&
+            entry.liquidityPair &&
+            entry.liquidityPair !== zeroAddress
+              ? `&pair=${entry.liquidityPair}`
+              : ""
+          }`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error("unavailable");
+        const data = (await response.json()) as {
+          trades: Array<{
+            bnb: string;
+            priceBNB: string;
+            tokens: string;
+            blockNumber: string;
+            timestamp: number;
+            account?: string;
+            side?: "buy" | "sell";
+            source?: "curve" | "pancake";
+          }>;
+          holders: Array<unknown>;
+          holderCount?: number;
+          market?: {
+            pricePerMillionBnb?: number | null;
+            volume24hBnb?: number | null;
+            priceChange24h?: number | null;
+            liquidityBnb?: number | null;
+            buys24h?: number | null;
+            sells24h?: number | null;
+            graduatedAt?: number | null;
           };
-          if (data.index?.status === "backfilling") {
-            needsIndexRetry = true;
-            return [
-              entry.token,
-              {
-                pricePerMillion:
-                  data.market?.pricePerMillionBnb ?? undefined,
-                liquidityBnb: data.market?.liquidityBnb ?? undefined,
-                bnbUsd: data.bnbUsd,
-              },
-              false,
-            ] as const;
-          }
-          const latestTrade = [...data.trades].sort((a, b) =>
-            BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1,
-          )[0];
-          const latestTokens = latestTrade
-            ? Number(formatEther(BigInt(latestTrade.tokens)))
-            : 0;
-          const latestBnb = latestTrade
-            ? Number(formatEther(BigInt(latestTrade.priceBNB)))
-            : 0;
-          const holderCount = data.holderCount ?? data.holders.length;
-          const ranking = calculateHotRanking({
-            trades: data.trades,
-            market: data.market,
-            holderCount,
-            graduated: entry.state === 2,
-            nowSeconds: Math.floor(Date.now() / 1000),
-            excludedAccounts: [
-              zeroAddress,
-              entry.token,
-              entry.curve,
-              entry.liquidityPair,
-              pancakeRouterAddress,
-            ],
-          });
+          bnbUsd?: number;
+          index?: {
+            status: "backfilling" | "complete";
+          };
+        };
+        if (data.index?.status === "backfilling") {
+          needsIndexRetry = true;
           return [
             entry.token,
             {
-              volume24hBnb: ranking.volume24hBnb,
-              activity: ranking.activity,
-              uniqueTraders: ranking.uniqueTraders,
-              lastBlock: data.trades.reduce(
-                (latest, trade) =>
-                  BigInt(trade.blockNumber) > latest
-                    ? BigInt(trade.blockNumber)
-                    : latest,
-                0n,
-              ),
-              pricePerMillion:
-                data.market?.pricePerMillionBnb ??
-                (latestTokens > 0
-                  ? (latestBnb / latestTokens) * 1_000_000
-                  : undefined),
-              priceChange24h: data.market?.priceChange24h ?? undefined,
+              pricePerMillion: data.market?.pricePerMillionBnb ?? undefined,
               liquidityBnb: data.market?.liquidityBnb ?? undefined,
               bnbUsd: data.bnbUsd,
-              holderCount,
-              graduatedAt: data.market?.graduatedAt ?? undefined,
-              hotScore: ranking.hotScore,
             },
-            true,
+            false,
           ] as const;
-        } catch {
-          return [entry.token, {}, false] as const;
         }
-      }),
-    ).then((result) => {
+        const latestTrade = [...data.trades].sort((a, b) =>
+          BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1,
+        )[0];
+        const latestTokens = latestTrade
+          ? Number(formatEther(BigInt(latestTrade.tokens)))
+          : 0;
+        const latestBnb = latestTrade
+          ? Number(formatEther(BigInt(latestTrade.priceBNB)))
+          : 0;
+        const holderCount = data.holderCount ?? data.holders.length;
+        const ranking = calculateHotRanking({
+          trades: data.trades,
+          market: data.market,
+          holderCount,
+          graduated: entry.state === 2,
+          nowSeconds: Math.floor(Date.now() / 1000),
+          excludedAccounts: [
+            zeroAddress,
+            entry.token,
+            entry.curve,
+            entry.liquidityPair,
+            pancakeRouterAddress,
+          ],
+        });
+        return [
+          entry.token,
+          {
+            volume24hBnb: ranking.volume24hBnb,
+            activity: ranking.activity,
+            uniqueTraders: ranking.uniqueTraders,
+            lastBlock: data.trades.reduce(
+              (latest, trade) =>
+                BigInt(trade.blockNumber) > latest
+                  ? BigInt(trade.blockNumber)
+                  : latest,
+              0n,
+            ),
+            pricePerMillion:
+              data.market?.pricePerMillionBnb ??
+              (latestTokens > 0
+                ? (latestBnb / latestTokens) * 1_000_000
+                : undefined),
+            priceChange24h: data.market?.priceChange24h ?? undefined,
+            liquidityBnb: data.market?.liquidityBnb ?? undefined,
+            bnbUsd: data.bnbUsd,
+            holderCount,
+            graduatedAt: data.market?.graduatedAt ?? undefined,
+            hotScore: ranking.hotScore,
+          },
+          true,
+        ] as const;
+      } catch {
+        return [entry.token, {}, false] as const;
+      }
+    };
+    const loadScores = async () => {
+      const result: MarketScoreResult[] = [];
+      for (const batch of chunkItems(entries, SCORE_REQUEST_BATCH_SIZE)) {
+        if (controller.signal.aborted) break;
+        result.push(...(await Promise.all(batch.map(loadScore))));
+      }
+      return result;
+    };
+    void loadScores().then((result) => {
       if (controller.signal.aborted) return;
       setScores(
         Object.fromEntries(result.map(([token, score]) => [token, score])),

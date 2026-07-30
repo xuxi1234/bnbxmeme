@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress, zeroAddress } from "viem";
 import { officialFactoryAddresses } from "@/lib/deployments";
+import { buildFactorySlots, chunkItems } from "@/lib/market-data-core";
 import { serverPublicClient } from "@/lib/server-chain";
 import { validateTokenProject } from "@/lib/token-project-server";
 import type { ProjectValidationResult } from "@/lib/project-validation-core";
@@ -8,6 +9,10 @@ import type { ProjectValidationResult } from "@/lib/project-validation-core";
 export const dynamic = "force-dynamic";
 
 const MAX_VISIBLE_TOKENS_PER_FACTORY = 8;
+const TOKEN_READ_BATCH_SIZE = 100;
+const ENTRY_READ_BATCH_SIZE = 20;
+const CREATOR_CATALOG_CACHE_MS = 60_000;
+const PARTIAL_CREATOR_CATALOG_CACHE_MS = 10_000;
 
 const factoryReadAbi = [
   {
@@ -145,7 +150,54 @@ function responseHeaders(status: "fresh" | "partial") {
   };
 }
 
-async function readMarket() {
+type FactorySlot = {
+  factory: `0x${string}`;
+  index: bigint;
+  creationIndex: number;
+};
+
+type TokenRecord = FactorySlot & {
+  token: `0x${string}`;
+};
+
+type CurveRecord = TokenRecord & {
+  curve: `0x${string}` | null;
+};
+
+type CreatorRecord = TokenRecord & {
+  curve: `0x${string}`;
+  creator: `0x${string}`;
+};
+
+type CreatorCatalog = {
+  records: CreatorRecord[];
+  partial: boolean;
+};
+
+let creatorCatalogCache:
+  | (CreatorCatalog & {
+      expiresAt: number;
+    })
+  | undefined;
+let creatorCatalogRequest: Promise<CreatorCatalog> | undefined;
+
+type MarketEntry = {
+  token: `0x${string}`;
+  factory: `0x${string}`;
+  curve: `0x${string}` | null;
+  creationIndex: number;
+  name: string | null;
+  symbol: string | null;
+  totalSupply: string | null;
+  metadataURI: string | null;
+  principal: string | null;
+  target: string | null;
+  state: number | null;
+  creator: `0x${string}` | null;
+  liquidityPair: `0x${string}` | null;
+};
+
+async function readFactoryCounts() {
   const countResults = await serverPublicClient.multicall({
     allowFailure: true,
     contracts: officialFactoryAddresses.map((address) => ({
@@ -163,38 +215,93 @@ async function readMarket() {
   if (availableFactories.length === 0) {
     throw new Error("All official Factory reads failed");
   }
+  return {
+    availableFactories,
+    partial: availableFactories.length !== officialFactoryAddresses.length,
+  };
+}
 
-  const slots = availableFactories.flatMap(({ factory, count }) => {
-    const visibleCount = Math.min(
-      Number(count),
-      MAX_VISIBLE_TOKENS_PER_FACTORY,
-    );
-    return Array.from({ length: visibleCount }, (_, position) => ({
-      factory,
-      index: BigInt(visibleCount - position - 1),
-      creationIndex: Number(count) - position - 1,
-    }));
-  });
-  const tokenResults = slots.length
-    ? await serverPublicClient.multicall({
-        allowFailure: true,
-        contracts: slots.map(({ factory, index }) => ({
-          address: factory,
-          abi: factoryReadAbi,
-          functionName: "allTokens" as const,
-          args: [index] as const,
-        })),
-      })
-    : [];
-  const records = slots.flatMap((slot, position) => {
-    const token = successful<`0x${string}`>(tokenResults[position]);
-    return token && token !== zeroAddress ? [{ ...slot, token }] : [];
-  });
+async function readTokenRecords(slots: FactorySlot[]) {
+  const records: TokenRecord[] = [];
+  let partial = false;
+  for (const batch of chunkItems(slots, TOKEN_READ_BATCH_SIZE)) {
+    const results = await serverPublicClient.multicall({
+      allowFailure: true,
+      contracts: batch.map(({ factory, index }) => ({
+        address: factory,
+        abi: factoryReadAbi,
+        functionName: "allTokens" as const,
+        args: [index] as const,
+      })),
+    });
+    batch.forEach((slot, position) => {
+      const token = successful<`0x${string}`>(results[position]);
+      if (token && token !== zeroAddress) records.push({ ...slot, token });
+      else partial = true;
+    });
+  }
+  return { records, partial };
+}
 
-  const identityResults = records.length
-    ? await serverPublicClient.multicall({
+async function readCurveRecords(records: TokenRecord[]) {
+  const curveRecords: CurveRecord[] = [];
+  let partial = false;
+  for (const batch of chunkItems(records, TOKEN_READ_BATCH_SIZE)) {
+    const results = await serverPublicClient.multicall({
+      allowFailure: true,
+      contracts: batch.map(({ factory, token }) => ({
+        address: factory,
+        abi: factoryReadAbi,
+        functionName: "curveOf" as const,
+        args: [token] as const,
+      })),
+    });
+    batch.forEach((record, position) => {
+      const curve = successful<`0x${string}`>(results[position]);
+      const validCurve = curve && curve !== zeroAddress ? curve : null;
+      if (!validCurve) partial = true;
+      curveRecords.push({ ...record, curve: validCurve });
+    });
+  }
+  return { records: curveRecords, partial };
+}
+
+async function readCreatorRecords(records: CurveRecord[]) {
+  const creatorRecords: CreatorRecord[] = [];
+  let partial = records.some((record) => record.curve === null);
+  const candidates = records.filter(
+    (
+      record,
+    ): record is TokenRecord & {
+      curve: `0x${string}`;
+    } => record.curve !== null,
+  );
+  for (const batch of chunkItems(candidates, TOKEN_READ_BATCH_SIZE)) {
+    const results = await serverPublicClient.multicall({
+      allowFailure: true,
+      contracts: batch.map(({ curve }) => ({
+        address: curve,
+        abi: curveReadAbi,
+        functionName: "creator" as const,
+      })),
+    });
+    batch.forEach((record, position) => {
+      const creator = successful<`0x${string}`>(results[position]);
+      if (!creator) partial = true;
+      else creatorRecords.push({ ...record, creator });
+    });
+  }
+  return { records: creatorRecords, partial };
+}
+
+async function readEntries(records: CurveRecord[], initialPartial: boolean) {
+  const entries: MarketEntry[] = [];
+  let partial = initialPartial;
+  for (const batch of chunkItems(records, ENTRY_READ_BATCH_SIZE)) {
+    const [identityResults, curveResults] = await Promise.all([
+      serverPublicClient.multicall({
         allowFailure: true,
-        contracts: records.flatMap(({ factory, token }) => [
+        contracts: batch.flatMap(({ factory, token }) => [
           {
             address: token,
             abi: tokenReadAbi,
@@ -216,23 +323,12 @@ async function readMarket() {
             functionName: "tokenMetadataURI" as const,
             args: [token] as const,
           },
-          {
-            address: factory,
-            abi: factoryReadAbi,
-            functionName: "curveOf" as const,
-            args: [token] as const,
-          },
         ]),
-      })
-    : [];
-  const curves = records.map((_, position) =>
-    successful<`0x${string}`>(identityResults[position * 5 + 4]),
-  );
-  const curveResults = curves.length
-    ? await serverPublicClient.multicall({
+      }),
+      serverPublicClient.multicall({
         allowFailure: true,
-        contracts: curves.flatMap((curve) =>
-          curve && curve !== zeroAddress
+        contracts: batch.flatMap(({ curve }) =>
+          curve
             ? [
                 {
                   address: curve,
@@ -262,62 +358,121 @@ async function readMarket() {
               ]
             : [],
         ),
-      })
-    : [];
-
-  let curveResultPosition = 0;
-  let partial = availableFactories.length !== officialFactoryAddresses.length;
-  const entries = records.map((record, position) => {
-    const curve = curves[position];
-    const hasCurve = Boolean(curve && curve !== zeroAddress);
-    const stats = hasCurve
-      ? curveResults.slice(curveResultPosition, curveResultPosition + 5)
-      : [];
-    if (hasCurve) curveResultPosition += 5;
-    const name = successful<string>(identityResults[position * 5]);
-    const symbol = successful<string>(identityResults[position * 5 + 1]);
-    const totalSupply = successful<bigint>(identityResults[position * 5 + 2]);
-    const metadataURI = successful<string>(identityResults[position * 5 + 3]);
-    const principal = successful<bigint>(stats[0]);
-    const target = successful<bigint>(stats[1]);
-    const state = successful<number>(stats[2]);
-    const creator = successful<`0x${string}`>(stats[3]);
-    const liquidityPair = successful<`0x${string}`>(stats[4]);
-    if (
-      !name ||
-      !symbol ||
-      totalSupply === undefined ||
-      !metadataURI ||
-      !hasCurve ||
-      principal === undefined ||
-      target === undefined ||
-      state === undefined ||
-      !creator ||
-      !liquidityPair
-    ) {
-      partial = true;
-    }
-    return {
-      token: record.token,
-      factory: record.factory,
-      curve: hasCurve ? curve : null,
-      creationIndex: record.creationIndex,
-      name: name ?? null,
-      symbol: symbol ?? null,
-      totalSupply: totalSupply?.toString() ?? null,
-      metadataURI: metadataURI ?? null,
-      principal: principal?.toString() ?? null,
-      target: target?.toString() ?? null,
-      state: state ?? null,
-      creator: creator ?? null,
-      liquidityPair: liquidityPair ?? null,
-    };
-  });
+      }),
+    ]);
+    let curveResultPosition = 0;
+    batch.forEach((record, position) => {
+      const stats = record.curve
+        ? curveResults.slice(curveResultPosition, curveResultPosition + 5)
+        : [];
+      if (record.curve) curveResultPosition += 5;
+      const name = successful<string>(identityResults[position * 4]);
+      const symbol = successful<string>(identityResults[position * 4 + 1]);
+      const totalSupply = successful<bigint>(identityResults[position * 4 + 2]);
+      const metadataURI = successful<string>(identityResults[position * 4 + 3]);
+      const principal = successful<bigint>(stats[0]);
+      const target = successful<bigint>(stats[1]);
+      const state = successful<number>(stats[2]);
+      const creator = successful<`0x${string}`>(stats[3]);
+      const liquidityPair = successful<`0x${string}`>(stats[4]);
+      if (
+        !name ||
+        !symbol ||
+        totalSupply === undefined ||
+        !metadataURI ||
+        !record.curve ||
+        principal === undefined ||
+        target === undefined ||
+        state === undefined ||
+        !creator ||
+        !liquidityPair
+      ) {
+        partial = true;
+      }
+      entries.push({
+        token: record.token,
+        factory: record.factory,
+        curve: record.curve,
+        creationIndex: record.creationIndex,
+        name: name ?? null,
+        symbol: symbol ?? null,
+        totalSupply: totalSupply?.toString() ?? null,
+        metadataURI: metadataURI ?? null,
+        principal: principal?.toString() ?? null,
+        target: target?.toString() ?? null,
+        state: state ?? null,
+        creator: creator ?? null,
+        liquidityPair: liquidityPair ?? null,
+      });
+    });
+  }
 
   return {
     entries,
     dataStatus: partial ? ("partial" as const) : ("fresh" as const),
   };
+}
+
+async function readMarket() {
+  const counts = await readFactoryCounts();
+  const slots = buildFactorySlots(
+    counts.availableFactories,
+    MAX_VISIBLE_TOKENS_PER_FACTORY,
+  );
+  const tokens = await readTokenRecords(slots);
+  const curves = await readCurveRecords(tokens.records);
+  return readEntries(
+    curves.records,
+    counts.partial || tokens.partial || curves.partial,
+  );
+}
+
+async function readCreatorMarket(creator: `0x${string}`) {
+  const catalog = await getCreatorCatalog();
+  const normalizedCreator = creator.toLowerCase();
+  return readEntries(
+    catalog.records.filter(
+      (record) => record.creator.toLowerCase() === normalizedCreator,
+    ),
+    catalog.partial,
+  );
+}
+
+async function buildCreatorCatalog() {
+  const counts = await readFactoryCounts();
+  const slots = buildFactorySlots(counts.availableFactories);
+  const tokens = await readTokenRecords(slots);
+  const curves = await readCurveRecords(tokens.records);
+  const creators = await readCreatorRecords(curves.records);
+  return {
+    records: creators.records,
+    partial:
+      counts.partial || tokens.partial || curves.partial || creators.partial,
+  };
+}
+
+function getCreatorCatalog() {
+  if (creatorCatalogCache && creatorCatalogCache.expiresAt > Date.now()) {
+    return Promise.resolve(creatorCatalogCache);
+  }
+  if (!creatorCatalogRequest) {
+    creatorCatalogRequest = buildCreatorCatalog()
+      .then((catalog) => {
+        creatorCatalogCache = {
+          ...catalog,
+          expiresAt:
+            Date.now() +
+            (catalog.partial
+              ? PARTIAL_CREATOR_CATALOG_CACHE_MS
+              : CREATOR_CATALOG_CACHE_MS),
+        };
+        return catalog;
+      })
+      .finally(() => {
+        creatorCatalogRequest = undefined;
+      });
+  }
+  return creatorCatalogRequest;
 }
 
 type ValidProject = Extract<ProjectValidationResult, { status: "valid" }>;
@@ -397,8 +552,21 @@ async function readToken({ token, factory, curve }: ValidProject) {
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
+  const creator = request.nextUrl.searchParams.get("creator");
   if (token && !isAddress(token)) {
     return NextResponse.json({ error: "Invalid token address" }, { status: 400 });
+  }
+  if (creator && !isAddress(creator)) {
+    return NextResponse.json(
+      { error: "Invalid creator address" },
+      { status: 400 },
+    );
+  }
+  if (token && creator) {
+    return NextResponse.json(
+      { error: "Choose either token or creator mode" },
+      { status: 400 },
+    );
   }
   try {
     if (token) {
@@ -422,6 +590,12 @@ export async function GET(request: NextRequest) {
         );
       }
       const result = await readToken(project);
+      return NextResponse.json(result, {
+        headers: responseHeaders(result.dataStatus),
+      });
+    }
+    if (creator) {
+      const result = await readCreatorMarket(creator as `0x${string}`);
       return NextResponse.json(result, {
         headers: responseHeaders(result.dataStatus),
       });
