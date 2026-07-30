@@ -39,6 +39,7 @@ import { BondingCurveChart } from "@/components/bonding-curve-chart";
 import { ProjectDiscussion } from "@/components/project-discussion";
 import { useLanguage } from "@/components/language-provider";
 import { resolveLpBurnStatus } from "@/lib/lp-security-core";
+import { publicQuoteReadConfig } from "@/lib/trade-quote-core";
 import { ProjectState } from "./project-state";
 
 const SLIPPAGE_BPS = 100n;
@@ -523,23 +524,33 @@ export function TokenTradingPage({
 
   const buyWei = safeParseEther(buyAmount);
   const sellWei = safeParseEther(sellAmount);
+  const buyQuoteConfig = publicQuoteReadConfig({
+    curveAddress,
+    amountWei: buyWei,
+  });
   const buyQuote = useReadContract({
     address: curveAddress,
     abi: curveAbi,
     functionName: "quoteBuy",
     args: [buyWei],
+    chainId: buyQuoteConfig.chainId,
     query: {
-      enabled: curveAddress !== zeroAddress && buyWei > 0n,
+      enabled: buyQuoteConfig.enabled,
       refetchInterval: 8_000,
     },
+  });
+  const sellQuoteConfig = publicQuoteReadConfig({
+    curveAddress,
+    amountWei: sellWei,
   });
   const sellQuote = useReadContract({
     address: curveAddress,
     abi: curveAbi,
     functionName: "quoteSell",
     args: [sellWei],
+    chainId: sellQuoteConfig.chainId,
     query: {
-      enabled: curveAddress !== zeroAddress && sellWei > 0n,
+      enabled: sellQuoteConfig.enabled,
       refetchInterval: 8_000,
     },
   });
