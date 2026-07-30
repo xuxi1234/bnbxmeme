@@ -14,6 +14,11 @@ import {
 } from "wagmi";
 import { bsc, bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
+import { useLanguage } from "@/components/language-provider";
+import {
+  deploymentCopy,
+  interpolate,
+} from "@/lib/localization-copy";
 import {
   factoryDeploymentAbi,
   factoryDeploymentBytecode,
@@ -36,23 +41,29 @@ const PANCAKE_V2_MAINNET_ROUTER =
   "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 const DEPLOYMENT_GAS_LIMIT = 8_000_000n;
 
-function deploymentErrorMessage(error: Error, isMainnet: boolean) {
+function deploymentErrorMessage(
+  error: Error,
+  isMainnet: boolean,
+  copy: (typeof deploymentCopy)["en"],
+) {
   const message = error.message.toLowerCase();
   if (message.includes("user rejected") || message.includes("user denied")) {
-    return "你已在 MetaMask 取消部署。";
+    return copy.errorCancelled;
   }
   if (message.includes("insufficient funds")) {
     return isMainnet
-      ? "主网钱包的 BNB 不足以支付部署 Gas。"
-      : "测试钱包的 tBNB 不足以支付部署 Gas。";
+      ? copy.errorMainnetFunds
+      : copy.errorTestnetFunds;
   }
   if (message.includes("max code size exceeded")) {
-    return "Factory 代码超过 BSC 合约大小限制，请使用最新部署页面后重试。";
+    return copy.errorCodeSize;
   }
-  return `交易未成功发送：${error.message}`;
+  return interpolate(copy.errorFailed, { message: error.message });
 }
 
 export default function DeployTestnetPage() {
+  const { language } = useLanguage();
+  const copy = deploymentCopy[language];
   const pathname = usePathname();
   const isMainnet = pathname.includes("mainnet");
   const activeChain = isMainnet ? bsc : bscTestnet;
@@ -185,19 +196,14 @@ export default function DeployTestnetPage() {
             : "TESTNET / FACTORY DEPLOYMENT"}
         </p>
         <h1 className="form-title">
-          部署 BNBX {isMainnet ? "主网小额灰度" : "测试网"} Factory
+          {isMainnet ? copy.titleMainnet : copy.titleTestnet}
         </h1>
         <p className="lead">
-          仅部署到{" "}
-          {isMainnet
-            ? "BSC Mainnet；毕业档位为 0.01–0.18 BNB"
-            : "BSC Testnet"}
-          。部署费接收地址和 Pancake V2 Router 已固定，MetaMask
-          会在发送前显示 Gas 费用。
+          {isMainnet ? copy.leadMainnet : copy.leadTestnet}
         </p>
         <div className="launch-form">
           <label>
-            Factory 类型
+            {copy.factoryType}
             <select
               value={factoryType}
               onChange={(event) =>
@@ -209,9 +215,9 @@ export default function DeployTestnetPage() {
                 )
               }
             >
-              <option value="rewards">持币分红 / 添加 LP 分红 Factory</option>
-              <option value="liquidity">自动回流 V2 Factory</option>
-              <option value="standard">标准 0 税 Factory</option>
+              <option value="rewards">{copy.rewardsOption}</option>
+              <option value="liquidity">{copy.liquidityOption}</option>
+              <option value="standard">{copy.standardOption}</option>
             </select>
           </label>
           <p className="notice">
@@ -221,7 +227,9 @@ export default function DeployTestnetPage() {
           </p>
           {!isConnected ? (
             <p className="notice">
-              请先连接持有 {isMainnet ? "BNB" : "tBNB"} 的部署钱包。
+              {isMainnet
+                ? copy.connectMainnetWallet
+                : copy.connectTestnetWallet}
             </p>
           ) : wrongChain ? (
             <button
@@ -229,12 +237,12 @@ export default function DeployTestnetPage() {
               type="button"
               onClick={() => switchChain({ chainId: activeChain.id })}
             >
-              切换到 BNB {isMainnet ? "主网" : "测试网"}
+              {isMainnet ? copy.switchMainnet : copy.switchTestnet}
             </button>
           ) : factoryType !== "standard" ? (
             <div className="stack">
               <p className="notice">
-                自动回流及分红模板需依次完成三笔链上操作。每一步确认后才会开放下一步。
+                {copy.advancedStepsHelp}
               </p>
               <button
                 className="button wide"
@@ -247,12 +255,12 @@ export default function DeployTestnetPage() {
                 onClick={deployAdvancedTokenDeployer}
               >
                 {tokenDeployerAddress
-                  ? "步骤 1 已完成"
+                  ? copy.step1Done
                   : tokenDeployerDeployment.isPending
-                    ? "请确认步骤 1…"
+                    ? copy.step1Confirm
                     : tokenDeployerReceipt.isLoading
-                      ? "等待步骤 1 上链…"
-                      : "步骤 1：部署高级代币部署器"}
+                      ? copy.step1Waiting
+                      : copy.step1Deploy}
               </button>
               <button
                 className="button wide"
@@ -266,14 +274,14 @@ export default function DeployTestnetPage() {
                 onClick={deployRewardsFactory}
               >
                 {rewardsFactoryAddress
-                  ? "步骤 2 已完成"
+                  ? copy.step2Done
                   : rewardsFactoryDeployment.isPending
-                    ? "请确认步骤 2…"
+                    ? copy.step2Confirm
                     : rewardsFactoryReceipt.isLoading
-                      ? "等待步骤 2 上链…"
+                      ? copy.step2Waiting
                       : factoryType === "liquidity"
-                        ? "步骤 2：部署自动回流 V2 Factory"
-                        : "步骤 2：部署分红 Factory"}
+                        ? copy.step2Liquidity
+                        : copy.step2Rewards}
               </button>
               <button
                 className="button wide"
@@ -287,12 +295,12 @@ export default function DeployTestnetPage() {
                 onClick={configureRewardsFactory}
               >
                 {managerReceipt.isSuccess
-                  ? "步骤 3 已完成，Factory 可用"
+                  ? copy.step3Done
                   : managerConfiguration.isPending
-                    ? "请确认步骤 3…"
+                    ? copy.step3Confirm
                     : managerReceipt.isLoading
-                      ? "等待步骤 3 上链…"
-                      : "步骤 3：授权 Factory 创建代币"}
+                      ? copy.step3Waiting
+                      : copy.step3Authorize}
               </button>
             </div>
           ) : (
@@ -305,41 +313,52 @@ export default function DeployTestnetPage() {
               onClick={deployLegacyFactory}
             >
               {legacyDeployment.isPending
-                ? "请在 MetaMask 确认部署…"
+                ? copy.confirmDeploy
                 : legacyReceipt.isLoading
-                  ? `等待${isMainnet ? "主网" : "测试网"}确认…`
-                    : "部署标准 0 税 Factory"}
+                  ? isMainnet
+                    ? copy.waitMainnet
+                    : copy.waitTestnet
+                  : copy.deployStandard}
             </button>
           )}
           {legacyDeployment.data && (
-            <p className="notice">部署交易：{legacyDeployment.data}</p>
+            <p className="notice">
+              {copy.deploymentTransaction}：{legacyDeployment.data}
+            </p>
           )}
           {legacyReceipt.data?.contractAddress && (
             <p className="success">
-              Factory 部署成功：{legacyReceipt.data.contractAddress}
+              {copy.factoryDeployed}：{legacyReceipt.data.contractAddress}
             </p>
           )}
           {tokenDeployerAddress && (
-            <p className="notice">高级代币部署器：{tokenDeployerAddress}</p>
+            <p className="notice">
+              {copy.advancedDeployer}：{tokenDeployerAddress}
+            </p>
           )}
           {rewardsFactoryAddress && (
             <p className="notice">
-              {factoryType === "liquidity" ? "自动回流" : "分红"} Factory：
+              {factoryType === "liquidity"
+                ? copy.autoLiquidity
+                : copy.rewards}{" "}
+              Factory：
               {rewardsFactoryAddress}
             </p>
           )}
           {managerReceipt.isSuccess && rewardsFactoryAddress && (
             <p className="success">
-              配置成功。请将{" "}
-              {factoryType === "liquidity"
-                ? "NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS"
-                : "NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS"}
-              设为：{rewardsFactoryAddress}
+              {interpolate(copy.configured, {
+                variable:
+                  factoryType === "liquidity"
+                    ? "NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS"
+                    : "NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS",
+                address: rewardsFactoryAddress,
+              })}
             </p>
           )}
           {currentError && (
             <p className="error">
-              {deploymentErrorMessage(currentError, isMainnet)}
+              {deploymentErrorMessage(currentError, isMainnet, copy)}
             </p>
           )}
         </div>

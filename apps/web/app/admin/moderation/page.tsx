@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { WalletButton } from "@/components/wallet-button";
+import { useLanguage } from "@/components/language-provider";
 import { buildCommentAdminLoginMessage } from "@/lib/comment-admin-message";
+import {
+  adminCopy,
+  interpolate,
+  localeByLanguage,
+} from "@/lib/localization-copy";
 
 type AdminComment = {
   id: string;
@@ -35,6 +41,8 @@ function shortAddress(value: string) {
 }
 
 export default function CommentModerationPage() {
+  const { language } = useLanguage();
+  const copy = adminCopy[language];
   const { address } = useAccount();
   const { signMessageAsync, isPending } = useSignMessage();
   const [payload, setPayload] = useState<ModerationPayload | null>(null);
@@ -55,21 +63,17 @@ export default function CommentModerationPage() {
     const result = (await response.json()) as ModerationPayload & {
       error?: string;
     };
-    if (!response.ok) throw new Error(result.error ?? "管理数据读取失败");
+    if (!response.ok) throw new Error(copy.loadError);
     setPayload(result);
     setTerms(result.settings.blockedTerms.join("\n"));
     return true;
-  }, []);
+  }, [copy.loadError]);
 
   useEffect(() => {
     void load()
-      .catch((loadError) =>
-        setError(
-          loadError instanceof Error ? loadError.message : "管理数据读取失败",
-        ),
-      )
+      .catch(() => setError(copy.loadError))
       .finally(() => setCheckingSession(false));
-  }, [load]);
+  }, [copy.loadError, load]);
 
   async function authenticate() {
     if (!address || busy || isPending) return;
@@ -92,16 +96,17 @@ export default function CommentModerationPage() {
           signature,
         }),
       });
-      const result = (await response.json()) as { error?: string };
+      await response.json();
       if (!response.ok) {
-        throw new Error(result.error ?? "该钱包没有评论管理权限");
+        throw new Error(copy.accessDenied);
       }
       await load();
     } catch (authError) {
+      const message = authError instanceof Error ? authError.message : "";
       setError(
-        authError instanceof Error
-          ? authError.message
-          : "管理员验证失败",
+        message === copy.accessDenied
+          ? message
+          : copy.authenticationFailed,
       );
     } finally {
       setBusy(false);
@@ -117,13 +122,11 @@ export default function CommentModerationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const result = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "管理操作失败");
+      await response.json();
+      if (!response.ok) throw new Error(copy.actionFailed);
       await load();
-    } catch (actionError) {
-      setError(
-        actionError instanceof Error ? actionError.message : "管理操作失败",
-      );
+    } catch {
+      setError(copy.actionFailed);
     } finally {
       setBusy(false);
     }
@@ -145,16 +148,14 @@ export default function CommentModerationPage() {
         <div className="moderation-heading">
           <div>
             <p className="eyebrow">BNBX ADMIN · COMMENT MODERATION</p>
-            <h1>评论管理</h1>
-            <p>
-              平台总开关、关键词拦截和单条评论处理。管理验证只使用钱包签名，不发送交易、不消耗 Gas。
-            </p>
+            <h1>{copy.title}</h1>
+            <p>{copy.lead}</p>
           </div>
-          <Link href="/">返回市场</Link>
+          <Link href="/">{copy.returnMarket}</Link>
         </div>
 
         {checkingSession ? (
-          <p className="activity-empty">正在检查管理员会话…</p>
+          <p className="activity-empty">{copy.checkingSession}</p>
         ) : !payload ? (
           <section className="moderation-login">
             <WalletButton />
@@ -164,20 +165,20 @@ export default function CommentModerationPage() {
               disabled={!address || busy || isPending}
               onClick={authenticate}
             >
-              {busy || isPending ? "请在钱包确认…" : "签名验证管理员"}
+              {busy || isPending ? copy.walletConfirm : copy.authenticate}
             </button>
-            <small>
-              只有 BNBX 官方 Factory 的手续费接收钱包或预先配置的钱包可以进入。
-            </small>
+            <small>{copy.loginHelp}</small>
           </section>
         ) : (
           <>
             <section className="moderation-settings">
               <article>
                 <div>
-                  <span>评论功能</span>
+                  <span>{copy.commentsFeature}</span>
                   <strong>
-                    {payload.settings.commentsEnabled ? "已开放" : "已下架"}
+                    {payload.settings.commentsEnabled
+                      ? copy.enabled
+                      : copy.disabled}
                   </strong>
                 </div>
                 <button
@@ -194,22 +195,20 @@ export default function CommentModerationPage() {
                   }
                 >
                   {payload.settings.commentsEnabled
-                    ? "立即下架评论功能"
-                    : "重新开放评论功能"}
+                    ? copy.disableComments
+                    : copy.enableComments}
                 </button>
-                <small>
-                  下架后，所有代币页停止展示评论和发布入口；历史评论不会被删除。
-                </small>
+                <small>{copy.disableHelp}</small>
               </article>
               <article>
                 <label htmlFor="blocked-terms">
-                  敏感关键词
-                  <small>每行一个；忽略大小写、空格和常见符号。</small>
+                  {copy.blockedTerms}
+                  <small>{copy.blockedTermsHelp}</small>
                 </label>
                 <textarea
                   id="blocked-terms"
                   value={terms}
-                  placeholder={"政治关键词\n宗教关键词\n垃圾广告词"}
+                  placeholder={copy.blockedTermsPlaceholder}
                   onChange={(event) => setTerms(event.target.value)}
                 />
                 <button
@@ -226,7 +225,7 @@ export default function CommentModerationPage() {
                     })
                   }
                 >
-                  保存关键词
+                  {copy.saveTerms}
                 </button>
               </article>
             </section>
@@ -234,21 +233,25 @@ export default function CommentModerationPage() {
             <section className="moderation-comments">
               <div className="moderation-comments-heading">
                 <div>
-                  <h2>评论列表</h2>
+                  <h2>{copy.commentsList}</h2>
                   <span>
-                    显示最近 {payload.comments.length} / 共{" "}
-                    {payload.totalComments} 条 · 已隐藏{" "}
-                    {payload.comments.filter((comment) => comment.hidden).length} 条
+                    {interpolate(copy.commentsSummary, {
+                      shown: payload.comments.length,
+                      total: payload.totalComments,
+                      hidden: payload.comments.filter(
+                        (comment) => comment.hidden,
+                      ).length,
+                    })}
                   </span>
                 </div>
                 <input
                   value={query}
-                  placeholder="搜索评论、钱包或代币地址"
+                  placeholder={copy.searchPlaceholder}
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </div>
               {filteredComments.length === 0 ? (
-                <p className="activity-empty">没有符合条件的评论。</p>
+                <p className="activity-empty">{copy.noMatches}</p>
               ) : (
                 <div className="moderation-comment-list">
                   {filteredComments.map((comment) => (
@@ -262,9 +265,11 @@ export default function CommentModerationPage() {
                           {shortAddress(comment.token)} ↗
                         </Link>
                         <time dateTime={comment.createdAt}>
-                          {new Date(comment.createdAt).toLocaleString("zh-CN")}
+                          {new Date(comment.createdAt).toLocaleString(
+                            localeByLanguage[language],
+                          )}
                         </time>
-                        {comment.hidden && <strong>已隐藏</strong>}
+                        {comment.hidden && <strong>{copy.hidden}</strong>}
                       </div>
                       <p>{comment.body}</p>
                       <div className="moderation-actions">
@@ -279,7 +284,7 @@ export default function CommentModerationPage() {
                             })
                           }
                         >
-                          {comment.hidden ? "恢复展示" : "隐藏评论"}
+                          {comment.hidden ? copy.restore : copy.hide}
                         </button>
                         <button
                           className="danger"
@@ -287,9 +292,7 @@ export default function CommentModerationPage() {
                           disabled={busy}
                           onClick={() => {
                             if (
-                              window.confirm(
-                                "永久删除后无法恢复，确定删除这条评论吗？",
-                              )
+                              window.confirm(copy.deleteConfirm)
                             ) {
                               void action({
                                 action: "delete",
@@ -298,7 +301,7 @@ export default function CommentModerationPage() {
                             }
                           }}
                         >
-                          永久删除
+                          {copy.delete}
                         </button>
                       </div>
                     </article>

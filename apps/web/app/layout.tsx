@@ -6,12 +6,10 @@ import { SiteHeader } from "@/components/site-header";
 import { LanguageProvider } from "@/components/language-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { AnnouncementBar } from "@/components/announcement-bar";
+import { LanguageMetadata } from "@/components/language-metadata";
+import { buildSiteMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "BNBX — Build Next Bull System",
-  description:
-    "BNB Chain 模块化 Meme 代币发射平台。固定 10 亿供应、公开模板与税费、联合曲线交易、自动迁移 PancakeSwap V2。",
-};
+export const metadata: Metadata = buildSiteMetadata();
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -29,6 +27,7 @@ export default function RootLayout({
       <body>
         <Providers>
           <LanguageProvider>
+            <LanguageMetadata />
             <SiteHeader />
             <AnnouncementBar />
             {children}

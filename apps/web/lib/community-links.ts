@@ -4,7 +4,26 @@ export type CommunityLinkKind =
   | "twitter"
   | "debox";
 
+export type CommunityLinkField = CommunityLinkKind | "qqGroupNumber";
+
+export type CommunityLinkValues = {
+  website: string;
+  telegram: string;
+  twitter: string;
+  debox: string;
+  qqGroupNumber: string;
+};
+
+type NormalizedCommunityLinks = CommunityLinkValues;
+
 const MAX_LENGTH = 100;
+const fieldOrder: CommunityLinkField[] = [
+  "website",
+  "telegram",
+  "twitter",
+  "debox",
+  "qqGroupNumber",
+];
 
 const allowedHosts: Record<Exclude<CommunityLinkKind, "website">, RegExp> = {
   telegram: /(^|\.)t\.me$|(^|\.)telegram\.me$/i,
@@ -47,6 +66,12 @@ export function normalizeCommunityLink(
   if (url.protocol !== "https:" || !url.hostname) {
     throw new Error("社区链接必须使用有效的 HTTPS 地址");
   }
+  if (
+    kind === "website" &&
+    (!url.hostname.includes(".") || url.username || url.password)
+  ) {
+    throw new Error("社区链接必须使用有效的 HTTPS 地址");
+  }
   if (kind !== "website" && !allowedHosts[kind].test(url.hostname)) {
     const service =
       kind === "telegram" ? "Telegram" : kind === "twitter" ? "X" : "DeBox";
@@ -64,28 +89,62 @@ export function normalizeQQGroupNumber(value: string) {
   return trimmed;
 }
 
-export function validateCommunityLinks(values: {
-  website: string;
-  telegram: string;
-  twitter: string;
-  debox: string;
-  qqGroupNumber: string;
-}) {
-  const normalized = {
-    website: normalizeCommunityLink(values.website, "website"),
-    telegram: normalizeCommunityLink(values.telegram, "telegram"),
-    twitter: normalizeCommunityLink(values.twitter, "twitter"),
-    debox: normalizeCommunityLink(values.debox, "debox"),
-    qqGroupNumber: normalizeQQGroupNumber(values.qqGroupNumber),
+function inspectCommunityLinks(values: CommunityLinkValues) {
+  const normalized: NormalizedCommunityLinks = {
+    website: "",
+    telegram: "",
+    twitter: "",
+    debox: "",
+    qqGroupNumber: "",
   };
-  const links = [
-    normalized.website,
-    normalized.telegram,
-    normalized.twitter,
-    normalized.debox,
-  ].filter(Boolean);
-  if (new Set(links.map((link) => link.toLowerCase())).size !== links.length) {
-    throw new Error("不同社区栏目不能填写完全相同的链接");
+  const errors: Partial<Record<CommunityLinkField, string>> = {};
+
+  for (const kind of ["website", "telegram", "twitter", "debox"] as const) {
+    try {
+      normalized[kind] = normalizeCommunityLink(values[kind], kind);
+    } catch (error) {
+      errors[kind] =
+        error instanceof Error ? error.message : "社区链接格式无效";
+    }
   }
+  try {
+    normalized.qqGroupNumber = normalizeQQGroupNumber(values.qqGroupNumber);
+  } catch (error) {
+    errors.qqGroupNumber =
+      error instanceof Error ? error.message : "社区链接格式无效";
+  }
+
+  const firstFieldByLink = new Map<string, CommunityLinkKind>();
+  for (const field of [
+    "website",
+    "telegram",
+    "twitter",
+    "debox",
+  ] as const) {
+    const link = normalized[field].toLowerCase();
+    if (!link) continue;
+    const firstField = firstFieldByLink.get(link);
+    if (firstField) {
+      const message = "不同社区栏目不能填写完全相同的链接";
+      errors[firstField] = message;
+      errors[field] = message;
+    } else {
+      firstFieldByLink.set(link, field);
+    }
+  }
+
+  return { normalized, errors };
+}
+
+export function getCommunityLinkErrors(values: CommunityLinkValues) {
+  return inspectCommunityLinks(values).errors;
+}
+
+export function validateCommunityLinks(values: CommunityLinkValues) {
+  const { normalized, errors } = inspectCommunityLinks(values);
+  const firstError = fieldOrder
+    .map((field) => errors[field])
+    .find((message): message is string => Boolean(message));
+  if (firstError) throw new Error(firstError);
   return normalized;
 }

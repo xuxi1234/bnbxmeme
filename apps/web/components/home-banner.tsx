@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLanguage } from "./language-provider";
+import { accessibilityCopy, interpolate } from "@/lib/localization-copy";
 
 const slides = [
   {
@@ -28,6 +29,7 @@ const slides = [
 export function HomeBanner() {
   const [active, setActive] = useState(0);
   const { language, t } = useLanguage();
+  const a11y = accessibilityCopy[language];
 
   useEffect(() => {
     const timer = window.setInterval(
@@ -59,7 +61,7 @@ export function HomeBanner() {
   ];
   const slide = translatedSlides[active];
   return (
-    <section className="home-banner" aria-label="BNBX 平台横幅">
+    <section className="home-banner" aria-label={a11y.homeBanner}>
       <div className="banner-grid" aria-hidden="true" />
       <div className="banner-glow" aria-hidden="true" />
       <div className="banner-copy">
@@ -79,7 +81,7 @@ export function HomeBanner() {
       <div className="banner-controls">
         <button
           type="button"
-          aria-label="上一张横幅"
+          aria-label={a11y.previousBanner}
           onClick={() => setActive((active - 1 + slides.length) % slides.length)}
         >
           ‹
@@ -90,14 +92,14 @@ export function HomeBanner() {
               className={index === active ? "active" : ""}
               key={item.eyebrow}
               type="button"
-              aria-label={`切换到第 ${index + 1} 张横幅`}
+              aria-label={interpolate(a11y.bannerSlide, { index: index + 1 })}
               onClick={() => setActive(index)}
             />
           ))}
         </div>
         <button
           type="button"
-          aria-label="下一张横幅"
+          aria-label={a11y.nextBanner}
           onClick={() => setActive((active + 1) % slides.length)}
         >
           ›

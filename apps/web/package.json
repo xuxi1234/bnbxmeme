@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Web tests pending\""
+    "test": "node --test --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON lib/*.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.83.0",

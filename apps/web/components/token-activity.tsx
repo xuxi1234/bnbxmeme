@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
+import { pancakeRouterAddress } from "@/lib/deployments";
 
 type Trade = {
   id: string;
@@ -24,13 +25,13 @@ type Holder = {
 };
 
 export type ActivitySummary = {
-  latestPricePerMillionBnb: number;
+  latestPricePerMillionBnb: number | null;
   bnbUsd: number;
-  volume24hBnb: number;
+  volume24hBnb: number | null;
   priceChange24h: number | null;
   liquidityBnb: number | null;
   marketSource: "curve" | "pancake";
-  holderCount: number;
+  holderCount: number | null;
   holdersLimited: boolean;
   top10ConcentrationPct: number | null;
 };
@@ -69,14 +70,12 @@ export function TokenActivity({
   token,
   curve,
   pair,
-  totalSupply,
   refreshKey,
   onSummary,
 }: {
   token: `0x${string}`;
   curve: `0x${string}`;
   pair?: `0x${string}`;
-  totalSupply?: bigint;
   refreshKey?: `0x${string}`;
   onSummary?: (summary: ActivitySummary) => void;
 }) {
@@ -99,8 +98,9 @@ export function TokenActivity({
       [
         curve,
         pair,
+        token,
         zeroAddress,
-        "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+        pancakeRouterAddress,
       ]
         .filter(Boolean)
         .map((address) => address!.toLowerCase()),
@@ -125,7 +125,7 @@ export function TokenActivity({
     return [...totals.values()]
       .sort((a, b) => (a.volume > b.volume ? -1 : 1))
       .slice(0, 20);
-  }, [curve, pair, trades]);
+  }, [curve, pair, token, trades]);
 
   useEffect(() => {
     if (token === zeroAddress || curve === zeroAddress) return;
@@ -134,6 +134,7 @@ export function TokenActivity({
     async function load() {
       if (trades.length === 0 && holders.length === 0) setIsLoading(true);
       setLoadError(false);
+      let isBackfilling = false;
       try {
         const response = await fetch(
           `/api/chain-data?curve=${curve}&token=${token}${
@@ -147,6 +148,8 @@ export function TokenActivity({
           holders: Array<{ address: `0x${string}`; balance: string }>;
           holderCount?: number;
           holdersLimited?: boolean;
+          holderSupply?: string;
+          top10ConcentrationPct?: number | null;
           market?: {
             source: "curve" | "pancake";
             pricePerMillionBnb: number | null;
@@ -154,8 +157,29 @@ export function TokenActivity({
             priceChange24h: number | null;
             liquidityBnb: number | null;
           };
+          index?: {
+            status: "backfilling" | "complete";
+          };
           bnbUsd?: number;
         };
+        if (data.index?.status === "backfilling") {
+          isBackfilling = true;
+          onSummary?.({
+            latestPricePerMillionBnb:
+              data.market?.pricePerMillionBnb ?? null,
+            bnbUsd: Number(data.bnbUsd ?? 0),
+            volume24hBnb: null,
+            priceChange24h: null,
+            liquidityBnb: data.market?.liquidityBnb ?? null,
+            marketSource:
+              data.market?.source ??
+              (pair && pair !== zeroAddress ? "pancake" : "curve"),
+            holderCount: null,
+            holdersLimited: false,
+            top10ConcentrationPct: null,
+          });
+          return;
+        }
         const allActivity = data.trades.map((trade) => ({
           ...trade,
           bnb: BigInt(trade.bnb),
@@ -171,12 +195,10 @@ export function TokenActivity({
           balance: BigInt(holder.balance),
         }));
         setHolders(nextHolders);
-        const top10Balance = nextHolders
-          .slice(0, 10)
-          .reduce((sum, holder) => sum + holder.balance, 0n);
         const nextTop10Concentration =
-          totalSupply && totalSupply > 0n
-            ? Number((top10Balance * 10_000n) / totalSupply) / 100
+          typeof data.top10ConcentrationPct === "number" &&
+          Number.isFinite(data.top10ConcentrationPct)
+            ? Math.min(100, Math.max(0, data.top10ConcentrationPct))
             : null;
         setTop10ConcentrationPct(nextTop10Concentration);
         const nextBnbUsd = Number(data.bnbUsd ?? 0);
@@ -215,7 +237,7 @@ export function TokenActivity({
           setLoadError(true);
         }
       } finally {
-        if (!controller.signal.aborted) setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(isBackfilling);
       }
     }
 
@@ -225,7 +247,7 @@ export function TokenActivity({
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [curve, holders.length, onSummary, pair, refreshKey, reloadKey, token, totalSupply, trades.length]);
+  }, [curve, holders.length, onSummary, pair, refreshKey, reloadKey, token, trades.length]);
 
   return (
     <section className="activity-terminal">

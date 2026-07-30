@@ -48,3 +48,20 @@ export function chartPricePrecision(value: number | null | undefined) {
     minMove: 10 ** -precision,
   };
 }
+
+export function formatExactCount(value: number | null | undefined) {
+  if (value == null || !Number.isSafeInteger(value) || value < 0) return "—";
+  return String(value);
+}
+
+export function formatCompactMetric(
+  value: number | null | undefined,
+  locale = "en-US",
+) {
+  if (value == null || !Number.isFinite(value) || value < 0) return "—";
+  if (value === 0) return "0";
+  return new Intl.NumberFormat(locale, {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value);
+}

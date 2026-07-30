@@ -4,13 +4,23 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useTokenMetadata } from "@/lib/metadata";
+import { pancakeRouterAddress } from "@/lib/deployments";
+import { chunkItems } from "@/lib/market-data-core";
 import {
+  formatCompactMetric,
   formatTokenPriceUsdt,
   tokenPriceUsdt,
 } from "@/lib/market-format";
+import {
+  calculateHotRanking,
+  compareMarketEntries,
+  summarizeCompleteMarketActivity,
+  type MarketFilter,
+} from "@/lib/market-ranking-core";
+import { resolveMarketNoResults } from "@/lib/market-empty-state-core";
 import { useLanguage } from "./language-provider";
+import { accessibilityCopy, interpolate } from "@/lib/localization-copy";
 
-type MarketFilter = "hot" | "latest" | "graduating" | "graduated";
 type MarketEntry = {
   token: `0x${string}`;
   name: string | null;
@@ -43,17 +53,12 @@ type MarketScore = {
   graduatedAt?: number;
   hotScore?: number;
 };
+type MarketScoreResult = readonly [string, MarketScore, boolean];
+
+const SCORE_REQUEST_BATCH_SIZE = 8;
 
 function asBigInt(value: string | null) {
   return value === null ? undefined : BigInt(value);
-}
-
-function compactMetric(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return "—";
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function TokenCard({
@@ -63,7 +68,8 @@ function TokenCard({
   entry: MarketEntry;
   score?: MarketScore;
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const a11y = accessibilityCopy[language];
   const [imageFailed, setImageFailed] = useState(false);
   const { metadata } = useTokenMetadata(entry.metadataURI ?? undefined);
   const principal = asBigInt(entry.principal);
@@ -84,7 +90,13 @@ function TokenCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={metadata.image}
-            alt=""
+            alt={interpolate(a11y.tokenLogo, {
+              name:
+                entry.name ??
+                metadata?.name ??
+                entry.symbol ??
+                entry.token.slice(0, 10),
+            })}
             loading="lazy"
             onError={() => setImageFailed(true)}
           />
@@ -136,7 +148,7 @@ function TokenCard({
           <strong>
             {score?.volume24hBnb === undefined
               ? "—"
-              : compactMetric(score.volume24hBnb)}{" "}
+              : formatCompactMetric(score.volume24hBnb)}{" "}
             BNB
           </strong>
         </div>
@@ -169,7 +181,9 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [scoreLoadPartial, setScoreLoadPartial] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [indexReloadKey, setIndexReloadKey] = useState(0);
   const hasPayload = useRef(false);
   const { t } = useLanguage();
 
@@ -193,42 +207,46 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     window.history.replaceState(null, "", url);
   }, []);
 
-  const loadMarket = useCallback(async (signal: AbortSignal) => {
-    setLoadError(false);
-    setIsRefreshing(hasPayload.current);
-    if (!hasPayload.current) setIsLoading(true);
-    try {
-      const response = await fetch("/api/market-data", {
-        signal,
-      });
-      if (!response.ok) throw new Error("market data unavailable");
-      const next = (await response.json()) as MarketPayload;
-      if (!signal.aborted) {
-        hasPayload.current = true;
-        setPayload(next);
+  const loadMarket = useCallback(
+    async (signal: AbortSignal) => {
+      setLoadError(false);
+      setIsRefreshing(hasPayload.current);
+      if (!hasPayload.current) setIsLoading(true);
+      try {
+        const endpoint = creator
+          ? `/api/market-data?creator=${encodeURIComponent(creator)}`
+          : "/api/market-data";
+        const response = await fetch(endpoint, { signal });
+        if (!response.ok) throw new Error("market data unavailable");
+        const next = (await response.json()) as MarketPayload;
+        if (!signal.aborted) {
+          hasPayload.current = true;
+          setPayload(next);
+        }
+      } catch {
+        if (!signal.aborted) setLoadError(true);
+      } finally {
+        if (!signal.aborted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
-    } catch {
-      if (!signal.aborted) setLoadError(true);
-    } finally {
-      if (!signal.aborted) {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    }
-  }, []);
+    },
+    [creator],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void loadMarket(controller.signal);
     const interval = window.setInterval(
       () => void loadMarket(controller.signal),
-      15_000,
+      creator ? 60_000 : 15_000,
     );
     return () => {
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [loadMarket, reloadKey]);
+  }, [creator, loadMarket, reloadKey]);
 
   const entries = useMemo(
     () =>
@@ -243,127 +261,146 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   useEffect(() => {
     if (entries.length === 0) return;
     const controller = new AbortController();
-    void Promise.all(
-      entries.map(async (entry) => {
-        if (!entry.curve || entry.curve === zeroAddress) {
-          return [entry.token, {}] as const;
-        }
-        try {
-          const response = await fetch(
-            `/api/chain-data?curve=${entry.curve}&token=${entry.token}${
-              entry.state === 2 &&
-              entry.liquidityPair &&
-              entry.liquidityPair !== zeroAddress
-                ? `&pair=${entry.liquidityPair}`
-                : ""
-            }`,
-            { signal: controller.signal },
-          );
-          if (!response.ok) throw new Error("unavailable");
-          const data = (await response.json()) as {
-            trades: Array<{
-              bnb: string;
-              priceBNB: string;
-              tokens: string;
-              blockNumber: string;
-              timestamp: number;
-              account?: string;
-              side?: "buy" | "sell";
-            }>;
-            holders: Array<unknown>;
-            holderCount?: number;
-            market?: {
-              pricePerMillionBnb?: number | null;
-              volume24hBnb?: number | null;
-              priceChange24h?: number | null;
-              liquidityBnb?: number | null;
-              buys24h?: number | null;
-              sells24h?: number | null;
-              graduatedAt?: number | null;
-            };
-            bnbUsd?: number;
+    let retryTimer: number | undefined;
+    let needsIndexRetry = false;
+    const loadScore = async (
+      entry: MarketEntry,
+    ): Promise<MarketScoreResult> => {
+      if (!entry.curve || entry.curve === zeroAddress) {
+        return [entry.token, {}, false] as const;
+      }
+      try {
+        const response = await fetch(
+          `/api/chain-data?curve=${entry.curve}&token=${entry.token}${
+            entry.state === 2 &&
+            entry.liquidityPair &&
+            entry.liquidityPair !== zeroAddress
+              ? `&pair=${entry.liquidityPair}`
+              : ""
+          }`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error("unavailable");
+        const data = (await response.json()) as {
+          trades: Array<{
+            bnb: string;
+            priceBNB: string;
+            tokens: string;
+            blockNumber: string;
+            timestamp: number;
+            account?: string;
+            side?: "buy" | "sell";
+            source?: "curve" | "pancake";
+          }>;
+          holders: Array<unknown>;
+          holderCount?: number;
+          market?: {
+            pricePerMillionBnb?: number | null;
+            volume24hBnb?: number | null;
+            priceChange24h?: number | null;
+            liquidityBnb?: number | null;
+            buys24h?: number | null;
+            sells24h?: number | null;
+            graduatedAt?: number | null;
           };
-          const latestTrade = [...data.trades].sort((a, b) =>
-            BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1,
-          )[0];
-          const latestTokens = latestTrade
-            ? Number(formatEther(BigInt(latestTrade.tokens)))
-            : 0;
-          const latestBnb = latestTrade
-            ? Number(formatEther(BigInt(latestTrade.priceBNB)))
-            : 0;
-          const cutoff24h = Math.floor(Date.now() / 1000) - 86_400;
-          const qualifiedTrades = data.trades.filter(
-            (trade) =>
-              trade.timestamp >= cutoff24h &&
-              Number(formatEther(BigInt(trade.bnb))) >= 0.00001,
-          );
-          const uniqueTraders = new Set(
-            qualifiedTrades.map((trade) => trade.account?.toLowerCase()).filter(Boolean),
-          ).size;
-          const activity =
-            (data.market?.buys24h ?? 0) + (data.market?.sells24h ?? 0) ||
-            qualifiedTrades.length;
-          const volume24hBnb =
-            data.market?.volume24hBnb ??
-            qualifiedTrades.reduce(
-              (sum, trade) => sum + Number(formatEther(BigInt(trade.bnb))),
-              0,
-            );
-          const holderCount = data.holderCount ?? data.holders.length;
-          const mostRecentTimestamp = data.trades.reduce(
-            (latest, trade) => Math.max(latest, trade.timestamp),
-            0,
-          );
-          const recencyHours =
-            mostRecentTimestamp > 0
-              ? Math.max(0, (Date.now() / 1000 - mostRecentTimestamp) / 3600)
-              : 24;
-          const cappedTradeCount = Math.min(
-            qualifiedTrades.length,
-            Math.max(uniqueTraders, 1) * 5,
-          );
-          const hotScore =
-            Math.log1p(volume24hBnb * 1_000) * 40 +
-            Math.min(uniqueTraders, 25) * 12 +
-            cappedTradeCount * 2 +
-            Math.min(holderCount, 100) * 0.4 +
-            Math.max(0, 24 - recencyHours);
+          bnbUsd?: number;
+          index?: {
+            status: "backfilling" | "complete";
+          };
+        };
+        if (data.index?.status === "backfilling") {
+          needsIndexRetry = true;
           return [
             entry.token,
             {
-              volume24hBnb,
-              activity,
-              uniqueTraders,
-              lastBlock: data.trades.reduce(
-                (latest, trade) =>
-                  BigInt(trade.blockNumber) > latest
-                    ? BigInt(trade.blockNumber)
-                    : latest,
-                0n,
-              ),
-              pricePerMillion:
-                data.market?.pricePerMillionBnb ??
-                (latestTokens > 0
-                  ? (latestBnb / latestTokens) * 1_000_000
-                  : undefined),
-              priceChange24h: data.market?.priceChange24h ?? undefined,
+              pricePerMillion: data.market?.pricePerMillionBnb ?? undefined,
               liquidityBnb: data.market?.liquidityBnb ?? undefined,
               bnbUsd: data.bnbUsd,
-              holderCount,
-              graduatedAt: data.market?.graduatedAt ?? undefined,
-              hotScore,
             },
+            false,
           ] as const;
-        } catch {
-          return [entry.token, {}] as const;
         }
-      }),
-    ).then((result) => {
-      if (!controller.signal.aborted) setScores(Object.fromEntries(result));
+        const latestTrade = [...data.trades].sort((a, b) =>
+          BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1,
+        )[0];
+        const latestTokens = latestTrade
+          ? Number(formatEther(BigInt(latestTrade.tokens)))
+          : 0;
+        const latestBnb = latestTrade
+          ? Number(formatEther(BigInt(latestTrade.priceBNB)))
+          : 0;
+        const holderCount = data.holderCount ?? data.holders.length;
+        const ranking = calculateHotRanking({
+          trades: data.trades,
+          market: data.market,
+          holderCount,
+          graduated: entry.state === 2,
+          nowSeconds: Math.floor(Date.now() / 1000),
+          excludedAccounts: [
+            zeroAddress,
+            entry.token,
+            entry.curve,
+            entry.liquidityPair,
+            pancakeRouterAddress,
+          ],
+        });
+        return [
+          entry.token,
+          {
+            volume24hBnb: ranking.volume24hBnb,
+            activity: ranking.activity,
+            uniqueTraders: ranking.uniqueTraders,
+            lastBlock: data.trades.reduce(
+              (latest, trade) =>
+                BigInt(trade.blockNumber) > latest
+                  ? BigInt(trade.blockNumber)
+                  : latest,
+              0n,
+            ),
+            pricePerMillion:
+              data.market?.pricePerMillionBnb ??
+              (latestTokens > 0
+                ? (latestBnb / latestTokens) * 1_000_000
+                : undefined),
+            priceChange24h: data.market?.priceChange24h ?? undefined,
+            liquidityBnb: data.market?.liquidityBnb ?? undefined,
+            bnbUsd: data.bnbUsd,
+            holderCount,
+            graduatedAt: data.market?.graduatedAt ?? undefined,
+            hotScore: ranking.hotScore,
+          },
+          true,
+        ] as const;
+      } catch {
+        return [entry.token, {}, false] as const;
+      }
+    };
+    const loadScores = async () => {
+      const result: MarketScoreResult[] = [];
+      for (const batch of chunkItems(entries, SCORE_REQUEST_BATCH_SIZE)) {
+        if (controller.signal.aborted) break;
+        result.push(...(await Promise.all(batch.map(loadScore))));
+      }
+      return result;
+    };
+    void loadScores().then((result) => {
+      if (controller.signal.aborted) return;
+      setScores(
+        Object.fromEntries(result.map(([token, score]) => [token, score])),
+      );
+      setScoreLoadPartial(result.some(([, , complete]) => !complete));
+      if (needsIndexRetry) {
+        retryTimer = window.setTimeout(
+          () => setIndexReloadKey((value) => value + 1),
+          15_000,
+        );
+      }
     });
-    return () => controller.abort();
-  }, [entries]);
+    return () => {
+      controller.abort();
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
+  }, [entries, indexReloadKey]);
 
   const ranked = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -393,49 +430,14 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       if (filter === "graduated") return entry.state === 2;
       return true;
     });
-    return visible.sort((a, b) => {
-      if (filter === "latest") return b.creationIndex - a.creationIndex;
-      if (filter === "graduating") {
-        const aPrincipal = asBigInt(a.principal);
-        const aTarget = asBigInt(a.target);
-        const bPrincipal = asBigInt(b.principal);
-        const bTarget = asBigInt(b.target);
-        const aProgress =
-          aPrincipal !== undefined && aTarget
-            ? (aPrincipal * 1_000_000n) / aTarget
-            : 0n;
-        const bProgress =
-          bPrincipal !== undefined && bTarget
-            ? (bPrincipal * 1_000_000n) / bTarget
-            : 0n;
-        return aProgress === bProgress
-          ? b.creationIndex - a.creationIndex
-          : aProgress > bProgress
-            ? -1
-            : 1;
-      }
-      if (filter === "graduated") {
-        const aGraduatedAt = scores[a.token]?.graduatedAt;
-        const bGraduatedAt = scores[b.token]?.graduatedAt;
-        if (aGraduatedAt === undefined || bGraduatedAt === undefined) {
-          return b.creationIndex - a.creationIndex;
-        }
-        return aGraduatedAt === bGraduatedAt
-          ? b.creationIndex - a.creationIndex
-          : bGraduatedAt - aGraduatedAt;
-      }
-      const aScore = scores[a.token]?.hotScore;
-      const bScore = scores[b.token]?.hotScore;
-      if (aScore === undefined || bScore === undefined) {
-        return b.creationIndex - a.creationIndex;
-      }
-      return aScore === bScore
-        ? b.creationIndex - a.creationIndex
-        : aScore > bScore
-          ? -1
-          : 1;
-    });
+    return visible.sort((a, b) =>
+      compareMarketEntries(filter, scores, a, b),
+    );
   }, [entries, filter, query, scores]);
+  const noResults = useMemo(
+    () => resolveMarketNoResults(query, filter),
+    [filter, query],
+  );
 
   if (isLoading && !payload) {
     return <MarketNotice title={t("loading")} message="BNB Chain Mainnet" />;
@@ -465,44 +467,51 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       entry.target !== null &&
       entry.state !== null,
   );
-  const knownScores = Object.values(scores).filter(
-    (score) =>
-      score.volume24hBnb !== undefined && score.activity !== undefined,
-  );
-  const volume24h = knownScores.reduce(
-    (sum, score) => sum + (score.volume24hBnb ?? 0),
-    0,
-  );
-  const trades24h = knownScores.reduce(
-    (sum, score) => sum + (score.activity ?? 0),
-    0,
-  );
+  const activitySummary =
+    payload?.dataStatus === "fresh"
+      ? summarizeCompleteMarketActivity(
+          entries.map((entry) => entry.token),
+          scores,
+        )
+      : null;
+  const projectSummaryComplete =
+    payload?.dataStatus === "fresh" && knownEntries.length === entries.length;
   const marketStats = [
-    [t("volume24h"), knownScores.length ? `${compactMetric(volume24h)} BNB` : "—"],
-    [t("trades24h"), knownScores.length ? trades24h : "—"],
+    [
+      t("volume24h"),
+      activitySummary
+        ? `${formatCompactMetric(activitySummary.volume24hBnb)} BNB`
+        : "—",
+    ],
+    [t("trades24h"), activitySummary?.trades24h ?? "—"],
     [
       t("nearGraduation"),
-      knownEntries.filter((entry) => {
-        const principal = asBigInt(entry.principal);
-        const target = asBigInt(entry.target);
-        return (
-          (entry.state ?? 2) < 2 &&
-          principal !== undefined &&
-          target !== undefined &&
-          target > 0n &&
-          principal * 100n >= target * 75n
-        );
-      }).length,
+      projectSummaryComplete
+        ? knownEntries.filter((entry) => {
+            const principal = asBigInt(entry.principal);
+            const target = asBigInt(entry.target);
+            return (
+              entry.state !== null &&
+              entry.state < 2 &&
+              principal !== undefined &&
+              target !== undefined &&
+              target > 0n &&
+              principal * 100n >= target * 75n
+            );
+          }).length
+        : "—",
     ],
     [
       t("completedProjects"),
-      knownEntries.filter((entry) => entry.state === 2).length,
+      projectSummaryComplete
+        ? knownEntries.filter((entry) => entry.state === 2).length
+        : "—",
     ],
   ] as const;
 
   return (
     <>
-      {(payload?.dataStatus === "partial" || loadError) && (
+      {(payload?.dataStatus === "partial" || loadError || scoreLoadPartial) && (
         <div className="data-reliability-banner" role="status">
           <span>
             {loadError ? t("staleDataNotice") : t("partialDataNotice")}
@@ -547,7 +556,48 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         </div>
       </div>
       {ranked.length === 0 ? (
-        <div className="market-no-results">{t("noMatch")}</div>
+        <section
+          className="market-no-results"
+          role="status"
+          aria-live="polite"
+        >
+          <strong>
+            {noResults.kind === "search"
+              ? interpolate(t("searchNoResultsTitle"), {
+                  query: noResults.query,
+                })
+              : interpolate(t("filterNoResultsTitle"), {
+                  filter: t(noResults.filter),
+                })}
+          </strong>
+          <p>
+            {noResults.kind === "search"
+              ? interpolate(t("searchNoResultsHelp"), {
+                  filter: t(noResults.filter),
+                })
+              : t("filterNoResultsHelp")}
+          </p>
+          <div className="market-no-results-actions">
+            {noResults.kind === "search" && (
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setQuery("")}
+              >
+                {t("clearSearch")}
+              </button>
+            )}
+            {noResults.showHotAction && (
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => chooseFilter("hot")}
+              >
+                {t("showHotProjects")}
+              </button>
+            )}
+          </div>
+        </section>
       ) : (
         <div className="token-grid">
           {ranked.map((entry) => (

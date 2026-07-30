@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAddress, verifyMessage } from "viem";
+import { isAddress } from "viem";
 import { buildCommentMessage } from "@/lib/comment-message";
+import { isSupportedWalletSignature } from "@/lib/comment-signature-core";
+import { verifyWalletMessage } from "@/lib/comment-signature-server";
+import {
+  mapCommentSubmissionFailure,
+  normalizeCommentSignature,
+} from "@/lib/comment-submission-core";
 import {
   findBlockedTerm,
   readCommentModerationSettings,
+  supabaseRpcEndpoint,
   supabaseServiceHeaders,
   supabaseTableEndpoint,
 } from "@/lib/comments-server";
+import { validateTokenProject } from "@/lib/token-project-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,13 +40,39 @@ function publicComment(row: CommentRow) {
   };
 }
 
+async function projectAccessError(token: string) {
+  const project = await validateTokenProject(token);
+  if (project.status === "not_found") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_NOT_FOUND",
+        error: "Token is not registered by an official BNBX Factory",
+      },
+      { status: 404 },
+    );
+  }
+  if (project.status === "unavailable") {
+    return NextResponse.json(
+      {
+        code: "PROJECT_VALIDATION_UNAVAILABLE",
+        error: "BNB Chain project validation is temporarily unavailable",
+      },
+      { status: 503 },
+    );
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
-  const headers = supabaseServiceHeaders();
-  const endpoint = commentsEndpoint();
   if (!token || !isAddress(token)) {
     return NextResponse.json({ error: "Invalid token address" }, { status: 400 });
   }
+  const projectError = await projectAccessError(token);
+  if (projectError) return projectError;
+
+  const headers = supabaseServiceHeaders();
+  const endpoint = commentsEndpoint();
   if (!headers || !endpoint) {
     return NextResponse.json(
       { error: "Community service is not configured" },
@@ -90,7 +124,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const headers = supabaseServiceHeaders();
-  const endpoint = commentsEndpoint();
+  const endpoint = supabaseRpcEndpoint("submit_token_comment");
   if (!headers || !endpoint) {
     return NextResponse.json(
       { error: "Community service is not configured" },
@@ -117,6 +151,9 @@ export async function POST(request: NextRequest) {
   if (!isAddress(token) || !isAddress(wallet)) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
+  const projectError = await projectAccessError(token);
+  if (projectError) return projectError;
+
   if (
     body.length < 1 ||
     body.length > 280 ||
@@ -157,7 +194,7 @@ export async function POST(request: NextRequest) {
     !Number.isFinite(signedTime) ||
     signedTime < Date.now() - 10 * 60_000 ||
     signedTime > Date.now() + 2 * 60_000 ||
-    !/^0x[0-9a-fA-F]{130}$/.test(signature)
+    !isSupportedWalletSignature(signature)
   ) {
     return NextResponse.json(
       { error: "Comment signature is invalid or expired" },
@@ -165,7 +202,7 @@ export async function POST(request: NextRequest) {
     );
   }
   const message = buildCommentMessage({ token, wallet, body, signedAt });
-  const verified = await verifyMessage({
+  const verified = await verifyWalletMessage({
     address: wallet,
     message,
     signature: signature as `0x${string}`,
@@ -177,61 +214,47 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const recent = new URL(endpoint);
-  recent.searchParams.set("select", "created_at");
-  recent.searchParams.set("wallet_address", `eq.${wallet.toLowerCase()}`);
-  recent.searchParams.set(
-    "created_at",
-    `gte.${new Date(Date.now() - 30_000).toISOString()}`,
-  );
-  recent.searchParams.set("limit", "1");
-  const recentResponse = await fetch(recent, {
-    headers,
-    cache: "no-store",
-  }).catch(() => null);
-  if (!recentResponse?.ok) {
-    return NextResponse.json(
-      { error: "Community service is temporarily unavailable" },
-      { status: 502 },
-    );
-  }
-  const recentRows = (await recentResponse.json()) as Array<{
-    created_at: string;
-  }>;
-  if (recentRows.length > 0) {
-    return NextResponse.json(
-      { error: "Please wait 30 seconds before posting again" },
-      { status: 429 },
-    );
-  }
-
-  const insert = await fetch(endpoint, {
+  const submission = await fetch(endpoint, {
     method: "POST",
     headers: {
       ...headers,
       Prefer: "return=representation",
     },
     body: JSON.stringify({
-      chain_id: 56,
-      token_address: token.toLowerCase(),
-      wallet_address: wallet.toLowerCase(),
-      body,
-      signature,
-      signed_at: new Date(signedTime).toISOString(),
+      p_chain_id: 56,
+      p_token_address: token.toLowerCase(),
+      p_wallet_address: wallet.toLowerCase(),
+      p_body: body,
+      p_signature: normalizeCommentSignature(signature),
+      p_signed_at: new Date(signedTime).toISOString(),
     }),
   }).catch(() => null);
-  if (!insert?.ok) {
+  if (!submission) {
     return NextResponse.json(
-      {
-        error:
-          insert?.status === 409
-            ? "This signed comment was already submitted"
-            : "Comment could not be saved",
-      },
-      { status: insert?.status === 409 ? 409 : 502 },
+      { error: "Community service is temporarily unavailable" },
+      { status: 502 },
     );
   }
-  const rows = (await insert.json()) as CommentRow[];
+  const result = (await submission.json().catch(() => null)) as
+    CommentRow[] | { code?: string; message?: string } | null;
+  if (!submission.ok) {
+    const failure = mapCommentSubmissionFailure({
+      httpStatus: submission.status,
+      code: !Array.isArray(result) ? result?.code : undefined,
+      message: !Array.isArray(result) ? result?.message : undefined,
+    });
+    return NextResponse.json(
+      { error: failure.error },
+      { status: failure.status },
+    );
+  }
+  const rows = Array.isArray(result) ? result : [];
+  if (!rows[0]) {
+    return NextResponse.json(
+      { error: "Comment could not be saved" },
+      { status: 502 },
+    );
+  }
   return NextResponse.json(
     { comment: publicComment(rows[0]) },
     { status: 201 },

@@ -11,36 +11,60 @@ function configuredRpcUrls() {
     ...(process.env.BSC_MAINNET_RPC_URLS?.split(",") ?? []),
   ];
 
-  return [...new Set(candidates.map((value) => value?.trim()).filter(Boolean))] as string[];
+  return [
+    ...new Set(candidates.map((value) => value?.trim()).filter(Boolean)),
+  ] as string[];
+}
+
+function configuredLogRpcUrls() {
+  const candidates = [
+    process.env.BSC_LOG_RPC_URL,
+    process.env.ALCHEMY_BSC_RPC_URL,
+    process.env.BSC_MAINNET_RPC_URL,
+    ...(process.env.BSC_MAINNET_RPC_URLS?.split(",") ?? []),
+  ];
+
+  return [
+    ...new Set(candidates.map((value) => value?.trim()).filter(Boolean)),
+  ] as string[];
+}
+
+function rpcTransports(urls: string[]) {
+  return [
+    ...urls.map((url) =>
+      http(url, {
+        timeout: 20_000,
+        retryCount: 2,
+        batch: { batchSize: 50, wait: 10 },
+      }),
+    ),
+    http("https://bsc-rpc.publicnode.com", {
+      timeout: 12_000,
+      retryCount: 1,
+      batch: { batchSize: 50, wait: 10 },
+    }),
+    http("https://bsc.drpc.org", {
+      timeout: 12_000,
+      retryCount: 1,
+      batch: { batchSize: 50, wait: 10 },
+    }),
+    http("https://bsc-dataseed.binance.org", {
+      timeout: 12_000,
+      retryCount: 1,
+      batch: { batchSize: 50, wait: 10 },
+    }),
+  ];
 }
 
 export const serverPublicClient = createPublicClient({
   chain: bsc,
-  transport: fallback(
-    [
-      ...configuredRpcUrls().map((url) =>
-        http(url, {
-          timeout: 20_000,
-          retryCount: 2,
-          batch: { batchSize: 50, wait: 10 },
-        }),
-      ),
-      http("https://bsc-rpc.publicnode.com", {
-        timeout: 12_000,
-        retryCount: 1,
-        batch: { batchSize: 50, wait: 10 },
-      }),
-      http("https://bsc.drpc.org", {
-        timeout: 12_000,
-        retryCount: 1,
-        batch: { batchSize: 50, wait: 10 },
-      }),
-      http("https://bsc-dataseed.binance.org", {
-        timeout: 12_000,
-        retryCount: 1,
-        batch: { batchSize: 50, wait: 10 },
-      }),
-    ],
-    { rank: false },
-  ),
+  transport: fallback(rpcTransports(configuredRpcUrls()), { rank: false }),
+});
+
+// Historical log scans must prefer the archive-capable endpoint. General RPCs
+// remain fallbacks for current-state reads and environments without a dedicated
+// log provider.
+export const serverLogClient = createPublicClient({
+  chain: bsc,
+  transport: fallback(rpcTransports(configuredLogRpcUrls()), { rank: false }),
 });
