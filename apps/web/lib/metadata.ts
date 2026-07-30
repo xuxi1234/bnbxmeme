@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { sanitizeMetadataCommunityLinks } from "@/lib/metadata-links";
 
 export type TokenMetadata = {
   name?: string;
@@ -29,16 +30,6 @@ export function resolveContentURI(uri?: string) {
   }
 }
 
-function safeLink(value: unknown) {
-  if (typeof value !== "string" || !value) return undefined;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function safeQQGroupNumber(value: unknown) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -58,6 +49,7 @@ function sanitizeMetadata(value: unknown): TokenMetadata | null {
       : typeof properties.description === "string"
         ? properties.description
         : undefined;
+  const communityLinks = sanitizeMetadataCommunityLinks(source);
   return {
     name: typeof source.name === "string" ? source.name.slice(0, 40) : undefined,
     symbol:
@@ -67,10 +59,7 @@ function sanitizeMetadata(value: unknown): TokenMetadata | null {
       typeof source.image === "string"
         ? resolveContentURI(source.image)
         : undefined,
-    website: safeLink(source.website),
-    telegram: safeLink(source.telegram),
-    twitter: safeLink(source.twitter),
-    debox: safeLink(source.debox),
+    ...communityLinks,
     qqGroupNumber: safeQQGroupNumber(source.qqGroupNumber),
     createdAt:
       typeof source.createdAt === "string" &&
