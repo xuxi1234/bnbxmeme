@@ -10,6 +10,8 @@ test("uses the canonical Pair for graduated DEX market links", () => {
     ave: `https://ave.ai/token/${token}-bsc`,
     dexScreener: `https://dexscreener.com/bsc/${pair}`,
     dexTools: `https://www.dextools.io/app/en/bnb/pair-explorer/${pair}`,
+    coinMarketCap: `https://dex.coinmarketcap.com/token/BSC/${token}/`,
+    gmgn: `https://gmgn.ai/bsc/token/bnbxmeme_${token}`,
   });
 });
 
@@ -18,5 +20,7 @@ test("does not publish a DEXTools Pair Explorer link before a Pair exists", () =
     ave: `https://ave.ai/token/${token}-bsc`,
     dexScreener: `https://dexscreener.com/bsc/${token}`,
     dexTools: null,
+    coinMarketCap: `https://dex.coinmarketcap.com/token/BSC/${token}/`,
+    gmgn: `https://gmgn.ai/bsc/token/bnbxmeme_${token}`,
   });
 });

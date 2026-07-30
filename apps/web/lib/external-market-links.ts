@@ -10,5 +10,7 @@ export function buildExternalMarketLinks(
     dexTools: pairAddress
       ? `https://www.dextools.io/app/en/bnb/pair-explorer/${pairAddress}`
       : null,
+    coinMarketCap: `https://dex.coinmarketcap.com/token/BSC/${tokenAddress}/`,
+    gmgn: `https://gmgn.ai/bsc/token/bnbxmeme_${tokenAddress}`,
   };
 }

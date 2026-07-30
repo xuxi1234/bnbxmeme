@@ -1171,6 +1171,22 @@ export function TokenTradingPage({
               DEXTools ↗
             </a>
           )}
+          <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
+            href={externalMarketLinks.coinMarketCap}
+            target="_blank"
+            rel="noreferrer"
+          >
+            CoinMarketCap ↗
+          </a>
+          <a
+            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
+            href={externalMarketLinks.gmgn}
+            target="_blank"
+            rel="noreferrer"
+          >
+            GMGN.AI ↗
+          </a>
         </div>
         {qqCopied && (
           <div className="copy-toast" role="status" aria-live="polite">
