@@ -4,14 +4,14 @@ import test from "node:test";
 
 const atomicMigration = readFileSync(
   new URL(
-    "../../../supabase/migrations/20260730090000_atomic_comment_submission.sql",
+    "../../../supabase/migrations/20260730013952_atomic_comment_submission.sql",
     import.meta.url,
   ),
   "utf8",
 );
 const contractWalletMigration = readFileSync(
   new URL(
-    "../../../supabase/migrations/20260730093000_support_contract_wallet_signatures.sql",
+    "../../../supabase/migrations/20260730014028_support_contract_wallet_signatures.sql",
     import.meta.url,
   ),
   "utf8",

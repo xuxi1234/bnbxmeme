@@ -37,10 +37,10 @@ original chain cache and moderation tables only needs the unapplied files, but
 its migration history must still show the complete sequence:
 
 1. `20260728134746_create_chain_data_cache.sql`
-2. `20260729121922_create_token_comments.sql`
+2. `20260729121935_create_token_comments.sql`
 3. `20260729144853_add_comment_moderation.sql`
-4. `20260730090000_atomic_comment_submission.sql`
-5. `20260730093000_support_contract_wallet_signatures.sql`
+4. `20260730013952_atomic_comment_submission.sql`
+5. `20260730014028_support_contract_wallet_signatures.sql`
 
 Apply the two `20260730` migrations before deploying the Web commit that calls
 `submit_token_comment`. The first migration installs a `BEFORE INSERT`
