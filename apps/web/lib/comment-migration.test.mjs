@@ -23,6 +23,13 @@ const reportMigration = readFileSync(
   ),
   "utf8",
 );
+const walletBanMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260730111622_add_comment_wallet_bans.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("enforces comment limits on both legacy inserts and the new RPC", () => {
   assert.match(atomicMigration, /before insert on public\.token_comments/i);
@@ -69,4 +76,25 @@ test("stores signed comment reports behind server-only RLS", () => {
     reportMigration,
     /references public\.token_comments\s*\(id\)[\s\S]*on delete cascade/i,
   );
+});
+
+test("enforces active wallet bans inside the atomic comment trigger", () => {
+  assert.match(
+    walletBanMigration,
+    /create table if not exists public\.comment_wallet_bans/i,
+  );
+  assert.match(
+    walletBanMigration,
+    /from public\.comment_wallet_bans[\s\S]*active = true[\s\S]*COMMENT_WALLET_BANNED/i,
+  );
+  assert.match(
+    walletBanMigration,
+    /alter table public\.comment_wallet_bans enable row level security/i,
+  );
+  assert.match(
+    walletBanMigration,
+    /revoke all on table public\.comment_wallet_bans from anon, authenticated/i,
+  );
+  assert.match(walletBanMigration, /'ban_wallet'/i);
+  assert.match(walletBanMigration, /'unban_wallet'/i);
 });

@@ -2275,6 +2275,38 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   border-radius: 8px;
   background: var(--surface);
 }
+.moderation-bans {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--line));
+  border-radius: 8px;
+  background: var(--surface);
+}
+.moderation-ban-list { display: grid; }
+.moderation-ban-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+.moderation-ban-list article > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.moderation-ban-list strong,
+.moderation-ban-list time { font-family: monospace; font-size: 11px; }
+.moderation-ban-list span { color: var(--muted); }
+.moderation-ban-list button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
 .moderation-comments-heading {
   display: flex;
   align-items: center;

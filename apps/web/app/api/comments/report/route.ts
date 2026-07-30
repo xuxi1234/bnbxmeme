@@ -8,6 +8,7 @@ import { isSupportedWalletSignature } from "@/lib/comment-signature-core";
 import { verifyWalletMessage } from "@/lib/comment-signature-server";
 import { normalizeCommentSignature } from "@/lib/comment-submission-core";
 import {
+  isCommentWalletBanned,
   supabaseServiceHeaders,
   supabaseTableEndpoint,
 } from "@/lib/comments-server";
@@ -79,6 +80,23 @@ export async function POST(request: NextRequest) {
         error: "BNB Chain project validation is temporarily unavailable",
       },
       { status: 503 },
+    );
+  }
+
+  const walletBanned = await isCommentWalletBanned(wallet);
+  if (walletBanned === null) {
+    return NextResponse.json(
+      { error: "Community moderation service is unavailable" },
+      { status: 503 },
+    );
+  }
+  if (walletBanned) {
+    return NextResponse.json(
+      {
+        code: "WALLET_BANNED",
+        error: "This wallet is blocked from project discussions",
+      },
+      { status: 403 },
     );
   }
 

@@ -84,6 +84,7 @@ const messages: Record<Language, Record<string, string>> = {
     tradeLine: "逐笔成交", lastUpdated: "更新",
     securityCenter: "安全与合约", communityManagement: "社区管理", discussion: "项目讨论", signatureNoGas: "钱包签名 · 不消耗 Gas", commentPlaceholder: "分享项目观点或最新动态（最多 280 字）", connectToComment: "连接钱包后参与讨论", postComment: "签名并发布", noComments: "还没有评论，成为第一个参与讨论的人。", commentsUnavailable: "评论服务暂时不可用，请稍后重试。", commentsDisabled: "平台已暂时关闭项目评论功能。", commentBlocked: "该内容不符合社区规则，请修改后再发布。", commentFailed: "评论发布失败。",
     reportComment: "举报", reportReason: "举报原因", reportSpam: "垃圾广告", reportScam: "诈骗风险", reportHarassment: "骚扰攻击", reportIllegal: "违法内容", reportOther: "其他", reported: "已举报", reportFailed: "举报提交失败。",
+    walletBanned: "该钱包已被禁止参与项目讨论。",
   },
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
@@ -163,6 +164,7 @@ const messages: Record<Language, Record<string, string>> = {
     tradeLine: "Trade line", lastUpdated: "Updated",
     securityCenter: "Safety & Contracts", communityManagement: "Community Admin", discussion: "Project Discussion", signatureNoGas: "Wallet signature · no gas", commentPlaceholder: "Share research or a project update (280 characters)", connectToComment: "Connect your wallet to join the discussion", postComment: "Sign & post", noComments: "No comments yet. Start the discussion.", commentsUnavailable: "Comments are temporarily unavailable.", commentsDisabled: "Project discussions are temporarily disabled by the platform.", commentBlocked: "This content does not meet the community rules. Please revise it.", commentFailed: "Comment could not be posted.",
     reportComment: "Report", reportReason: "Report reason", reportSpam: "Spam", reportScam: "Scam risk", reportHarassment: "Harassment", reportIllegal: "Illegal content", reportOther: "Other", reported: "Reported", reportFailed: "The report could not be submitted.",
+    walletBanned: "This wallet is blocked from project discussions.",
   },
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
@@ -242,6 +244,7 @@ const messages: Record<Language, Record<string, string>> = {
     tradeLine: "체결 추이", lastUpdated: "업데이트",
     securityCenter: "보안 및 컨트랙트", communityManagement: "커뮤니티 관리", discussion: "프로젝트 토론", signatureNoGas: "지갑 서명 · 가스 없음", commentPlaceholder: "프로젝트 의견이나 소식을 공유하세요 (최대 280자)", connectToComment: "지갑을 연결해 토론에 참여하세요", postComment: "서명 후 게시", noComments: "아직 댓글이 없습니다.", commentsUnavailable: "댓글 서비스를 일시적으로 사용할 수 없습니다.", commentsDisabled: "플랫폼에서 프로젝트 댓글 기능을 일시 중지했습니다.", commentBlocked: "커뮤니티 규칙에 맞지 않는 내용입니다. 수정 후 다시 게시하세요.", commentFailed: "댓글 게시에 실패했습니다.",
     reportComment: "신고", reportReason: "신고 사유", reportSpam: "스팸", reportScam: "사기 위험", reportHarassment: "괴롭힘", reportIllegal: "불법 콘텐츠", reportOther: "기타", reported: "신고됨", reportFailed: "신고를 제출하지 못했습니다.",
+    walletBanned: "이 지갑은 프로젝트 토론 참여가 제한되었습니다.",
   },
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
@@ -321,6 +324,7 @@ const messages: Record<Language, Record<string, string>> = {
     tradeLine: "約定ライン", lastUpdated: "更新",
     securityCenter: "安全性・コントラクト", communityManagement: "コミュニティ管理", discussion: "プロジェクト討論", signatureNoGas: "ウォレット署名 · Gas不要", commentPlaceholder: "プロジェクトの見解や更新を共有（最大280文字）", connectToComment: "ウォレット接続後に参加できます", postComment: "署名して投稿", noComments: "まだコメントはありません。", commentsUnavailable: "コメントサービスは一時的に利用できません。", commentsDisabled: "プラットフォームによりコメント機能が一時停止されています。", commentBlocked: "コミュニティルールに適合しない内容です。修正して再投稿してください。", commentFailed: "コメントを投稿できませんでした。",
     reportComment: "報告", reportReason: "報告理由", reportSpam: "スパム", reportScam: "詐欺リスク", reportHarassment: "嫌がらせ", reportIllegal: "違法コンテンツ", reportOther: "その他", reported: "報告済み", reportFailed: "報告を送信できませんでした。",
+    walletBanned: "このウォレットはプロジェクト討論への参加を制限されています。",
   },
 };
 

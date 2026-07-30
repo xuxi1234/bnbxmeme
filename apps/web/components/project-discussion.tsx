@@ -106,6 +106,9 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
           setEnabled(false);
           throw new Error(t("commentsDisabled"));
         }
+        if (result.code === "WALLET_BANNED") {
+          throw new Error(t("walletBanned"));
+        }
         throw new Error(t("commentFailed"));
       }
       setComments((current) => [result.comment!, ...current]);
@@ -113,7 +116,9 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "";
       setError(
-        message === t("commentBlocked") || message === t("commentsDisabled")
+        message === t("commentBlocked") ||
+          message === t("commentsDisabled") ||
+          message === t("walletBanned")
           ? message
           : t("commentFailed"),
       );
@@ -153,12 +158,16 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
         code?: string;
         error?: string;
       };
+      if (result.code === "WALLET_BANNED") {
+        throw new Error(t("walletBanned"));
+      }
       if (!response.ok && result.code !== "REPORT_ALREADY_SUBMITTED") {
         throw new Error(t("reportFailed"));
       }
       setReportedIds((current) => new Set(current).add(commentId));
-    } catch {
-      setError(t("reportFailed"));
+    } catch (reportError) {
+      const message = reportError instanceof Error ? reportError.message : "";
+      setError(message === t("walletBanned") ? message : t("reportFailed"));
     } finally {
       setReportingId("");
     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAddress } from "viem";
 import {
   COMMENT_ADMIN_COOKIE,
   authenticateCommentAdmin,
@@ -31,6 +32,16 @@ type CommentReportRow = {
   reason: string;
 };
 
+type WalletBanRow = {
+  wallet_address: string;
+  reason: string;
+  active: boolean;
+  banned_at: string;
+  banned_by: string;
+  updated_at: string;
+  updated_by: string;
+};
+
 function unauthorized() {
   return NextResponse.json(
     { error: "Administrator authorization required" },
@@ -43,6 +54,7 @@ function unauthorized() {
 function publicAdminComment(
   row: AdminCommentRow,
   reportReasons: Record<string, number>,
+  walletBan: WalletBanRow | undefined,
 ) {
   return {
     id: row.id,
@@ -59,6 +71,20 @@ function publicAdminComment(
       0,
     ),
     reportReasons,
+    walletBanned: Boolean(walletBan),
+    walletBanReason: walletBan?.reason ?? null,
+  };
+}
+
+function publicWalletBan(row: WalletBanRow) {
+  return {
+    wallet: row.wallet_address,
+    reason: row.reason,
+    active: row.active,
+    bannedAt: row.banned_at,
+    bannedBy: row.banned_by,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
   };
 }
 
@@ -89,7 +115,8 @@ export async function GET(request: NextRequest) {
   const headers = supabaseServiceHeaders();
   const endpoint = supabaseTableEndpoint("token_comments");
   const reportsEndpoint = supabaseTableEndpoint("comment_reports");
-  if (!headers || !endpoint || !reportsEndpoint) {
+  const bansEndpoint = supabaseTableEndpoint("comment_wallet_bans");
+  if (!headers || !endpoint || !reportsEndpoint || !bansEndpoint) {
     return NextResponse.json(
       { error: "Moderation service is not configured" },
       { status: 503 },
@@ -103,18 +130,35 @@ export async function GET(request: NextRequest) {
   endpoint.searchParams.set("limit", "250");
   reportsEndpoint.searchParams.set("select", "comment_id,reason");
   reportsEndpoint.searchParams.set("limit", "5000");
-  const [settings, commentsResponse, reportsResponse] = await Promise.all([
-    readCommentModerationSettings(),
-    fetch(endpoint, {
-      headers: { ...headers, Prefer: "count=exact" },
-      cache: "no-store",
-    }).catch(() => null),
-    fetch(reportsEndpoint, {
-      headers,
-      cache: "no-store",
-    }).catch(() => null),
-  ]);
-  if (!settings || !commentsResponse?.ok || !reportsResponse?.ok) {
+  bansEndpoint.searchParams.set(
+    "select",
+    "wallet_address,reason,active,banned_at,banned_by,updated_at,updated_by",
+  );
+  bansEndpoint.searchParams.set("active", "eq.true");
+  bansEndpoint.searchParams.set("order", "updated_at.desc");
+  bansEndpoint.searchParams.set("limit", "1000");
+  const [settings, commentsResponse, reportsResponse, bansResponse] =
+    await Promise.all([
+      readCommentModerationSettings(),
+      fetch(endpoint, {
+        headers: { ...headers, Prefer: "count=exact" },
+        cache: "no-store",
+      }).catch(() => null),
+      fetch(reportsEndpoint, {
+        headers,
+        cache: "no-store",
+      }).catch(() => null),
+      fetch(bansEndpoint, {
+        headers,
+        cache: "no-store",
+      }).catch(() => null),
+    ]);
+  if (
+    !settings ||
+    !commentsResponse?.ok ||
+    !reportsResponse?.ok ||
+    !bansResponse?.ok
+  ) {
     return NextResponse.json(
       { error: "Moderation data is temporarily unavailable" },
       { status: 502 },
@@ -122,6 +166,10 @@ export async function GET(request: NextRequest) {
   }
   const rows = (await commentsResponse.json()) as AdminCommentRow[];
   const reports = (await reportsResponse.json()) as CommentReportRow[];
+  const bans = (await bansResponse.json()) as WalletBanRow[];
+  const bansByWallet = new Map(
+    bans.map((ban) => [ban.wallet_address, ban] as const),
+  );
   const reportsByComment = new Map<string, Record<string, number>>();
   for (const report of reports) {
     const reasons = reportsByComment.get(report.comment_id) ?? {};
@@ -138,8 +186,13 @@ export async function GET(request: NextRequest) {
         ? totalComments
         : rows.length,
       comments: rows.map((row) =>
-        publicAdminComment(row, reportsByComment.get(row.id) ?? {}),
+        publicAdminComment(
+          row,
+          reportsByComment.get(row.id) ?? {},
+          bansByWallet.get(row.wallet_address),
+        ),
       ),
+      bans: bans.map(publicWalletBan),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );
@@ -302,6 +355,88 @@ export async function POST(request: NextRequest) {
       termCount: terms.length,
     });
     return NextResponse.json({ ok: true, terms });
+  }
+
+  if (input.action === "set_wallet_ban") {
+    const wallet = typeof input.wallet === "string" ? input.wallet.trim() : "";
+    const active = input.active;
+    const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+    if (
+      !isAddress(wallet) ||
+      typeof active !== "boolean" ||
+      (active &&
+        (reason.length < 1 ||
+          reason.length > 280 ||
+          /[\u0000-\u001F\u007F]/.test(reason)))
+    ) {
+      return NextResponse.json(
+        { error: "Invalid wallet ban request" },
+        {
+          status: 400,
+        },
+      );
+    }
+    const endpoint = supabaseTableEndpoint("comment_wallet_bans");
+    if (!endpoint) {
+      return NextResponse.json(
+        { error: "Service unavailable" },
+        {
+          status: 503,
+        },
+      );
+    }
+    const normalizedWallet = wallet.toLowerCase();
+    const now = new Date().toISOString();
+    let response: Response | null;
+    if (active) {
+      endpoint.searchParams.set("on_conflict", "wallet_address");
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          ...headers,
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify({
+          wallet_address: normalizedWallet,
+          reason,
+          active: true,
+          banned_at: now,
+          banned_by: adminWallet,
+          updated_at: now,
+          updated_by: adminWallet,
+        }),
+      }).catch(() => null);
+    } else {
+      endpoint.searchParams.set("wallet_address", `eq.${normalizedWallet}`);
+      endpoint.searchParams.set("active", "eq.true");
+      response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({
+          active: false,
+          updated_at: now,
+          updated_by: adminWallet,
+        }),
+      }).catch(() => null);
+    }
+    if (!response?.ok) {
+      return NextResponse.json(
+        { error: "Wallet ban could not be updated" },
+        {
+          status: 502,
+        },
+      );
+    }
+    await writeAudit(
+      adminWallet,
+      active ? "ban_wallet" : "unban_wallet",
+      null,
+      {
+        wallet: normalizedWallet,
+        ...(active ? { reason } : {}),
+      },
+    );
+    return NextResponse.json({ ok: true });
   }
 
   if (input.action === "set_hidden") {

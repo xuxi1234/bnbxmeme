@@ -547,6 +547,14 @@ type AdminCopy = {
   commentsList: string;
   commentsSummary: string;
   reports: string;
+  walletBanned: string;
+  banWallet: string;
+  unbanWallet: string;
+  banReasonPrompt: string;
+  defaultBanReason: string;
+  unbanConfirm: string;
+  bannedWallets: string;
+  bannedWalletsSummary: string;
   searchPlaceholder: string;
   noMatches: string;
   hidden: string;
@@ -584,6 +592,14 @@ export const adminCopy: Record<Language, AdminCopy> = {
     commentsList: "评论列表",
     commentsSummary: "显示最近 {shown} / 共 {total} 条 · 已隐藏 {hidden} 条",
     reports: "举报",
+    walletBanned: "已封禁",
+    banWallet: "封禁钱包",
+    unbanWallet: "解除封禁",
+    banReasonPrompt: "请输入封禁原因（1–280 字）",
+    defaultBanReason: "违反社区规则",
+    unbanConfirm: "确定解除该钱包的评论封禁吗？",
+    bannedWallets: "已封禁钱包",
+    bannedWalletsSummary: "当前 {count} 个钱包被禁止参与评论和举报",
     searchPlaceholder: "搜索评论、钱包或代币地址",
     noMatches: "没有符合条件的评论。",
     hidden: "已隐藏",
@@ -620,6 +636,15 @@ export const adminCopy: Record<Language, AdminCopy> = {
     commentsList: "Comment list",
     commentsSummary: "Showing {shown} recent / {total} total · {hidden} hidden",
     reports: "Reports",
+    walletBanned: "Banned",
+    banWallet: "Ban wallet",
+    unbanWallet: "Unban wallet",
+    banReasonPrompt: "Enter a ban reason (1–280 characters)",
+    defaultBanReason: "Community rules violation",
+    unbanConfirm: "Remove this wallet's discussion ban?",
+    bannedWallets: "Banned wallets",
+    bannedWalletsSummary:
+      "{count} wallets are currently blocked from comments and reports",
     searchPlaceholder: "Search comments, wallets, or token addresses",
     noMatches: "No comments match the current search.",
     hidden: "Hidden",
@@ -656,6 +681,15 @@ export const adminCopy: Record<Language, AdminCopy> = {
     commentsList: "댓글 목록",
     commentsSummary: "최근 {shown}개 표시 / 전체 {total}개 · 숨김 {hidden}개",
     reports: "신고",
+    walletBanned: "차단됨",
+    banWallet: "지갑 차단",
+    unbanWallet: "차단 해제",
+    banReasonPrompt: "차단 사유를 입력하세요 (1–280자)",
+    defaultBanReason: "커뮤니티 규칙 위반",
+    unbanConfirm: "이 지갑의 댓글 차단을 해제할까요?",
+    bannedWallets: "차단된 지갑",
+    bannedWalletsSummary:
+      "현재 {count}개 지갑이 댓글 및 신고에서 차단되었습니다",
     searchPlaceholder: "댓글, 지갑 또는 토큰 주소 검색",
     noMatches: "조건에 맞는 댓글이 없습니다.",
     hidden: "숨김",
@@ -692,6 +726,15 @@ export const adminCopy: Record<Language, AdminCopy> = {
     commentsList: "コメント一覧",
     commentsSummary: "最新 {shown} 件 / 全 {total} 件 · 非表示 {hidden} 件",
     reports: "報告",
+    walletBanned: "ブロック済み",
+    banWallet: "ウォレットをブロック",
+    unbanWallet: "ブロック解除",
+    banReasonPrompt: "ブロック理由を入力してください（1～280文字）",
+    defaultBanReason: "コミュニティルール違反",
+    unbanConfirm: "このウォレットのコメント制限を解除しますか？",
+    bannedWallets: "ブロック済みウォレット",
+    bannedWalletsSummary:
+      "現在 {count} ウォレットがコメントと報告を制限されています",
     searchPlaceholder: "コメント、ウォレット、トークンアドレスを検索",
     noMatches: "条件に一致するコメントはありません。",
     hidden: "非表示",

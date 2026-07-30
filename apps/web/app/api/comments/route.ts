@@ -9,6 +9,7 @@ import {
 } from "@/lib/comment-submission-core";
 import {
   findBlockedTerm,
+  isCommentWalletBanned,
   readCommentModerationSettings,
   supabaseRpcEndpoint,
   supabaseServiceHeaders,
@@ -66,7 +67,10 @@ async function projectAccessError(token: string) {
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   if (!token || !isAddress(token)) {
-    return NextResponse.json({ error: "Invalid token address" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid token address" },
+      { status: 400 },
+    );
   }
   const projectError = await projectAccessError(token);
   if (projectError) return projectError;
@@ -118,7 +122,11 @@ export async function GET(request: NextRequest) {
   const rows = (await response.json()) as CommentRow[];
   return NextResponse.json(
     { enabled: true, comments: rows.map(publicComment) },
-    { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30" } },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=5, stale-while-revalidate=30",
+      },
+    },
   );
 }
 
@@ -177,6 +185,25 @@ export async function POST(request: NextRequest) {
   if (!settings.commentsEnabled) {
     return NextResponse.json(
       { code: "COMMENTS_DISABLED", error: "Project discussions are disabled" },
+      { status: 403 },
+    );
+  }
+  const walletBanned = await isCommentWalletBanned(wallet);
+  if (walletBanned === null) {
+    return NextResponse.json(
+      {
+        code: "MODERATION_UNAVAILABLE",
+        error: "Community moderation service is unavailable",
+      },
+      { status: 503 },
+    );
+  }
+  if (walletBanned) {
+    return NextResponse.json(
+      {
+        code: "WALLET_BANNED",
+        error: "This wallet is blocked from project discussions",
+      },
       { status: 403 },
     );
   }
@@ -244,7 +271,7 @@ export async function POST(request: NextRequest) {
       message: !Array.isArray(result) ? result?.message : undefined,
     });
     return NextResponse.json(
-      { error: failure.error },
+      { code: failure.code, error: failure.error },
       { status: failure.status },
     );
   }

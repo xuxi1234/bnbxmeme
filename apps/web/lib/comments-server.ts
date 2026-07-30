@@ -71,3 +71,20 @@ export async function readCommentModerationSettings() {
     updatedBy: row.updated_by,
   } satisfies CommentModerationSettings;
 }
+
+export async function isCommentWalletBanned(wallet: string) {
+  const headers = supabaseServiceHeaders();
+  const endpoint = supabaseTableEndpoint("comment_wallet_bans");
+  if (!headers || !endpoint) return null;
+  endpoint.searchParams.set("select", "wallet_address");
+  endpoint.searchParams.set("wallet_address", `eq.${wallet.toLowerCase()}`);
+  endpoint.searchParams.set("active", "eq.true");
+  endpoint.searchParams.set("limit", "1");
+  const response = await fetch(endpoint, {
+    headers,
+    cache: "no-store",
+  }).catch(() => null);
+  if (!response?.ok) return null;
+  const rows = (await response.json()) as Array<{ wallet_address: string }>;
+  return rows.length > 0;
+}
