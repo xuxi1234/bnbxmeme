@@ -29,6 +29,7 @@ import {
   interpolate,
   localeByLanguage,
 } from "@/lib/localization-copy";
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { useLanguage } from "./language-provider";
 
 type Period = 60 | 300 | 900 | 3600 | 14400 | 86400;
@@ -145,11 +146,10 @@ export function BondingCurveChart({
       }
     }
 
-    void load();
-    const timer = window.setInterval(load, 15_000);
+    const stopPolling = startVisiblePolling(load, 15_000);
     return () => {
       controller.abort();
-      window.clearInterval(timer);
+      stopPolling();
     };
   }, [curve, pair, refreshKey, reloadKey, token]);
 
