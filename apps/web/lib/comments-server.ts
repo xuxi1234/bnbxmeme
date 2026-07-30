@@ -1,5 +1,10 @@
 import "server-only";
 
+export {
+  findBlockedTerm,
+  normalizeModerationText,
+} from "@/lib/comment-moderation-core";
+
 export type CommentModerationSettings = {
   commentsEnabled: boolean;
   blockedTerms: string[];
@@ -65,21 +70,4 @@ export async function readCommentModerationSettings() {
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
   } satisfies CommentModerationSettings;
-}
-
-export function normalizeModerationText(value: string) {
-  return value
-    .normalize("NFKC")
-    .toLocaleLowerCase("en-US")
-    .replace(/[\p{P}\p{S}\s_]+/gu, "");
-}
-
-export function findBlockedTerm(body: string, terms: string[]) {
-  const normalizedBody = normalizeModerationText(body);
-  return (
-    terms.find((term) => {
-      const normalizedTerm = normalizeModerationText(term);
-      return normalizedTerm.length > 0 && normalizedBody.includes(normalizedTerm);
-    }) ?? null
-  );
 }
