@@ -18,7 +18,23 @@ test("maps atomic database rate limits to HTTP 429", () => {
     }),
     {
       status: 429,
+      code: "COMMENT_RATE_LIMIT",
       error: "Please wait 30 seconds before posting again",
+    },
+  );
+});
+
+test("maps atomic wallet bans to a stable HTTP 403 code", () => {
+  assert.deepEqual(
+    mapCommentSubmissionFailure({
+      httpStatus: 400,
+      code: "P0001",
+      message: "COMMENT_WALLET_BANNED",
+    }),
+    {
+      status: 403,
+      code: "WALLET_BANNED",
+      error: "This wallet is blocked from project discussions",
     },
   );
 });

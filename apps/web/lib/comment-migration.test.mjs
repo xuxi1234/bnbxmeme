@@ -16,6 +16,27 @@ const contractWalletMigration = readFileSync(
   ),
   "utf8",
 );
+const reportMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260730111240_add_comment_reports.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const walletBanMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260730111622_add_comment_wallet_bans.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const auditMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260730111835_improve_comment_audit.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("enforces comment limits on both legacy inserts and the new RPC", () => {
   assert.match(atomicMigration, /before insert on public\.token_comments/i);
@@ -38,8 +59,58 @@ test("supports long contract-wallet signatures without long B-tree keys", () => 
     /token_comments_signature_hash_idx[\s\S]*md5\(lower\(signature\)\)/i,
   );
   assert.match(contractWalletMigration, /char_length\(new\.signature\)/i);
+  assert.match(contractWalletMigration, /lower\(signature\) = new\.signature/i);
+});
+
+test("stores signed comment reports behind server-only RLS", () => {
   assert.match(
-    contractWalletMigration,
-    /lower\(signature\) = new\.signature/i,
+    reportMigration,
+    /create table if not exists public\.comment_reports/i,
   );
+  assert.match(
+    reportMigration,
+    /unique\s*\(\s*comment_id,\s*reporter_wallet\s*\)/i,
+  );
+  assert.match(
+    reportMigration,
+    /alter table public\.comment_reports enable row level security/i,
+  );
+  assert.match(
+    reportMigration,
+    /revoke all on table public\.comment_reports from anon, authenticated/i,
+  );
+  assert.match(
+    reportMigration,
+    /references public\.token_comments\s*\(id\)[\s\S]*on delete cascade/i,
+  );
+});
+
+test("enforces active wallet bans inside the atomic comment trigger", () => {
+  assert.match(
+    walletBanMigration,
+    /create table if not exists public\.comment_wallet_bans/i,
+  );
+  assert.match(
+    walletBanMigration,
+    /from public\.comment_wallet_bans[\s\S]*active = true[\s\S]*COMMENT_WALLET_BANNED/i,
+  );
+  assert.match(
+    walletBanMigration,
+    /alter table public\.comment_wallet_bans enable row level security/i,
+  );
+  assert.match(
+    walletBanMigration,
+    /revoke all on table public\.comment_wallet_bans from anon, authenticated/i,
+  );
+  assert.match(walletBanMigration, /'ban_wallet'/i);
+  assert.match(walletBanMigration, /'unban_wallet'/i);
+});
+
+test("bounds and indexes the moderation audit trail", () => {
+  assert.match(
+    auditMigration,
+    /comment_moderation_audit_details_size[\s\S]*pg_column_size\(details\) <= 8192/i,
+  );
+  assert.match(auditMigration, /comment_moderation_audit_action_created_idx/i);
+  assert.match(auditMigration, /comment_moderation_audit_admin_created_idx/i);
 });

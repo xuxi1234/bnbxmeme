@@ -41,9 +41,12 @@ its migration history must still show the complete sequence:
 3. `20260729144853_add_comment_moderation.sql`
 4. `20260730013952_atomic_comment_submission.sql`
 5. `20260730014028_support_contract_wallet_signatures.sql`
+6. `20260730111240_add_comment_reports.sql`
+7. `20260730111622_add_comment_wallet_bans.sql`
+8. `20260730111835_improve_comment_audit.sql`
 
-Apply the two `20260730` migrations before deploying the Web commit that calls
-`submit_token_comment`. The first migration installs a `BEFORE INSERT`
+Apply all unapplied `20260730` migrations before deploying the matching Web
+commit. The atomic-submission migration installs a `BEFORE INSERT`
 trigger, so both the old table-insert route and the new RPC route receive the
 same atomic cooldown and replay checks during a rolling release. It
 intentionally retains the existing server-role table insert privilege for
@@ -58,6 +61,9 @@ Test the migrations on a non-production database first. Confirm:
 - `token_comments_signature_key` is removed after the contract-wallet
   migration;
 - `token_comments_signature_hash_idx` exists.
+- comment reports are unique per comment and reporting wallet;
+- active wallet bans are enforced by the comment-submission trigger;
+- report, ban, and audit tables have RLS enabled and no client-role grants.
 
 ## 3. Build and Preview
 
@@ -112,6 +118,9 @@ logs:
   counterfactual wallet fixture is available.
 - Moderation reads, hides, restores, and deletes still require an authorized
   admin wallet.
+- Complete `docs/comment-moderation-acceptance.md` with an authorized admin
+  wallet, including report aggregation, reversible wallet ban, and audit
+  export checks.
 
 Check for `error` or `fatal` runtime logs and record response times for the
 first historical backfill and a cached follow-up request.

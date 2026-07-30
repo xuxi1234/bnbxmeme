@@ -22,6 +22,29 @@ type AdminComment = {
   moderatedAt: string | null;
   moderatedBy: string | null;
   moderationReason: string | null;
+  reportCount: number;
+  reportReasons: Record<string, number>;
+  walletBanned: boolean;
+  walletBanReason: string | null;
+};
+
+type WalletBan = {
+  wallet: string;
+  reason: string;
+  active: boolean;
+  bannedAt: string;
+  bannedBy: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+type ModerationAudit = {
+  id: string;
+  adminWallet: string;
+  action: string;
+  commentId: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
 };
 
 type ModerationPayload = {
@@ -34,6 +57,8 @@ type ModerationPayload = {
     updatedBy: string | null;
   };
   comments: AdminComment[];
+  bans: WalletBan[];
+  audits: ModerationAudit[];
 };
 
 function shortAddress(value: string) {
@@ -41,7 +66,7 @@ function shortAddress(value: string) {
 }
 
 export default function CommentModerationPage() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const copy = adminCopy[language];
   const { address } = useAccount();
   const { signMessageAsync, isPending } = useSignMessage();
@@ -104,9 +129,7 @@ export default function CommentModerationPage() {
     } catch (authError) {
       const message = authError instanceof Error ? authError.message : "";
       setError(
-        message === copy.accessDenied
-          ? message
-          : copy.authenticationFailed,
+        message === copy.accessDenied ? message : copy.authenticationFailed,
       );
     } finally {
       setBusy(false);
@@ -132,13 +155,39 @@ export default function CommentModerationPage() {
     }
   }
 
+  function banWallet(wallet: string) {
+    const reason = window.prompt(copy.banReasonPrompt, copy.defaultBanReason);
+    if (!reason?.trim()) return;
+    void action({
+      action: "set_wallet_ban",
+      wallet,
+      active: true,
+      reason: reason.trim(),
+    });
+  }
+
+  function unbanWallet(wallet: string) {
+    if (!window.confirm(copy.unbanConfirm)) return;
+    void action({
+      action: "set_wallet_ban",
+      wallet,
+      active: false,
+    });
+  }
+
   const filteredComments = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return payload?.comments ?? [];
-    return (payload?.comments ?? []).filter((comment) =>
-      [comment.token, comment.wallet, comment.body].some((value) =>
-        value.toLowerCase().includes(normalized),
-      ),
+    const matches = normalized
+      ? (payload?.comments ?? []).filter((comment) =>
+          [comment.token, comment.wallet, comment.body].some((value) =>
+            value.toLowerCase().includes(normalized),
+          ),
+        )
+      : [...(payload?.comments ?? [])];
+    return matches.sort(
+      (left, right) =>
+        right.reportCount - left.reportCount ||
+        Date.parse(right.createdAt) - Date.parse(left.createdAt),
     );
   }, [payload?.comments, query]);
 
@@ -230,6 +279,43 @@ export default function CommentModerationPage() {
               </article>
             </section>
 
+            {payload.bans.length > 0 && (
+              <section className="moderation-bans">
+                <div className="moderation-comments-heading">
+                  <div>
+                    <h2>{copy.bannedWallets}</h2>
+                    <span>
+                      {interpolate(copy.bannedWalletsSummary, {
+                        count: payload.bans.length,
+                      })}
+                    </span>
+                  </div>
+                </div>
+                <div className="moderation-ban-list">
+                  {payload.bans.map((ban) => (
+                    <article key={ban.wallet}>
+                      <div>
+                        <strong>{shortAddress(ban.wallet)}</strong>
+                        <span>{ban.reason}</span>
+                        <time dateTime={ban.updatedAt}>
+                          {new Date(ban.updatedAt).toLocaleString(
+                            localeByLanguage[language],
+                          )}
+                        </time>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => unbanWallet(ban.wallet)}
+                      >
+                        {copy.unbanWallet}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <section className="moderation-comments">
               <div className="moderation-comments-heading">
                 <div>
@@ -270,8 +356,35 @@ export default function CommentModerationPage() {
                           )}
                         </time>
                         {comment.hidden && <strong>{copy.hidden}</strong>}
+                        {comment.walletBanned && (
+                          <strong>{copy.walletBanned}</strong>
+                        )}
+                        {comment.reportCount > 0 && (
+                          <strong>
+                            {copy.reports} {comment.reportCount}
+                          </strong>
+                        )}
                       </div>
                       <p>{comment.body}</p>
+                      {comment.reportCount > 0 && (
+                        <small className="moderation-report-reasons">
+                          {Object.entries(comment.reportReasons)
+                            .map(([reason, count]) => {
+                              const key =
+                                reason === "spam"
+                                  ? "reportSpam"
+                                  : reason === "scam"
+                                    ? "reportScam"
+                                    : reason === "harassment"
+                                      ? "reportHarassment"
+                                      : reason === "illegal"
+                                        ? "reportIllegal"
+                                        : "reportOther";
+                              return `${t(key)} ×${count}`;
+                            })
+                            .join(" · ")}
+                        </small>
+                      )}
                       <div className="moderation-actions">
                         <button
                           type="button"
@@ -287,13 +400,25 @@ export default function CommentModerationPage() {
                           {comment.hidden ? copy.restore : copy.hide}
                         </button>
                         <button
+                          className={comment.walletBanned ? "" : "danger"}
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            comment.walletBanned
+                              ? unbanWallet(comment.wallet)
+                              : banWallet(comment.wallet)
+                          }
+                        >
+                          {comment.walletBanned
+                            ? copy.unbanWallet
+                            : copy.banWallet}
+                        </button>
+                        <button
                           className="danger"
                           type="button"
                           disabled={busy}
                           onClick={() => {
-                            if (
-                              window.confirm(copy.deleteConfirm)
-                            ) {
+                            if (window.confirm(copy.deleteConfirm)) {
                               void action({
                                 action: "delete",
                                 commentId: comment.id,
@@ -304,6 +429,49 @@ export default function CommentModerationPage() {
                           {copy.delete}
                         </button>
                       </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="moderation-audit">
+              <div className="moderation-comments-heading">
+                <div>
+                  <h2>{copy.auditTitle}</h2>
+                  <span>
+                    {interpolate(copy.auditSummary, {
+                      count: payload.audits.length,
+                    })}
+                  </span>
+                </div>
+                <a
+                  className="button"
+                  href="/api/admin/comments?export=audit"
+                  download
+                >
+                  {copy.exportAudit}
+                </a>
+              </div>
+              {payload.audits.length === 0 ? (
+                <p className="activity-empty">{copy.noAudit}</p>
+              ) : (
+                <div className="moderation-audit-list">
+                  {payload.audits.map((audit) => (
+                    <article key={audit.id}>
+                      <div>
+                        <strong>{audit.action}</strong>
+                        <span>{shortAddress(audit.adminWallet)}</span>
+                        {audit.commentId && (
+                          <code>{shortAddress(audit.commentId)}</code>
+                        )}
+                        <time dateTime={audit.createdAt}>
+                          {new Date(audit.createdAt).toLocaleString(
+                            localeByLanguage[language],
+                          )}
+                        </time>
+                      </div>
+                      <code>{JSON.stringify(audit.details)}</code>
                     </article>
                   ))}
                 </div>
