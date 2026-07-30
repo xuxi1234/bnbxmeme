@@ -18,6 +18,7 @@ import {
   factoryAbi,
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  lpBurnAddress,
   rewardVaultAbi,
   rewardsFactoryAddress,
   testnetFactoryAddress,
@@ -37,6 +38,7 @@ import {
 import { BondingCurveChart } from "@/components/bonding-curve-chart";
 import { ProjectDiscussion } from "@/components/project-discussion";
 import { useLanguage } from "@/components/language-provider";
+import { resolveLpBurnStatus } from "@/lib/lp-security-core";
 import { ProjectState } from "./project-state";
 
 const SLIPPAGE_BPS = 100n;
@@ -495,6 +497,29 @@ export function TokenTradingPage({
     undefined;
   const pairUnlockedValue =
     pairUnlocked.data ?? tokenSnapshot.snapshot?.pairUnlocked ?? undefined;
+  const lpBurnBalance = useReadContract({
+    address: liquidityPairAddress ?? zeroAddress,
+    abi: tokenAbi,
+    functionName: "balanceOf",
+    args: [lpBurnAddress],
+    query: {
+      enabled:
+        stateValue === 2 &&
+        Boolean(liquidityPairAddress) &&
+        liquidityPairAddress !== zeroAddress,
+    },
+  });
+  const lpBurnStatus = resolveLpBurnStatus({
+    curveState: stateValue,
+    pair: liquidityPairAddress,
+    burnBalance: lpBurnBalance.data,
+  });
+  const lpBurnProofUrl =
+    stateValue === 2 &&
+    liquidityPairAddress &&
+    liquidityPairAddress !== zeroAddress
+      ? `${blockExplorerUrl}/token/${liquidityPairAddress}?a=${lpBurnAddress}`
+      : `${blockExplorerUrl}/address/${lpBurnAddress}`;
 
   const buyWei = safeParseEther(buyAmount);
   const sellWei = safeParseEther(sellAmount);
@@ -1385,14 +1410,37 @@ export function TokenTradingPage({
               )}
             </div>
             <div>
-              <span>{t("pairStatus")}</span>
+              <span>{t("tokenPairTransferStatus")}</span>
               <strong>
                 {pairUnlockedValue === undefined
                   ? t("dataUnknown")
                   : pairUnlockedValue
-                    ? t("unlocked")
-                    : t("protected")}
+                    ? t("tokenPairTransferOpen")
+                    : t("tokenPairTransferProtected")}
               </strong>
+            </div>
+            <div>
+              <span>{t("lpTokenStatus")}</span>
+              <strong>
+                {lpBurnStatus === "burned"
+                  ? t("lpBurned")
+                  : lpBurnStatus === "pending"
+                    ? t("lpBurnPending")
+                    : lpBurnStatus === "missing"
+                      ? t("lpBurnMissing")
+                      : t("dataUnknown")}
+              </strong>
+            </div>
+            <div>
+              <span>{t("lpBurnProof")}</span>
+              <a
+                href={lpBurnProofUrl}
+                target="_blank"
+                rel="noreferrer"
+                title={lpBurnAddress}
+              >
+                {t("viewBurnProof")} ↗
+              </a>
             </div>
             </div>
           </div>

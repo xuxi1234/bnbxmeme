@@ -21,5 +21,8 @@ export const officialFactoryAddresses = [
 
 export const blockExplorerUrl = "https://bscscan.com";
 
+export const lpBurnAddress =
+  "0x000000000000000000000000000000000000dEaD" as const;
+
 export const pancakeRouterAddress =
   "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;

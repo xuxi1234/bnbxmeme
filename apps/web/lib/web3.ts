@@ -6,6 +6,7 @@ import { injected } from "wagmi/connectors";
 import {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  lpBurnAddress,
   pancakeRouterAddress,
   rewardsFactoryAddress,
   standardFactoryAddress,
@@ -14,6 +15,7 @@ import {
 export {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  lpBurnAddress,
   rewardsFactoryAddress,
 };
 export const testnetFactoryAddress = standardFactoryAddress;
