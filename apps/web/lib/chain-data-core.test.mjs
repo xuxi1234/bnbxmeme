@@ -9,8 +9,10 @@ import {
   isCompatibleIndexState,
   materializeHolders,
   mergeIndexedTrades,
+  pricePerMillionBnb,
   resolveScanWindow,
   summarizeTrades,
+  verifiedReservePrice,
 } from "./chain-data-core.ts";
 import { resolveFactoryDeploymentBlock } from "./factory-deployment-blocks.ts";
 
@@ -258,6 +260,38 @@ test("graduated 24h metrics count Pancake swaps without curve trades", () => {
   assert.equal(summary.buys24h, 1);
   assert.equal(summary.sells24h, 1);
   assert.equal(summary.priceChange24h, 100);
+});
+
+test("computes the live reserve price with bigint precision", () => {
+  const actual = pricePerMillionBnb(
+    62_936_306_254_611_034n,
+    1_016_901_114_931_749_505_053_662_602n,
+  );
+  assert.ok(actual !== null);
+  assert.ok(Math.abs(actual - 0.00006189029132772174) < 1e-18);
+  assert.equal(pricePerMillionBnb(0n, 1n), null);
+  assert.equal(pricePerMillionBnb(1n, 0n), null);
+});
+
+test("only trusts cached current prices explicitly sourced from reserves", () => {
+  assert.equal(
+    verifiedReservePrice({
+      priceSource: "reserve",
+      pricePerMillionBnb: 0.00006189029132772174,
+    }),
+    0.00006189029132772174,
+  );
+  assert.equal(
+    verifiedReservePrice({ pricePerMillionBnb: 0.00006291663865890646 }),
+    null,
+  );
+  assert.equal(
+    verifiedReservePrice({
+      priceSource: "reserve",
+      pricePerMillionBnb: Number.NaN,
+    }),
+    null,
+  );
 });
 
 test("partial indexes are never eligible as stale complete market data", () => {

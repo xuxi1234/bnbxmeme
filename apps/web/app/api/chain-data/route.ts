@@ -9,8 +9,10 @@ import {
   isCompatibleIndexState,
   materializeHolders,
   mergeIndexedTrades,
+  pricePerMillionBnb,
   resolveScanWindow,
   summarizeTrades,
+  verifiedReservePrice,
   type ChainIndexIdentity,
   type ChainIndexState,
   type IndexedTrade,
@@ -45,6 +47,7 @@ const LP_BURN_ADDRESS = "0x000000000000000000000000000000000000dead";
 
 type MarketSnapshot = {
   source: "curve" | "pancake";
+  priceSource: "reserve";
   pricePerMillionBnb: number | null;
   volume24hBnb: number | null;
   priceChange24h: number | null;
@@ -98,6 +101,23 @@ const pairReadAbi = [
       { name: "reserve1", type: "uint112" },
       { name: "blockTimestampLast", type: "uint32" },
     ],
+  },
+] as const;
+
+const curveReserveReadAbi = [
+  {
+    type: "function",
+    name: "virtualBNBReserve",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "virtualTokenReserve",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
   },
 ] as const;
 
@@ -320,22 +340,26 @@ async function getSwapLogs(
 async function readPairSnapshot(
   pairAddress: `0x${string}`,
   tokenAddress: `0x${string}`,
+  blockNumber: bigint,
 ) {
   const [token0, token1, reserves] = await Promise.all([
     client.readContract({
       address: pairAddress,
       abi: pairReadAbi,
       functionName: "token0",
+      blockNumber,
     }),
     client.readContract({
       address: pairAddress,
       abi: pairReadAbi,
       functionName: "token1",
+      blockNumber,
     }),
     client.readContract({
       address: pairAddress,
       abi: pairReadAbi,
       functionName: "getReserves",
+      blockNumber,
     }),
   ]);
   const tokenIs0 = token0.toLowerCase() === tokenAddress.toLowerCase();
@@ -343,16 +367,37 @@ async function readPairSnapshot(
   if (!tokenIs0 && !tokenIs1) return null;
   const tokenReserve = tokenIs0 ? reserves[0] : reserves[1];
   const bnbReserve = tokenIs0 ? reserves[1] : reserves[0];
-  const tokens = Number(formatEther(tokenReserve));
   const bnb = Number(formatEther(bnbReserve));
-  if (tokens <= 0 || bnb <= 0) return null;
+  const currentPrice = pricePerMillionBnb(bnbReserve, tokenReserve);
+  if (currentPrice === null || bnb <= 0) return null;
   return {
     token0,
     token1,
     tokenIs0,
-    pricePerMillionBnb: (bnb / tokens) * 1_000_000,
+    pricePerMillionBnb: currentPrice,
     liquidityBnb: bnb * 2,
   };
+}
+
+async function readCurvePrice(
+  curveAddress: `0x${string}`,
+  blockNumber: bigint,
+) {
+  const [bnbReserve, tokenReserve] = await Promise.all([
+    client.readContract({
+      address: curveAddress,
+      abi: curveReserveReadAbi,
+      functionName: "virtualBNBReserve",
+      blockNumber,
+    }),
+    client.readContract({
+      address: curveAddress,
+      abi: curveReserveReadAbi,
+      functionName: "virtualTokenReserve",
+      blockNumber,
+    }),
+  ]);
+  return pricePerMillionBnb(bnbReserve, tokenReserve);
 }
 
 async function getBnbUsdPrice() {
@@ -382,9 +427,18 @@ async function getBnbUsdPrice() {
 
 function publicPayload(payload: ChainDataPayload, chainHead: bigint) {
   const { _index: state, ...visible } = payload;
-  if (!state) return visible;
+  const safeVisible = visible.market
+    ? {
+        ...visible,
+        market: {
+          ...visible.market,
+          pricePerMillionBnb: verifiedReservePrice(visible.market),
+        },
+      }
+    : visible;
+  if (!state) return safeVisible;
   return {
-    ...visible,
+    ...safeVisible,
     index: {
       version: CHAIN_INDEX_VERSION,
       status: state.complete ? ("complete" as const) : ("backfilling" as const),
@@ -405,7 +459,8 @@ function backfillResponse(
     code: "CHAIN_INDEX_BACKFILLING",
     market: {
       source: market.source,
-      pricePerMillionBnb: market.pricePerMillionBnb,
+      priceSource: market.priceSource,
+      pricePerMillionBnb: verifiedReservePrice(market),
       volume24hBnb: null,
       priceChange24h: null,
       liquidityBnb: market.liquidityBnb,
@@ -497,6 +552,7 @@ export async function GET(request: NextRequest) {
   if (
     cached &&
     cachedIndex?.complete &&
+    cached.payload.market?.priceSource === "reserve" &&
     Date.now() - new Date(cached.refreshed_at).getTime() < CACHE_MAX_AGE_MS
   ) {
     return NextResponse.json(
@@ -567,17 +623,23 @@ export async function GET(request: NextRequest) {
           [] as Awaited<ReturnType<typeof getGraduatedLogs>>,
           [] as Awaited<ReturnType<typeof getSwapLogs>>,
         ] as const);
-    const [latestBlock, scanResults, pairSnapshot, bnbUsd] = await Promise.all([
-      client.getBlock({ blockNumber: latest }),
-      scanPromise,
-      pairAddress
-        ? readPairSnapshot(pairAddress, tokenAddress).then((snapshot) => {
-            if (!snapshot) throw new Error("Pair does not match token");
-            return snapshot;
-          })
-        : Promise.resolve(null),
-      getBnbUsdPrice(),
-    ]);
+    const [latestBlock, scanResults, pairSnapshot, curvePrice, bnbUsd] =
+      await Promise.all([
+        client.getBlock({ blockNumber: latest }),
+        scanPromise,
+        pairAddress
+          ? readPairSnapshot(pairAddress, tokenAddress, latest).then(
+              (snapshot) => {
+                if (!snapshot) throw new Error("Pair does not match token");
+                return snapshot;
+              },
+            )
+          : Promise.resolve(null),
+        pairAddress
+          ? Promise.resolve(null)
+          : readCurvePrice(curveAddress, latest).catch(() => null),
+        getBnbUsdPrice(),
+      ]);
     const [buys, sells, transfers, graduations, swaps] = scanResults;
 
     const uniqueTradeBlocks = [
@@ -702,6 +764,7 @@ export async function GET(request: NextRequest) {
     const market: MarketSnapshot = pairAddress
       ? {
           source: "pancake",
+          priceSource: "reserve",
           pricePerMillionBnb:
             pairSnapshot?.pricePerMillionBnb ??
             pancakeSummary.latestPricePerMillionBnb,
@@ -714,7 +777,12 @@ export async function GET(request: NextRequest) {
         }
       : {
           source: "curve",
-          pricePerMillionBnb: curveSummary.latestPricePerMillionBnb,
+          priceSource: "reserve",
+          pricePerMillionBnb:
+            curvePrice ??
+            (cached?.payload.market?.source === "curve"
+              ? verifiedReservePrice(cached.payload.market)
+              : null),
           volume24hBnb: curveSummary.volume24hBnb,
           priceChange24h: curveSummary.priceChange24h,
           liquidityBnb: null,

@@ -194,11 +194,31 @@ export function materializeHolders(
   };
 }
 
+const PRICE_DECIMAL_SCALE = 1_000_000_000_000_000_000n;
+const TOKENS_PER_PRICE_UNIT = 1_000_000n;
+
+export function pricePerMillionBnb(
+  bnbReserveWei: bigint,
+  tokenReserveWei: bigint,
+) {
+  if (bnbReserveWei <= 0n || tokenReserveWei <= 0n) return null;
+  const scaledPrice =
+    (bnbReserveWei * TOKENS_PER_PRICE_UNIT * PRICE_DECIMAL_SCALE) /
+    tokenReserveWei;
+  return Number(scaledPrice) / Number(PRICE_DECIMAL_SCALE);
+}
+
+export function verifiedReservePrice(snapshot: unknown) {
+  if (!isRecord(snapshot) || snapshot.priceSource !== "reserve") return null;
+  const value = snapshot.pricePerMillionBnb;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
+}
+
 function tradePricePerMillionBnb(trade: IndexedTrade | undefined) {
   if (!trade) return null;
-  const tokens = Number(BigInt(trade.tokens)) / 1e18;
-  const bnb = Number(BigInt(trade.priceBNB)) / 1e18;
-  return tokens > 0 && bnb > 0 ? (bnb / tokens) * 1_000_000 : null;
+  return pricePerMillionBnb(BigInt(trade.priceBNB), BigInt(trade.tokens));
 }
 
 export function summarizeTrades(
