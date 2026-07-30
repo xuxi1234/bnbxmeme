@@ -1,7 +1,12 @@
 import "server-only";
 
 import { NextRequest } from "next/server";
-import { isAddress, verifyMessage } from "viem";
+import { isAddress } from "viem";
+import {
+  isSupportedWalletSignature,
+  MAX_ADMIN_SIGNATURE_BYTES,
+} from "@/lib/comment-signature-core";
+import { verifyWalletMessage } from "@/lib/comment-signature-server";
 import { officialFactoryAddresses } from "@/lib/deployments";
 import { serverPublicClient } from "@/lib/server-chain";
 import { buildCommentAdminLoginMessage } from "@/lib/comment-admin-message";
@@ -63,7 +68,10 @@ async function allowedAdminWallets() {
 async function verifyAdminSignature(session: AdminSession, lifetimeMs: number) {
   if (
     !isAddress(session.wallet) ||
-    !/^0x[0-9a-fA-F]{130}$/.test(session.signature)
+    !isSupportedWalletSignature(
+      session.signature,
+      MAX_ADMIN_SIGNATURE_BYTES,
+    )
   ) {
     return null;
   }
@@ -81,7 +89,7 @@ async function verifyAdminSignature(session: AdminSession, lifetimeMs: number) {
     wallet: session.wallet,
     signedAt: session.signedAt,
   });
-  const verified = await verifyMessage({
+  const verified = await verifyWalletMessage({
     address: session.wallet,
     message,
     signature: session.signature as `0x${string}`,
@@ -99,7 +107,7 @@ export function encodeCommentAdminSession(input: AdminSession) {
 
 export async function readCommentAdminSession(request: NextRequest) {
   const raw = request.cookies.get(COMMENT_ADMIN_COOKIE)?.value;
-  if (!raw || raw.length > 1_024) return null;
+  if (!raw || raw.length > 3_500) return null;
   try {
     const session = JSON.parse(
       Buffer.from(raw, "base64url").toString("utf8"),

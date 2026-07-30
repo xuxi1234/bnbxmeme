@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAddress, verifyMessage } from "viem";
+import { isAddress } from "viem";
 import { buildCommentMessage } from "@/lib/comment-message";
+import { isSupportedWalletSignature } from "@/lib/comment-signature-core";
+import { verifyWalletMessage } from "@/lib/comment-signature-server";
 import {
   mapCommentSubmissionFailure,
   normalizeCommentSignature,
@@ -192,7 +194,7 @@ export async function POST(request: NextRequest) {
     !Number.isFinite(signedTime) ||
     signedTime < Date.now() - 10 * 60_000 ||
     signedTime > Date.now() + 2 * 60_000 ||
-    !/^0x[0-9a-fA-F]{130}$/.test(signature)
+    !isSupportedWalletSignature(signature)
   ) {
     return NextResponse.json(
       { error: "Comment signature is invalid or expired" },
@@ -200,7 +202,7 @@ export async function POST(request: NextRequest) {
     );
   }
   const message = buildCommentMessage({ token, wallet, body, signedAt });
-  const verified = await verifyMessage({
+  const verified = await verifyWalletMessage({
     address: wallet,
     message,
     signature: signature as `0x${string}`,
