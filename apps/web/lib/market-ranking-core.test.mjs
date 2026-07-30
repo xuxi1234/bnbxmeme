@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   calculateHotRanking,
   compareMarketEntries,
+  summarizeCompleteMarketActivity,
 } from "./market-ranking-core.ts";
 
 const factory = "0x1111111111111111111111111111111111111111";
@@ -116,4 +117,37 @@ test("internal Hot ranking keeps qualifying curve activity", () => {
   assert.equal(ranking.uniqueTraders, 1);
   assert.equal(ranking.volume24hBnb, 1);
   assert.ok(ranking.hotScore > 0);
+});
+
+test("only summarizes market activity when every listed token is complete", () => {
+  assert.deepEqual(
+    summarizeCompleteMarketActivity(["alpha", "beta"], {
+      alpha: { volume24hBnb: 1.5, activity: 2 },
+      beta: { volume24hBnb: 0, activity: 0 },
+    }),
+    { volume24hBnb: 1.5, trades24h: 2 },
+  );
+
+  assert.equal(
+    summarizeCompleteMarketActivity(["alpha", "beta"], {
+      alpha: { volume24hBnb: 1.5, activity: 2 },
+      beta: {},
+    }),
+    null,
+  );
+});
+
+test("rejects malformed values instead of publishing misleading totals", () => {
+  assert.equal(
+    summarizeCompleteMarketActivity(["alpha"], {
+      alpha: { volume24hBnb: Number.NaN, activity: 2 },
+    }),
+    null,
+  );
+  assert.equal(
+    summarizeCompleteMarketActivity(["alpha"], {
+      alpha: { volume24hBnb: 1, activity: -1 },
+    }),
+    null,
+  );
 });

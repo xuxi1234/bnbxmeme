@@ -15,6 +15,11 @@ export type RankingScore = {
   graduatedAt?: number;
 };
 
+export type MarketActivityScore = {
+  volume24hBnb?: number;
+  activity?: number;
+};
+
 export type RankingTrade = {
   bnb: string;
   timestamp: number;
@@ -91,6 +96,34 @@ export function compareMarketEntries(
     scores[right.token]?.hotScore,
     fallback,
   );
+}
+
+export function summarizeCompleteMarketActivity(
+  tokens: string[],
+  scores: Record<string, MarketActivityScore>,
+) {
+  if (tokens.length === 0) return null;
+  let volume24hBnb = 0;
+  let trades24h = 0;
+  for (const token of tokens) {
+    const score = scores[token];
+    if (
+      score?.volume24hBnb === undefined ||
+      !Number.isFinite(score.volume24hBnb) ||
+      score.volume24hBnb < 0 ||
+      score.activity === undefined ||
+      !Number.isSafeInteger(score.activity) ||
+      score.activity < 0
+    ) {
+      return null;
+    }
+    volume24hBnb += score.volume24hBnb;
+    trades24h += score.activity;
+    if (!Number.isFinite(volume24hBnb) || !Number.isSafeInteger(trades24h)) {
+      return null;
+    }
+  }
+  return { volume24hBnb, trades24h };
 }
 
 export function calculateHotRanking({

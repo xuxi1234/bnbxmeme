@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useTokenMetadata } from "@/lib/metadata";
 import {
+  formatCompactMetric,
   formatTokenPriceUsdt,
   tokenPriceUsdt,
 } from "@/lib/market-format";
 import {
   calculateHotRanking,
   compareMarketEntries,
+  summarizeCompleteMarketActivity,
   type MarketFilter,
 } from "@/lib/market-ranking-core";
 import { useLanguage } from "./language-provider";
@@ -50,14 +52,6 @@ type MarketScore = {
 
 function asBigInt(value: string | null) {
   return value === null ? undefined : BigInt(value);
-}
-
-function compactMetric(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return "—";
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function TokenCard({
@@ -140,7 +134,7 @@ function TokenCard({
           <strong>
             {score?.volume24hBnb === undefined
               ? "—"
-              : compactMetric(score.volume24hBnb)}{" "}
+              : formatCompactMetric(score.volume24hBnb)}{" "}
             BNB
           </strong>
         </div>
@@ -173,6 +167,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [scoreLoadPartial, setScoreLoadPartial] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [indexReloadKey, setIndexReloadKey] = useState(0);
   const hasPayload = useRef(false);
@@ -253,7 +248,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     void Promise.all(
       entries.map(async (entry) => {
         if (!entry.curve || entry.curve === zeroAddress) {
-          return [entry.token, {}] as const;
+          return [entry.token, {}, false] as const;
         }
         try {
           const response = await fetch(
@@ -304,6 +299,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
                 liquidityBnb: data.market?.liquidityBnb ?? undefined,
                 bnbUsd: data.bnbUsd,
               },
+              false,
             ] as const;
           }
           const latestTrade = [...data.trades].sort((a, b) =>
@@ -348,14 +344,18 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
               graduatedAt: data.market?.graduatedAt ?? undefined,
               hotScore: ranking.hotScore,
             },
+            true,
           ] as const;
         } catch {
-          return [entry.token, {}] as const;
+          return [entry.token, {}, false] as const;
         }
       }),
     ).then((result) => {
       if (controller.signal.aborted) return;
-      setScores(Object.fromEntries(result));
+      setScores(
+        Object.fromEntries(result.map(([token, score]) => [token, score])),
+      );
+      setScoreLoadPartial(result.some(([, , complete]) => !complete));
       if (needsIndexRetry) {
         retryTimer = window.setTimeout(
           () => setIndexReloadKey((value) => value + 1),
@@ -430,44 +430,51 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       entry.target !== null &&
       entry.state !== null,
   );
-  const knownScores = Object.values(scores).filter(
-    (score) =>
-      score.volume24hBnb !== undefined && score.activity !== undefined,
-  );
-  const volume24h = knownScores.reduce(
-    (sum, score) => sum + (score.volume24hBnb ?? 0),
-    0,
-  );
-  const trades24h = knownScores.reduce(
-    (sum, score) => sum + (score.activity ?? 0),
-    0,
-  );
+  const activitySummary =
+    payload?.dataStatus === "fresh"
+      ? summarizeCompleteMarketActivity(
+          entries.map((entry) => entry.token),
+          scores,
+        )
+      : null;
+  const projectSummaryComplete =
+    payload?.dataStatus === "fresh" && knownEntries.length === entries.length;
   const marketStats = [
-    [t("volume24h"), knownScores.length ? `${compactMetric(volume24h)} BNB` : "—"],
-    [t("trades24h"), knownScores.length ? trades24h : "—"],
+    [
+      t("volume24h"),
+      activitySummary
+        ? `${formatCompactMetric(activitySummary.volume24hBnb)} BNB`
+        : "—",
+    ],
+    [t("trades24h"), activitySummary?.trades24h ?? "—"],
     [
       t("nearGraduation"),
-      knownEntries.filter((entry) => {
-        const principal = asBigInt(entry.principal);
-        const target = asBigInt(entry.target);
-        return (
-          (entry.state ?? 2) < 2 &&
-          principal !== undefined &&
-          target !== undefined &&
-          target > 0n &&
-          principal * 100n >= target * 75n
-        );
-      }).length,
+      projectSummaryComplete
+        ? knownEntries.filter((entry) => {
+            const principal = asBigInt(entry.principal);
+            const target = asBigInt(entry.target);
+            return (
+              entry.state !== null &&
+              entry.state < 2 &&
+              principal !== undefined &&
+              target !== undefined &&
+              target > 0n &&
+              principal * 100n >= target * 75n
+            );
+          }).length
+        : "—",
     ],
     [
       t("completedProjects"),
-      knownEntries.filter((entry) => entry.state === 2).length,
+      projectSummaryComplete
+        ? knownEntries.filter((entry) => entry.state === 2).length
+        : "—",
     ],
   ] as const;
 
   return (
     <>
-      {(payload?.dataStatus === "partial" || loadError) && (
+      {(payload?.dataStatus === "partial" || loadError || scoreLoadPartial) && (
         <div className="data-reliability-banner" role="status">
           <span>
             {loadError ? t("staleDataNotice") : t("partialDataNotice")}
