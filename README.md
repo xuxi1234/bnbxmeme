@@ -49,9 +49,15 @@ packages/chain-config shared chain addresses and IDs
 - Deployer manager configuration:
   `0x843d747e99275ce20183da0a4bb11a834f2581e2b3f42563c83da0d8abc29623`
 
-The web deployment uses server-only `PINATA_JWT` and `BSC_MAINNET_RPC_URL`
-environment variables. Never expose them through a `NEXT_PUBLIC_*` variable,
-print them in logs, or commit them to this repository.
+The web deployment uses server-only `PINATA_JWT`, `BSC_MAINNET_RPC_URL`, and
+`BSC_LOG_RPC_URL` environment variables. `BSC_LOG_RPC_URL` must be
+archive-capable so historical project indexes can backfill from the official
+Factory deployment blocks. Never expose these values through a
+`NEXT_PUBLIC_*` variable, print them in logs, or commit them to this
+repository.
+
+See [docs/web-data-release-runbook.md](docs/web-data-release-runbook.md) before
+applying Supabase migrations or promoting a Web Preview.
 
 ## Safety
 
