@@ -50,6 +50,7 @@ import {
   interpolate,
   localeByLanguage,
 } from "@/lib/localization-copy";
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { ProjectState } from "./project-state";
 
 const SLIPPAGE_BPS = 100n;
@@ -155,11 +156,10 @@ function useTokenSnapshot(token: `0x${string}`) {
         if (!controller.signal.aborted) setIsLoading(false);
       }
     }
-    void load();
-    const interval = window.setInterval(load, 15_000);
+    const stopPolling = startVisiblePolling(load, 15_000);
     return () => {
       controller.abort();
-      window.clearInterval(interval);
+      stopPolling();
     };
   }, [reloadKey, token]);
 

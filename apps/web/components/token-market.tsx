@@ -24,6 +24,7 @@ import {
   interpolate,
   localeByLanguage,
 } from "@/lib/localization-copy";
+import { startVisiblePolling } from "@/lib/visible-polling";
 
 type MarketEntry = {
   token: `0x${string}`;
@@ -244,14 +245,13 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadMarket(controller.signal);
-    const interval = window.setInterval(
-      () => void loadMarket(controller.signal),
+    const stopPolling = startVisiblePolling(
+      () => loadMarket(controller.signal),
       creator ? 60_000 : 15_000,
     );
     return () => {
       controller.abort();
-      window.clearInterval(interval);
+      stopPolling();
     };
   }, [creator, loadMarket, reloadKey]);
 

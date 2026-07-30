@@ -5,6 +5,7 @@ import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
 import { pancakeRouterAddress } from "@/lib/deployments";
+import { startVisiblePolling } from "@/lib/visible-polling";
 
 type Trade = {
   id: string;
@@ -241,11 +242,10 @@ export function TokenActivity({
       }
     }
 
-    void load();
-    const interval = window.setInterval(load, 15_000);
+    const stopPolling = startVisiblePolling(load, 15_000);
     return () => {
       controller.abort();
-      window.clearInterval(interval);
+      stopPolling();
     };
   }, [curve, holders.length, onSummary, pair, refreshKey, reloadKey, token, trades.length]);
 
