@@ -2172,6 +2172,25 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 .comment-list strong { color: var(--brand); font-family: monospace; font-size: 12px; }
 .comment-list time { color: var(--muted); font-family: monospace; font-size: 10px; }
 .comment-list p { margin: 10px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.6; }
+.comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.comment-actions select,
+.comment-actions button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.comment-actions select { padding: 0 30px 0 10px; }
+.comment-actions button { padding: 0 12px; cursor: pointer; }
+.comment-actions select:disabled,
+.comment-actions button:disabled { opacity: .55; cursor: not-allowed; }
 .moderation-page { min-height: 72vh; }
 .moderation-shell {
   display: grid;
@@ -2281,6 +2300,10 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   line-height: 1.65;
+}
+.moderation-report-reasons {
+  display: block;
+  color: var(--warning);
 }
 .moderation-comment-meta,
 .moderation-actions {

@@ -22,6 +22,8 @@ type AdminComment = {
   moderatedAt: string | null;
   moderatedBy: string | null;
   moderationReason: string | null;
+  reportCount: number;
+  reportReasons: Record<string, number>;
 };
 
 type ModerationPayload = {
@@ -41,7 +43,7 @@ function shortAddress(value: string) {
 }
 
 export default function CommentModerationPage() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const copy = adminCopy[language];
   const { address } = useAccount();
   const { signMessageAsync, isPending } = useSignMessage();
@@ -104,9 +106,7 @@ export default function CommentModerationPage() {
     } catch (authError) {
       const message = authError instanceof Error ? authError.message : "";
       setError(
-        message === copy.accessDenied
-          ? message
-          : copy.authenticationFailed,
+        message === copy.accessDenied ? message : copy.authenticationFailed,
       );
     } finally {
       setBusy(false);
@@ -134,11 +134,17 @@ export default function CommentModerationPage() {
 
   const filteredComments = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return payload?.comments ?? [];
-    return (payload?.comments ?? []).filter((comment) =>
-      [comment.token, comment.wallet, comment.body].some((value) =>
-        value.toLowerCase().includes(normalized),
-      ),
+    const matches = normalized
+      ? (payload?.comments ?? []).filter((comment) =>
+          [comment.token, comment.wallet, comment.body].some((value) =>
+            value.toLowerCase().includes(normalized),
+          ),
+        )
+      : [...(payload?.comments ?? [])];
+    return matches.sort(
+      (left, right) =>
+        right.reportCount - left.reportCount ||
+        Date.parse(right.createdAt) - Date.parse(left.createdAt),
     );
   }, [payload?.comments, query]);
 
@@ -270,8 +276,32 @@ export default function CommentModerationPage() {
                           )}
                         </time>
                         {comment.hidden && <strong>{copy.hidden}</strong>}
+                        {comment.reportCount > 0 && (
+                          <strong>
+                            {copy.reports} {comment.reportCount}
+                          </strong>
+                        )}
                       </div>
                       <p>{comment.body}</p>
+                      {comment.reportCount > 0 && (
+                        <small className="moderation-report-reasons">
+                          {Object.entries(comment.reportReasons)
+                            .map(([reason, count]) => {
+                              const key =
+                                reason === "spam"
+                                  ? "reportSpam"
+                                  : reason === "scam"
+                                    ? "reportScam"
+                                    : reason === "harassment"
+                                      ? "reportHarassment"
+                                      : reason === "illegal"
+                                        ? "reportIllegal"
+                                        : "reportOther";
+                              return `${t(key)} ×${count}`;
+                            })
+                            .join(" · ")}
+                        </small>
+                      )}
                       <div className="moderation-actions">
                         <button
                           type="button"
@@ -291,9 +321,7 @@ export default function CommentModerationPage() {
                           type="button"
                           disabled={busy}
                           onClick={() => {
-                            if (
-                              window.confirm(copy.deleteConfirm)
-                            ) {
+                            if (window.confirm(copy.deleteConfirm)) {
                               void action({
                                 action: "delete",
                                 commentId: comment.id,

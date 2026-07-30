@@ -155,9 +155,11 @@ export const createCopy: Record<Language, CreateCopy> = {
       },
     },
     advancedWarningTitle: "你选择的是毕业后有税模板",
-    advancedWarningBody: "内盘交易和毕业加池期间不收代币税；进入 PancakeSwap V2 后，才按下方公开配置启用买入税和卖出税。请确认税率、营销钱包和分红门槛后再创建。",
+    advancedWarningBody:
+      "内盘交易和毕业加池期间不收代币税；进入 PancakeSwap V2 后，才按下方公开配置启用买入税和卖出税。请确认税率、营销钱包和分红门槛后再创建。",
     taxTitle: "毕业后的代币税配置",
-    taxHelp: "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 10%。",
+    taxHelp:
+      "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 10%。",
     buyTax: "买入税",
     sellTax: "卖出税",
     taxLabels: {
@@ -170,8 +172,10 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "默认创建者",
     minimumHolderBalance: "最低参与分红持币量",
     minimumLpBalance: "最低参与分红 LP 数量",
-    rewardsHelp: "分红税自动兑换为 BNB，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。",
-    factorySafetyLock: "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。",
+    rewardsHelp:
+      "分红税自动兑换为 BNB，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。",
+    factorySafetyLock:
+      "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。",
     taxInvalid: "买入税或卖出税合计超过 10%，请降低税率。",
     submitBlockers: {
       wallet: "请先连接钱包，才能创建代币。",
@@ -234,9 +238,11 @@ export const createCopy: Record<Language, CreateCopy> = {
       },
     },
     advancedWarningTitle: "You selected a post-graduation tax template",
-    advancedWarningBody: "Token tax remains off during the bonding curve and migration. The disclosed buy and sell taxes activate only after the PancakeSwap V2 launch. Confirm every tax, the marketing wallet, and any reward threshold before creating.",
+    advancedWarningBody:
+      "Token tax remains off during the bonding curve and migration. The disclosed buy and sell taxes activate only after the PancakeSwap V2 launch. Confirm every tax, the marketing wallet, and any reward threshold before creating.",
     taxTitle: "Post-graduation taxes",
-    taxHelp: "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 10% after Pancake V2 migration.",
+    taxHelp:
+      "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 10% after Pancake V2 migration.",
     buyTax: "Buy tax",
     sellTax: "Sell tax",
     taxLabels: {
@@ -249,35 +255,45 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "creator default",
     minimumHolderBalance: "Minimum token balance for rewards",
     minimumLpBalance: "Minimum LP balance for rewards",
-    rewardsHelp: "Reward tax is converted to BNB and claimed by eligible users. Burn, curve, and pair addresses are excluded.",
-    factorySafetyLock: "Safety lock: creation is disabled until the corresponding Mainnet Factory is configured.",
+    rewardsHelp:
+      "Reward tax is converted to BNB and claimed by eligible users. Burn, curve, and pair addresses are excluded.",
+    factorySafetyLock:
+      "Safety lock: creation is disabled until the corresponding Mainnet Factory is configured.",
     taxInvalid: "Buy or sell tax exceeds the 10% maximum.",
     submitBlockers: {
       wallet: "Connect a wallet before creating a token.",
-      factory: "The Mainnet Factory is not configured, so creation is unavailable.",
-      template: "The selected template is unavailable. Choose an available template.",
+      factory:
+        "The Mainnet Factory is not configured, so creation is unavailable.",
+      template:
+        "The selected template is unavailable. Choose an available template.",
       name: "Enter a token name.",
       symbol: "Enter a token symbol.",
       community: "Correct the highlighted community link fields above.",
       initialBuy: "The initial buy must be a valid non-negative BNB amount.",
       tax: "Reduce both the combined buy tax and sell tax to 10% or less.",
-      rewards: "Reward templates require a reward tax and minimum eligible balance above zero.",
+      rewards:
+        "Reward templates require a reward tax and minimum eligible balance above zero.",
     },
     errors: {
       metadataUploadFailed: "Token metadata upload failed",
       walletRequired: "Connect your wallet first",
       marketingWalletInvalid: "The marketing wallet address is invalid",
       rewardsFactoryMissing: "The Mainnet rewards Factory is not configured",
-      liquidityFactoryMissing: "The Mainnet auto-liquidity Factory is not configured",
-      selectedFactoryMissing: "The Mainnet Factory for this template is not configured",
-      vanityUnavailable: "No address ending in 1111 was found. Please submit again.",
+      liquidityFactoryMissing:
+        "The Mainnet auto-liquidity Factory is not configured",
+      selectedFactoryMissing:
+        "The Mainnet Factory for this template is not configured",
+      vanityUnavailable:
+        "No address ending in 1111 was found. Please submit again.",
       communityInvalid: "The community link is invalid",
       communityHttps: "Community links must use a valid HTTPS address",
-      telegramInvalid: "Enter a Telegram link or username in the Telegram field",
+      telegramInvalid:
+        "Enter a Telegram link or username in the Telegram field",
       twitterInvalid: "Enter an X link or username in the X field",
       deboxInvalid: "Enter a DeBox link or username in the DeBox field",
       qqInvalid: "A QQ group must contain 5–12 digits",
-      duplicateCommunityLinks: "Community fields cannot use the exact same link",
+      duplicateCommunityLinks:
+        "Community fields cannot use the exact same link",
       imageTypeInvalid: "Images must be JPG, PNG, WebP, or GIF",
       imageTooLarge: "The image must be 2MB or smaller",
       imageUploadFailed: "Token image upload failed",
@@ -313,9 +329,11 @@ export const createCopy: Record<Language, CreateCopy> = {
       },
     },
     advancedWarningTitle: "졸업 후 세금이 적용되는 템플릿을 선택했습니다",
-    advancedWarningBody: "본딩 커브와 유동성 이전 중에는 토큰 세금이 없습니다. 아래 공개된 매수·매도 세금은 PancakeSwap V2 출시 후에만 적용됩니다. 생성 전에 세율, 마케팅 지갑, 보상 기준을 확인하세요.",
+    advancedWarningBody:
+      "본딩 커브와 유동성 이전 중에는 토큰 세금이 없습니다. 아래 공개된 매수·매도 세금은 PancakeSwap V2 출시 후에만 적용됩니다. 생성 전에 세율, 마케팅 지갑, 보상 기준을 확인하세요.",
     taxTitle: "졸업 후 토큰 세금",
-    taxHelp: "본딩 커브와 졸업 중에는 토큰 세금이 비활성화됩니다. PancakeSwap V2 이전 후 매수와 매도 각각 최대 10%입니다.",
+    taxHelp:
+      "본딩 커브와 졸업 중에는 토큰 세금이 비활성화됩니다. PancakeSwap V2 이전 후 매수와 매도 각각 최대 10%입니다.",
     buyTax: "매수 세금",
     sellTax: "매도 세금",
     taxLabels: {
@@ -328,35 +346,44 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "생성자 기본값",
     minimumHolderBalance: "보상 최소 토큰 보유량",
     minimumLpBalance: "보상 최소 LP 보유량",
-    rewardsHelp: "보상 세금은 BNB로 전환되며 조건을 충족한 사용자가 청구할 수 있습니다. 소각, 커브, 거래쌍 주소는 제외됩니다.",
-    factorySafetyLock: "안전 잠금: 해당 메인넷 Factory가 설정될 때까지 실제 생성을 차단합니다.",
+    rewardsHelp:
+      "보상 세금은 BNB로 전환되며 조건을 충족한 사용자가 청구할 수 있습니다. 소각, 커브, 거래쌍 주소는 제외됩니다.",
+    factorySafetyLock:
+      "안전 잠금: 해당 메인넷 Factory가 설정될 때까지 실제 생성을 차단합니다.",
     taxInvalid: "매수 또는 매도 세금 합계가 최대 10%를 초과했습니다.",
     submitBlockers: {
       wallet: "토큰을 생성하려면 먼저 지갑을 연결하세요.",
       factory: "메인넷 Factory가 설정되지 않아 현재 생성할 수 없습니다.",
-      template: "선택한 템플릿을 사용할 수 없습니다. 사용 가능한 템플릿을 선택하세요.",
+      template:
+        "선택한 템플릿을 사용할 수 없습니다. 사용 가능한 템플릿을 선택하세요.",
       name: "토큰 이름을 입력하세요.",
       symbol: "토큰 심볼을 입력하세요.",
       community: "위에 표시된 커뮤니티 링크 항목을 수정하세요.",
       initialBuy: "최초 구매액은 유효한 0 이상의 BNB 숫자여야 합니다.",
       tax: "매수 및 매도 세금 합계를 각각 10% 이하로 낮추세요.",
-      rewards: "보상 템플릿에는 0보다 큰 보상 세금과 최소 참여 잔액이 필요합니다.",
+      rewards:
+        "보상 템플릿에는 0보다 큰 보상 세금과 최소 참여 잔액이 필요합니다.",
     },
     errors: {
       metadataUploadFailed: "토큰 메타데이터 업로드에 실패했습니다",
       walletRequired: "먼저 지갑을 연결하세요",
       marketingWalletInvalid: "마케팅 지갑 주소가 올바르지 않습니다",
       rewardsFactoryMissing: "메인넷 보상 Factory가 설정되지 않았습니다",
-      liquidityFactoryMissing: "메인넷 자동 유동성 Factory가 설정되지 않았습니다",
-      selectedFactoryMissing: "선택한 템플릿의 메인넷 Factory가 설정되지 않았습니다",
-      vanityUnavailable: "1111로 끝나는 주소를 찾지 못했습니다. 다시 제출하세요.",
+      liquidityFactoryMissing:
+        "메인넷 자동 유동성 Factory가 설정되지 않았습니다",
+      selectedFactoryMissing:
+        "선택한 템플릿의 메인넷 Factory가 설정되지 않았습니다",
+      vanityUnavailable:
+        "1111로 끝나는 주소를 찾지 못했습니다. 다시 제출하세요.",
       communityInvalid: "커뮤니티 링크 형식이 올바르지 않습니다",
       communityHttps: "커뮤니티 링크는 유효한 HTTPS 주소여야 합니다",
-      telegramInvalid: "Telegram 항목에는 Telegram 링크 또는 사용자 이름을 입력하세요",
+      telegramInvalid:
+        "Telegram 항목에는 Telegram 링크 또는 사용자 이름을 입력하세요",
       twitterInvalid: "X 항목에는 X 링크 또는 사용자 이름을 입력하세요",
       deboxInvalid: "DeBox 항목에는 DeBox 링크 또는 사용자 이름을 입력하세요",
       qqInvalid: "QQ 그룹 번호는 5–12자리 숫자여야 합니다",
-      duplicateCommunityLinks: "서로 다른 커뮤니티 항목에 같은 링크를 사용할 수 없습니다",
+      duplicateCommunityLinks:
+        "서로 다른 커뮤니티 항목에 같은 링크를 사용할 수 없습니다",
       imageTypeInvalid: "이미지는 JPG, PNG, WebP 또는 GIF만 지원합니다",
       imageTooLarge: "이미지는 2MB 이하여야 합니다",
       imageUploadFailed: "토큰 이미지 업로드에 실패했습니다",
@@ -392,9 +419,11 @@ export const createCopy: Record<Language, CreateCopy> = {
       },
     },
     advancedWarningTitle: "卒業後に税が適用されるテンプレートです",
-    advancedWarningBody: "ボンディングカーブと流動性移行中はトークン税がかかりません。下記の公開された売買税はPancakeSwap V2移行後のみ有効です。作成前に税率、マーケティングウォレット、報酬条件を確認してください。",
+    advancedWarningBody:
+      "ボンディングカーブと流動性移行中はトークン税がかかりません。下記の公開された売買税はPancakeSwap V2移行後のみ有効です。作成前に税率、マーケティングウォレット、報酬条件を確認してください。",
     taxTitle: "卒業後のトークン税",
-    taxHelp: "ボンディングカーブと卒業処理中はトークン税が無効です。PancakeSwap V2移行後、売買それぞれ最大10%です。",
+    taxHelp:
+      "ボンディングカーブと卒業処理中はトークン税が無効です。PancakeSwap V2移行後、売買それぞれ最大10%です。",
     buyTax: "買い税",
     sellTax: "売り税",
     taxLabels: {
@@ -407,70 +436,82 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "作成者を初期値に使用",
     minimumHolderBalance: "報酬対象の最低トークン保有量",
     minimumLpBalance: "報酬対象の最低 LP 保有量",
-    rewardsHelp: "報酬税は BNB に変換され、条件を満たすユーザーが請求できます。バーン、カーブ、ペアの各アドレスは対象外です。",
-    factorySafetyLock: "安全ロック：対応するメインネットFactoryが設定されるまで実際の作成を無効にします。",
+    rewardsHelp:
+      "報酬税は BNB に変換され、条件を満たすユーザーが請求できます。バーン、カーブ、ペアの各アドレスは対象外です。",
+    factorySafetyLock:
+      "安全ロック：対応するメインネットFactoryが設定されるまで実際の作成を無効にします。",
     taxInvalid: "買い税または売り税の合計が上限10%を超えています。",
     submitBlockers: {
       wallet: "トークンを作成するには先にウォレットを接続してください。",
       factory: "メインネットFactoryが未設定のため、現在は作成できません。",
-      template: "選択したテンプレートは利用できません。利用可能なものを選んでください。",
+      template:
+        "選択したテンプレートは利用できません。利用可能なものを選んでください。",
       name: "トークン名を入力してください。",
       symbol: "トークンシンボルを入力してください。",
       community: "上で示されたコミュニティリンク欄を修正してください。",
       initialBuy: "初回購入額には0以上の有効なBNB数値を入力してください。",
       tax: "購入税と売却税の合計をそれぞれ10%以下にしてください。",
-      rewards: "報酬テンプレートには0より大きい報酬税と最低参加残高が必要です。",
+      rewards:
+        "報酬テンプレートには0より大きい報酬税と最低参加残高が必要です。",
     },
     errors: {
       metadataUploadFailed: "トークン情報のアップロードに失敗しました",
       walletRequired: "先にウォレットを接続してください",
       marketingWalletInvalid: "マーケティングウォレットのアドレスが無効です",
       rewardsFactoryMissing: "メインネット報酬Factoryが設定されていません",
-      liquidityFactoryMissing: "メインネット自動流動性Factoryが設定されていません",
-      selectedFactoryMissing: "選択したテンプレートのメインネットFactoryが設定されていません",
-      vanityUnavailable: "末尾が1111のアドレスを見つけられませんでした。再度送信してください。",
+      liquidityFactoryMissing:
+        "メインネット自動流動性Factoryが設定されていません",
+      selectedFactoryMissing:
+        "選択したテンプレートのメインネットFactoryが設定されていません",
+      vanityUnavailable:
+        "末尾が1111のアドレスを見つけられませんでした。再度送信してください。",
       communityInvalid: "コミュニティリンクの形式が無効です",
-      communityHttps: "コミュニティリンクには有効なHTTPSアドレスを使用してください",
-      telegramInvalid: "Telegram欄にはTelegramリンクまたはユーザー名を入力してください",
+      communityHttps:
+        "コミュニティリンクには有効なHTTPSアドレスを使用してください",
+      telegramInvalid:
+        "Telegram欄にはTelegramリンクまたはユーザー名を入力してください",
       twitterInvalid: "X欄にはXリンクまたはユーザー名を入力してください",
       deboxInvalid: "DeBox欄にはDeBoxリンクまたはユーザー名を入力してください",
       qqInvalid: "QQグループ番号は5〜12桁の数字で入力してください",
-      duplicateCommunityLinks: "複数のコミュニティ欄に同じリンクは使用できません",
+      duplicateCommunityLinks:
+        "複数のコミュニティ欄に同じリンクは使用できません",
       imageTypeInvalid: "画像はJPG、PNG、WebP、GIFのみ対応しています",
       imageTooLarge: "画像は2MB以下にしてください",
       imageUploadFailed: "トークン画像のアップロードに失敗しました",
       imageCidMissing: "画像アップロードからIPFS CIDが返されませんでした",
       ipfsUnavailable: "IPFSアップロードサービスが設定されていません",
       nameSymbolRequired: "トークン名とシンボルは必須です",
-      metadataCidMissing: "メタデータアップロードからIPFS CIDが返されませんでした",
-      uploadFailed: "アップロードに失敗しました。しばらくしてから再試行してください。",
+      metadataCidMissing:
+        "メタデータアップロードからIPFS CIDが返されませんでした",
+      uploadFailed:
+        "アップロードに失敗しました。しばらくしてから再試行してください。",
     },
   },
 };
 
 const createErrorKeyByMessage: Record<string, keyof CreateErrorCopy> = {
-  "代币资料上传失败": "metadataUploadFailed",
-  "请先连接钱包": "walletRequired",
-  "营销钱包地址格式错误": "marketingWalletInvalid",
+  代币资料上传失败: "metadataUploadFailed",
+  请先连接钱包: "walletRequired",
+  营销钱包地址格式错误: "marketingWalletInvalid",
   "分红模板主网 Factory 尚未配置": "rewardsFactoryMissing",
   "自动回流主网 Factory 尚未配置": "liquidityFactoryMissing",
   "所选模板主网 Factory 尚未配置": "selectedFactoryMissing",
   "暂未找到 1111 靓号，请重新提交": "vanityUnavailable",
-  "社区链接格式无效": "communityInvalid",
+  社区链接格式无效: "communityInvalid",
   "社区链接必须使用有效的 HTTPS 地址": "communityHttps",
   "Telegram 栏只能填写对应平台的链接或用户名": "telegramInvalid",
   "X 栏只能填写对应平台的链接或用户名": "twitterInvalid",
   "DeBox 栏只能填写对应平台的链接或用户名": "deboxInvalid",
   "QQ群只能填写 5–12 位数字群号": "qqInvalid",
-  "不同社区栏目不能填写完全相同的链接": "duplicateCommunityLinks",
+  不同社区栏目不能填写完全相同的链接: "duplicateCommunityLinks",
   "图片仅支持 JPG、PNG、WebP 或 GIF": "imageTypeInvalid",
   "图片不能超过 2MB": "imageTooLarge",
-  "代币图片上传失败": "imageUploadFailed",
+  代币图片上传失败: "imageUploadFailed",
   "图片上传未返回 IPFS CID": "imageCidMissing",
   "IPFS 上传服务尚未配置": "ipfsUnavailable",
-  "代币名称和符号不能为空": "nameSymbolRequired",
+  代币名称和符号不能为空: "nameSymbolRequired",
   "资料上传未返回 IPFS CID": "metadataCidMissing",
-  "上传失败": "uploadFailed",
+  上传失败: "uploadFailed",
 };
 
 export function localizeCreateErrorMessage(
@@ -505,6 +546,7 @@ type AdminCopy = {
   saveTerms: string;
   commentsList: string;
   commentsSummary: string;
+  reports: string;
   searchPlaceholder: string;
   noMatches: string;
   hidden: string;
@@ -526,19 +568,22 @@ export const adminCopy: Record<Language, AdminCopy> = {
     checkingSession: "正在检查管理员会话…",
     walletConfirm: "请在钱包确认…",
     authenticate: "签名验证管理员",
-    loginHelp: "只有 BNBX 官方 Factory 的手续费接收钱包或预先配置的钱包可以进入。",
+    loginHelp:
+      "只有 BNBX 官方 Factory 的手续费接收钱包或预先配置的钱包可以进入。",
     commentsFeature: "评论功能",
     enabled: "已开放",
     disabled: "已下架",
     disableComments: "立即下架评论功能",
     enableComments: "重新开放评论功能",
-    disableHelp: "下架后，所有代币页停止展示评论和发布入口；历史评论不会被删除。",
+    disableHelp:
+      "下架后，所有代币页停止展示评论和发布入口；历史评论不会被删除。",
     blockedTerms: "敏感关键词",
     blockedTermsHelp: "每行一个；忽略大小写、空格和常见符号。",
     blockedTermsPlaceholder: "政治关键词\n宗教关键词\n垃圾广告词",
     saveTerms: "保存关键词",
     commentsList: "评论列表",
     commentsSummary: "显示最近 {shown} / 共 {total} 条 · 已隐藏 {hidden} 条",
+    reports: "举报",
     searchPlaceholder: "搜索评论、钱包或代币地址",
     noMatches: "没有符合条件的评论。",
     hidden: "已隐藏",
@@ -558,19 +603,23 @@ export const adminCopy: Record<Language, AdminCopy> = {
     checkingSession: "Checking the admin session…",
     walletConfirm: "Confirm in your wallet…",
     authenticate: "Sign in as admin",
-    loginHelp: "Access is limited to the official BNBX Factory fee recipient or a preconfigured admin wallet.",
+    loginHelp:
+      "Access is limited to the official BNBX Factory fee recipient or a preconfigured admin wallet.",
     commentsFeature: "Comments",
     enabled: "Enabled",
     disabled: "Disabled",
     disableComments: "Disable comments now",
     enableComments: "Enable comments again",
-    disableHelp: "Disabling comments removes the list and posting form from every token page. Existing comments are not deleted.",
+    disableHelp:
+      "Disabling comments removes the list and posting form from every token page. Existing comments are not deleted.",
     blockedTerms: "Blocked terms",
-    blockedTermsHelp: "Enter one per line. Matching ignores case, spaces, and common punctuation.",
+    blockedTermsHelp:
+      "Enter one per line. Matching ignores case, spaces, and common punctuation.",
     blockedTermsPlaceholder: "political term\nreligious term\nspam phrase",
     saveTerms: "Save terms",
     commentsList: "Comment list",
     commentsSummary: "Showing {shown} recent / {total} total · {hidden} hidden",
+    reports: "Reports",
     searchPlaceholder: "Search comments, wallets, or token addresses",
     noMatches: "No comments match the current search.",
     hidden: "Hidden",
@@ -590,19 +639,23 @@ export const adminCopy: Record<Language, AdminCopy> = {
     checkingSession: "관리자 세션을 확인하는 중…",
     walletConfirm: "지갑에서 확인하세요…",
     authenticate: "관리자 서명 인증",
-    loginHelp: "공식 BNBX Factory 수수료 수령 지갑 또는 사전 등록된 관리자 지갑만 접근할 수 있습니다.",
+    loginHelp:
+      "공식 BNBX Factory 수수료 수령 지갑 또는 사전 등록된 관리자 지갑만 접근할 수 있습니다.",
     commentsFeature: "댓글 기능",
     enabled: "활성화",
     disabled: "비활성화",
     disableComments: "댓글 기능 비활성화",
     enableComments: "댓글 기능 다시 활성화",
-    disableHelp: "비활성화하면 모든 토큰 페이지에서 댓글 목록과 작성란이 사라집니다. 기존 댓글은 삭제되지 않습니다.",
+    disableHelp:
+      "비활성화하면 모든 토큰 페이지에서 댓글 목록과 작성란이 사라집니다. 기존 댓글은 삭제되지 않습니다.",
     blockedTerms: "차단 키워드",
-    blockedTermsHelp: "한 줄에 하나씩 입력하세요. 대소문자, 공백, 일반 기호는 무시합니다.",
+    blockedTermsHelp:
+      "한 줄에 하나씩 입력하세요. 대소문자, 공백, 일반 기호는 무시합니다.",
     blockedTermsPlaceholder: "정치 키워드\n종교 키워드\n스팸 문구",
     saveTerms: "키워드 저장",
     commentsList: "댓글 목록",
     commentsSummary: "최근 {shown}개 표시 / 전체 {total}개 · 숨김 {hidden}개",
+    reports: "신고",
     searchPlaceholder: "댓글, 지갑 또는 토큰 주소 검색",
     noMatches: "조건에 맞는 댓글이 없습니다.",
     hidden: "숨김",
@@ -622,19 +675,23 @@ export const adminCopy: Record<Language, AdminCopy> = {
     checkingSession: "管理者セッションを確認中…",
     walletConfirm: "ウォレットで確認してください…",
     authenticate: "管理者として署名",
-    loginHelp: "公式BNBX Factoryの手数料受取ウォレット、または事前登録済みの管理者ウォレットのみアクセスできます。",
+    loginHelp:
+      "公式BNBX Factoryの手数料受取ウォレット、または事前登録済みの管理者ウォレットのみアクセスできます。",
     commentsFeature: "コメント機能",
     enabled: "有効",
     disabled: "無効",
     disableComments: "コメント機能を無効化",
     enableComments: "コメント機能を再開",
-    disableHelp: "無効化すると、すべてのトークンページでコメント一覧と投稿欄が非表示になります。既存コメントは削除されません。",
+    disableHelp:
+      "無効化すると、すべてのトークンページでコメント一覧と投稿欄が非表示になります。既存コメントは削除されません。",
     blockedTerms: "禁止キーワード",
-    blockedTermsHelp: "1行に1語ずつ入力してください。大文字小文字、空白、一般的な記号は無視されます。",
+    blockedTermsHelp:
+      "1行に1語ずつ入力してください。大文字小文字、空白、一般的な記号は無視されます。",
     blockedTermsPlaceholder: "政治キーワード\n宗教キーワード\nスパム文言",
     saveTerms: "キーワードを保存",
     commentsList: "コメント一覧",
     commentsSummary: "最新 {shown} 件 / 全 {total} 件 · 非表示 {hidden} 件",
+    reports: "報告",
     searchPlaceholder: "コメント、ウォレット、トークンアドレスを検索",
     noMatches: "条件に一致するコメントはありません。",
     hidden: "非表示",
@@ -654,8 +711,7 @@ export function interpolate(
   values: Record<string, string | number>,
 ) {
   return Object.entries(values).reduce(
-    (result, [key, value]) =>
-      result.replaceAll(`{${key}}`, String(value)),
+    (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
     template,
   );
 }
@@ -708,8 +764,10 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
   zh: {
     titleMainnet: "部署 BNBX 主网小额灰度 Factory",
     titleTestnet: "部署 BNBX 测试网 Factory",
-    leadMainnet: "仅部署到 BSC Mainnet；毕业档位为 0.01–0.18 BNB。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
-    leadTestnet: "仅部署到 BSC Testnet。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
+    leadMainnet:
+      "仅部署到 BSC Mainnet；毕业档位为 0.01–0.18 BNB。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
+    leadTestnet:
+      "仅部署到 BSC Testnet。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
     factoryType: "Factory 类型",
     rewardsOption: "持币分红 / LP 分红 Factory",
     liquidityOption: "自动回流 V2 Factory",
@@ -718,7 +776,8 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     connectTestnetWallet: "请先连接持有 tBNB 的部署钱包。",
     switchMainnet: "切换到 BNB 主网",
     switchTestnet: "切换到 BNB 测试网",
-    advancedStepsHelp: "自动回流及分红模板需依次完成三笔链上操作。每一步确认后才会开放下一步。",
+    advancedStepsHelp:
+      "自动回流及分红模板需依次完成三笔链上操作。每一步确认后才会开放下一步。",
     step1Done: "步骤 1 已完成",
     step1Confirm: "请确认步骤 1…",
     step1Waiting: "等待步骤 1 上链…",
@@ -745,14 +804,17 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     errorCancelled: "你已在 MetaMask 取消部署。",
     errorMainnetFunds: "主网钱包的 BNB 不足以支付部署 Gas。",
     errorTestnetFunds: "测试钱包的 tBNB 不足以支付部署 Gas。",
-    errorCodeSize: "Factory 代码超过 BSC 合约大小限制，请使用最新部署页面后重试。",
+    errorCodeSize:
+      "Factory 代码超过 BSC 合约大小限制，请使用最新部署页面后重试。",
     errorFailed: "交易未成功发送：{message}",
   },
   en: {
     titleMainnet: "Deploy the BNBX Mainnet Canary Factory",
     titleTestnet: "Deploy the BNBX Testnet Factory",
-    leadMainnet: "Deploys only to BSC Mainnet with 0.01–0.18 BNB graduation targets. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
-    leadTestnet: "Deploys only to BSC Testnet. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
+    leadMainnet:
+      "Deploys only to BSC Mainnet with 0.01–0.18 BNB graduation targets. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
+    leadTestnet:
+      "Deploys only to BSC Testnet. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
     factoryType: "Factory type",
     rewardsOption: "Holder / LP Rewards Factory",
     liquidityOption: "Auto Liquidity V2 Factory",
@@ -761,7 +823,8 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     connectTestnetWallet: "Connect a deployment wallet funded with tBNB.",
     switchMainnet: "Switch to BNB Mainnet",
     switchTestnet: "Switch to BNB Testnet",
-    advancedStepsHelp: "Auto-liquidity and rewards templates require three on-chain steps in order. Each next step unlocks after the previous confirmation.",
+    advancedStepsHelp:
+      "Auto-liquidity and rewards templates require three on-chain steps in order. Each next step unlocks after the previous confirmation.",
     step1Done: "Step 1 complete",
     step1Confirm: "Confirm step 1…",
     step1Waiting: "Waiting for step 1…",
@@ -786,16 +849,21 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     rewards: "Rewards",
     configured: "Configuration complete. Set {variable} to {address}",
     errorCancelled: "You cancelled the deployment in MetaMask.",
-    errorMainnetFunds: "The Mainnet wallet does not have enough BNB for deployment gas.",
-    errorTestnetFunds: "The Testnet wallet does not have enough tBNB for deployment gas.",
-    errorCodeSize: "The Factory exceeds the BSC contract size limit. Use the latest deployment page and try again.",
+    errorMainnetFunds:
+      "The Mainnet wallet does not have enough BNB for deployment gas.",
+    errorTestnetFunds:
+      "The Testnet wallet does not have enough tBNB for deployment gas.",
+    errorCodeSize:
+      "The Factory exceeds the BSC contract size limit. Use the latest deployment page and try again.",
     errorFailed: "The transaction was not sent: {message}",
   },
   ko: {
     titleMainnet: "BNBX 메인넷 카나리 Factory 배포",
     titleTestnet: "BNBX 테스트넷 Factory 배포",
-    leadMainnet: "BSC Mainnet에만 배포하며 졸업 목표는 0.01–0.18 BNB입니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
-    leadTestnet: "BSC Testnet에만 배포합니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
+    leadMainnet:
+      "BSC Mainnet에만 배포하며 졸업 목표는 0.01–0.18 BNB입니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
+    leadTestnet:
+      "BSC Testnet에만 배포합니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
     factoryType: "Factory 유형",
     rewardsOption: "홀더 / LP 보상 Factory",
     liquidityOption: "자동 유동성 V2 Factory",
@@ -804,7 +872,8 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     connectTestnetWallet: "tBNB가 있는 배포 지갑을 연결하세요.",
     switchMainnet: "BNB 메인넷으로 전환",
     switchTestnet: "BNB 테스트넷으로 전환",
-    advancedStepsHelp: "자동 유동성과 보상 템플릿은 세 단계의 온체인 작업을 순서대로 완료해야 합니다. 이전 단계가 확인되면 다음 단계가 열립니다.",
+    advancedStepsHelp:
+      "자동 유동성과 보상 템플릿은 세 단계의 온체인 작업을 순서대로 완료해야 합니다. 이전 단계가 확인되면 다음 단계가 열립니다.",
     step1Done: "1단계 완료",
     step1Confirm: "1단계를 확인하세요…",
     step1Waiting: "1단계 온체인 확인 중…",
@@ -831,23 +900,29 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     errorCancelled: "MetaMask에서 배포를 취소했습니다.",
     errorMainnetFunds: "메인넷 지갑의 BNB가 배포 Gas 비용에 부족합니다.",
     errorTestnetFunds: "테스트넷 지갑의 tBNB가 배포 Gas 비용에 부족합니다.",
-    errorCodeSize: "Factory가 BSC 컨트랙트 크기 제한을 초과했습니다. 최신 배포 페이지에서 다시 시도하세요.",
+    errorCodeSize:
+      "Factory가 BSC 컨트랙트 크기 제한을 초과했습니다. 최신 배포 페이지에서 다시 시도하세요.",
     errorFailed: "거래가 전송되지 않았습니다: {message}",
   },
   ja: {
     titleMainnet: "BNBX メインネット・カナリー Factory をデプロイ",
     titleTestnet: "BNBX テストネット Factory をデプロイ",
-    leadMainnet: "BSC Mainnetのみにデプロイし、卒業目標は0.01〜0.18 BNBです。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
-    leadTestnet: "BSC Testnetのみにデプロイします。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
+    leadMainnet:
+      "BSC Mainnetのみにデプロイし、卒業目標は0.01〜0.18 BNBです。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
+    leadTestnet:
+      "BSC Testnetのみにデプロイします。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
     factoryType: "Factory の種類",
     rewardsOption: "ホルダー / LP 報酬 Factory",
     liquidityOption: "自動流動性 V2 Factory",
     standardOption: "標準 0% 税 Factory",
-    connectMainnetWallet: "BNBを保有するデプロイ用ウォレットを接続してください。",
-    connectTestnetWallet: "tBNBを保有するデプロイ用ウォレットを接続してください。",
+    connectMainnetWallet:
+      "BNBを保有するデプロイ用ウォレットを接続してください。",
+    connectTestnetWallet:
+      "tBNBを保有するデプロイ用ウォレットを接続してください。",
     switchMainnet: "BNBメインネットへ切替",
     switchTestnet: "BNBテストネットへ切替",
-    advancedStepsHelp: "自動流動性と報酬テンプレートでは、3つのオンチェーン操作を順番に行います。前の手順が確定すると次へ進めます。",
+    advancedStepsHelp:
+      "自動流動性と報酬テンプレートでは、3つのオンチェーン操作を順番に行います。前の手順が確定すると次へ進めます。",
     step1Done: "手順1完了",
     step1Confirm: "手順1を確認してください…",
     step1Waiting: "手順1の確定待ち…",
@@ -872,9 +947,12 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     rewards: "報酬",
     configured: "設定完了。{variable} を {address} に設定してください。",
     errorCancelled: "MetaMaskでデプロイをキャンセルしました。",
-    errorMainnetFunds: "メインネットウォレットのBNBがデプロイGas費用に不足しています。",
-    errorTestnetFunds: "テストネットウォレットのtBNBがデプロイGas費用に不足しています。",
-    errorCodeSize: "FactoryがBSCコントラクトのサイズ上限を超えています。最新のデプロイページから再試行してください。",
+    errorMainnetFunds:
+      "メインネットウォレットのBNBがデプロイGas費用に不足しています。",
+    errorTestnetFunds:
+      "テストネットウォレットのtBNBがデプロイGas費用に不足しています。",
+    errorCodeSize:
+      "FactoryがBSCコントラクトのサイズ上限を超えています。最新のデプロイページから再試行してください。",
     errorFailed: "取引を送信できませんでした：{message}",
   },
 };
@@ -963,7 +1041,8 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     stakeLp: "Stake LP",
     withdrawLp: "Withdraw LP",
     claimRewards: "Claim BNB rewards",
-    rewardTransactionFailed: "The reward transaction failed. Check your wallet for details.",
+    rewardTransactionFailed:
+      "The reward transaction failed. Check your wallet for details.",
   },
   ko: {
     holderRewardsToken: "홀더 보상 토큰",
@@ -991,7 +1070,8 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     stakeLp: "LP 스테이킹",
     withdrawLp: "LP 출금",
     claimRewards: "BNB 보상 청구",
-    rewardTransactionFailed: "보상 거래에 실패했습니다. 지갑에서 상세 내용을 확인하세요.",
+    rewardTransactionFailed:
+      "보상 거래에 실패했습니다. 지갑에서 상세 내용을 확인하세요.",
   },
   ja: {
     holderRewardsToken: "ホルダー報酬トークン",
@@ -1019,6 +1099,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     stakeLp: "LP をステーク",
     withdrawLp: "LP を引き出す",
     claimRewards: "BNB 報酬を請求",
-    rewardTransactionFailed: "報酬取引に失敗しました。ウォレットで詳細を確認してください。",
+    rewardTransactionFailed:
+      "報酬取引に失敗しました。ウォレットで詳細を確認してください。",
   },
 };

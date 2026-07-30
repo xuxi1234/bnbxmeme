@@ -3,6 +3,10 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { buildCommentMessage } from "@/lib/comment-message";
+import {
+  buildCommentReportMessage,
+  type CommentReportReason,
+} from "@/lib/comment-report-core";
 import { localeByLanguage } from "@/lib/localization-copy";
 import { useLanguage } from "./language-provider";
 
@@ -26,26 +30,36 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
   const [body, setBody] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isPosting, setIsPosting] = useState(false);
+  const [reportingId, setReportingId] = useState("");
+  const [reportedIds, setReportedIds] = useState<Set<string>>(() => new Set());
+  const [reportReasons, setReportReasons] = useState<
+    Record<string, CommentReportReason>
+  >({});
   const [error, setError] = useState("");
 
-  const loadComments = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const response = await fetch(`/api/comments?token=${token}`, { signal });
-      if (!response.ok) throw new Error("comments unavailable");
-      const data = (await response.json()) as {
-        enabled: boolean;
-        comments: ProjectComment[];
-      };
-      if (!signal?.aborted) {
-        setEnabled(data.enabled);
-        setComments(data.comments);
+  const loadComments = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const response = await fetch(`/api/comments?token=${token}`, {
+          signal,
+        });
+        if (!response.ok) throw new Error("comments unavailable");
+        const data = (await response.json()) as {
+          enabled: boolean;
+          comments: ProjectComment[];
+        };
+        if (!signal?.aborted) {
+          setEnabled(data.enabled);
+          setComments(data.comments);
+        }
+      } catch {
+        if (!signal?.aborted) setError(t("commentsUnavailable"));
+      } finally {
+        if (!signal?.aborted) setIsLoading(false);
       }
-    } catch {
-      if (!signal?.aborted) setError(t("commentsUnavailable"));
-    } finally {
-      if (!signal?.aborted) setIsLoading(false);
-    }
-  }, [t, token]);
+    },
+    [t, token],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -97,8 +111,7 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
       setComments((current) => [result.comment!, ...current]);
       setBody("");
     } catch (submitError) {
-      const message =
-        submitError instanceof Error ? submitError.message : "";
+      const message = submitError instanceof Error ? submitError.message : "";
       setError(
         message === t("commentBlocked") || message === t("commentsDisabled")
           ? message
@@ -106,6 +119,48 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
       );
     } finally {
       setIsPosting(false);
+    }
+  }
+
+  async function reportComment(commentId: string) {
+    if (!address || reportingId || reportedIds.has(commentId)) return;
+    setError("");
+    setReportingId(commentId);
+    try {
+      const reason = reportReasons[commentId] ?? "spam";
+      const signedAt = new Date().toISOString();
+      const message = buildCommentReportMessage({
+        token,
+        commentId,
+        wallet: address,
+        reason,
+        signedAt,
+      });
+      const signature = await signMessageAsync({ message });
+      const response = await fetch("/api/comments/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          commentId,
+          wallet: address,
+          reason,
+          signedAt,
+          signature,
+        }),
+      });
+      const result = (await response.json()) as {
+        code?: string;
+        error?: string;
+      };
+      if (!response.ok && result.code !== "REPORT_ALREADY_SUBMITTED") {
+        throw new Error(t("reportFailed"));
+      }
+      setReportedIds((current) => new Set(current).add(commentId));
+    } catch {
+      setError(t("reportFailed"));
+    } finally {
+      setReportingId("");
     }
   }
 
@@ -143,7 +198,11 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
           </button>
         </div>
       </form>
-      {error && <p className="error" role="alert">{error}</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       {isLoading ? (
         <p className="activity-empty">{t("loading")}</p>
       ) : comments.length === 0 ? (
@@ -164,6 +223,44 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
                 </time>
               </div>
               <p>{comment.body}</p>
+              <div className="comment-actions">
+                <select
+                  aria-label={t("reportReason")}
+                  value={reportReasons[comment.id] ?? "spam"}
+                  disabled={
+                    !address ||
+                    Boolean(reportingId) ||
+                    reportedIds.has(comment.id)
+                  }
+                  onChange={(event) =>
+                    setReportReasons((current) => ({
+                      ...current,
+                      [comment.id]: event.target.value as CommentReportReason,
+                    }))
+                  }
+                >
+                  <option value="spam">{t("reportSpam")}</option>
+                  <option value="scam">{t("reportScam")}</option>
+                  <option value="harassment">{t("reportHarassment")}</option>
+                  <option value="illegal">{t("reportIllegal")}</option>
+                  <option value="other">{t("reportOther")}</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={
+                    !address ||
+                    Boolean(reportingId) ||
+                    reportedIds.has(comment.id)
+                  }
+                  onClick={() => void reportComment(comment.id)}
+                >
+                  {reportedIds.has(comment.id)
+                    ? t("reported")
+                    : reportingId === comment.id
+                      ? t("walletConfirm")
+                      : t("reportComment")}
+                </button>
+              </div>
             </article>
           ))}
         </div>

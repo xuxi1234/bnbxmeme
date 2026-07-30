@@ -26,13 +26,24 @@ type AdminCommentRow = {
   moderation_reason: string | null;
 };
 
+type CommentReportRow = {
+  comment_id: string;
+  reason: string;
+};
+
 function unauthorized() {
-  return NextResponse.json({ error: "Administrator authorization required" }, {
-    status: 401,
-  });
+  return NextResponse.json(
+    { error: "Administrator authorization required" },
+    {
+      status: 401,
+    },
+  );
 }
 
-function publicAdminComment(row: AdminCommentRow) {
+function publicAdminComment(
+  row: AdminCommentRow,
+  reportReasons: Record<string, number>,
+) {
   return {
     id: row.id,
     token: row.token_address,
@@ -43,6 +54,11 @@ function publicAdminComment(row: AdminCommentRow) {
     moderatedAt: row.moderated_at,
     moderatedBy: row.moderated_by,
     moderationReason: row.moderation_reason,
+    reportCount: Object.values(reportReasons).reduce(
+      (total, count) => total + count,
+      0,
+    ),
+    reportReasons,
   };
 }
 
@@ -72,7 +88,8 @@ export async function GET(request: NextRequest) {
   if (!adminWallet) return unauthorized();
   const headers = supabaseServiceHeaders();
   const endpoint = supabaseTableEndpoint("token_comments");
-  if (!headers || !endpoint) {
+  const reportsEndpoint = supabaseTableEndpoint("comment_reports");
+  if (!headers || !endpoint || !reportsEndpoint) {
     return NextResponse.json(
       { error: "Moderation service is not configured" },
       { status: 503 },
@@ -84,20 +101,33 @@ export async function GET(request: NextRequest) {
   );
   endpoint.searchParams.set("order", "created_at.desc");
   endpoint.searchParams.set("limit", "250");
-  const [settings, commentsResponse] = await Promise.all([
+  reportsEndpoint.searchParams.set("select", "comment_id,reason");
+  reportsEndpoint.searchParams.set("limit", "5000");
+  const [settings, commentsResponse, reportsResponse] = await Promise.all([
     readCommentModerationSettings(),
     fetch(endpoint, {
       headers: { ...headers, Prefer: "count=exact" },
       cache: "no-store",
     }).catch(() => null),
+    fetch(reportsEndpoint, {
+      headers,
+      cache: "no-store",
+    }).catch(() => null),
   ]);
-  if (!settings || !commentsResponse?.ok) {
+  if (!settings || !commentsResponse?.ok || !reportsResponse?.ok) {
     return NextResponse.json(
       { error: "Moderation data is temporarily unavailable" },
       { status: 502 },
     );
   }
   const rows = (await commentsResponse.json()) as AdminCommentRow[];
+  const reports = (await reportsResponse.json()) as CommentReportRow[];
+  const reportsByComment = new Map<string, Record<string, number>>();
+  for (const report of reports) {
+    const reasons = reportsByComment.get(report.comment_id) ?? {};
+    reasons[report.reason] = (reasons[report.reason] ?? 0) + 1;
+    reportsByComment.set(report.comment_id, reasons);
+  }
   const contentRange = commentsResponse.headers.get("content-range");
   const totalComments = Number(contentRange?.split("/").at(-1));
   return NextResponse.json(
@@ -107,7 +137,9 @@ export async function GET(request: NextRequest) {
       totalComments: Number.isFinite(totalComments)
         ? totalComments
         : rows.length,
-      comments: rows.map(publicAdminComment),
+      comments: rows.map((row) =>
+        publicAdminComment(row, reportsByComment.get(row.id) ?? {}),
+      ),
     },
     { headers: { "Cache-Control": "private, no-store" } },
   );
@@ -171,15 +203,21 @@ export async function POST(request: NextRequest) {
 
   if (input.action === "set_enabled") {
     if (typeof input.enabled !== "boolean") {
-      return NextResponse.json({ error: "Invalid enabled state" }, {
-        status: 400,
-      });
+      return NextResponse.json(
+        { error: "Invalid enabled state" },
+        {
+          status: 400,
+        },
+      );
     }
     const endpoint = supabaseTableEndpoint("comment_moderation_settings");
     if (!endpoint) {
-      return NextResponse.json({ error: "Service unavailable" }, {
-        status: 503,
-      });
+      return NextResponse.json(
+        { error: "Service unavailable" },
+        {
+          status: 503,
+        },
+      );
     }
     endpoint.searchParams.set("id", "eq.1");
     const response = await fetch(endpoint, {
@@ -192,9 +230,12 @@ export async function POST(request: NextRequest) {
       }),
     }).catch(() => null);
     if (!response?.ok) {
-      return NextResponse.json({ error: "Setting could not be updated" }, {
-        status: 502,
-      });
+      return NextResponse.json(
+        { error: "Setting could not be updated" },
+        {
+          status: 502,
+        },
+      );
     }
     await writeAudit(adminWallet, "set_enabled", null, {
       enabled: input.enabled,
@@ -204,9 +245,12 @@ export async function POST(request: NextRequest) {
 
   if (input.action === "set_blocked_terms") {
     if (!Array.isArray(input.terms)) {
-      return NextResponse.json({ error: "Invalid blocked terms" }, {
-        status: 400,
-      });
+      return NextResponse.json(
+        { error: "Invalid blocked terms" },
+        {
+          status: 400,
+        },
+      );
     }
     const terms = [
       ...new Set(
@@ -219,9 +263,7 @@ export async function POST(request: NextRequest) {
     if (
       terms.length > 200 ||
       terms.some(
-        (term) =>
-          term.length > 64 ||
-          /[\u0000-\u001F\u007F]/.test(term),
+        (term) => term.length > 64 || /[\u0000-\u001F\u007F]/.test(term),
       )
     ) {
       return NextResponse.json(
@@ -231,9 +273,12 @@ export async function POST(request: NextRequest) {
     }
     const endpoint = supabaseTableEndpoint("comment_moderation_settings");
     if (!endpoint) {
-      return NextResponse.json({ error: "Service unavailable" }, {
-        status: 503,
-      });
+      return NextResponse.json(
+        { error: "Service unavailable" },
+        {
+          status: 503,
+        },
+      );
     }
     endpoint.searchParams.set("id", "eq.1");
     const response = await fetch(endpoint, {
@@ -246,9 +291,12 @@ export async function POST(request: NextRequest) {
       }),
     }).catch(() => null);
     if (!response?.ok) {
-      return NextResponse.json({ error: "Blocked terms could not be updated" }, {
-        status: 502,
-      });
+      return NextResponse.json(
+        { error: "Blocked terms could not be updated" },
+        {
+          status: 502,
+        },
+      );
     }
     await writeAudit(adminWallet, "set_blocked_terms", null, {
       termCount: terms.length,
@@ -265,15 +313,21 @@ export async function POST(request: NextRequest) {
       ) ||
       typeof input.hidden !== "boolean"
     ) {
-      return NextResponse.json({ error: "Invalid moderation request" }, {
-        status: 400,
-      });
+      return NextResponse.json(
+        { error: "Invalid moderation request" },
+        {
+          status: 400,
+        },
+      );
     }
     const endpoint = supabaseTableEndpoint("token_comments");
     if (!endpoint) {
-      return NextResponse.json({ error: "Service unavailable" }, {
-        status: 503,
-      });
+      return NextResponse.json(
+        { error: "Service unavailable" },
+        {
+          status: 503,
+        },
+      );
     }
     endpoint.searchParams.set("id", `eq.${commentId}`);
     const response = await fetch(endpoint, {
@@ -287,9 +341,12 @@ export async function POST(request: NextRequest) {
       }),
     }).catch(() => null);
     if (!response?.ok) {
-      return NextResponse.json({ error: "Comment could not be updated" }, {
-        status: 502,
-      });
+      return NextResponse.json(
+        { error: "Comment could not be updated" },
+        {
+          status: 502,
+        },
+      );
     }
     await writeAudit(adminWallet, "set_hidden", commentId, {
       hidden: input.hidden,
@@ -309,9 +366,12 @@ export async function POST(request: NextRequest) {
     }
     const endpoint = supabaseTableEndpoint("token_comments");
     if (!endpoint) {
-      return NextResponse.json({ error: "Service unavailable" }, {
-        status: 503,
-      });
+      return NextResponse.json(
+        { error: "Service unavailable" },
+        {
+          status: 503,
+        },
+      );
     }
     endpoint.searchParams.set("id", `eq.${commentId}`);
     const response = await fetch(endpoint, {
@@ -319,15 +379,21 @@ export async function POST(request: NextRequest) {
       headers: { ...headers, Prefer: "return=minimal" },
     }).catch(() => null);
     if (!response?.ok) {
-      return NextResponse.json({ error: "Comment could not be deleted" }, {
-        status: 502,
-      });
+      return NextResponse.json(
+        { error: "Comment could not be deleted" },
+        {
+          status: 502,
+        },
+      );
     }
     await writeAudit(adminWallet, "delete", commentId, {});
     return NextResponse.json({ ok: true });
   }
 
-  return NextResponse.json({ error: "Unknown moderation action" }, {
-    status: 400,
-  });
+  return NextResponse.json(
+    { error: "Unknown moderation action" },
+    {
+      status: 400,
+    },
+  );
 }
