@@ -40,7 +40,12 @@ import { ProjectDiscussion } from "@/components/project-discussion";
 import { useLanguage } from "@/components/language-provider";
 import { resolveLpBurnStatus } from "@/lib/lp-security-core";
 import { publicQuoteReadConfig } from "@/lib/trade-quote-core";
-import { advancedTokenCopy, localeByLanguage } from "@/lib/localization-copy";
+import {
+  accessibilityCopy,
+  advancedTokenCopy,
+  interpolate,
+  localeByLanguage,
+} from "@/lib/localization-copy";
 import { ProjectState } from "./project-state";
 
 const SLIPPAGE_BPS = 100n;
@@ -207,6 +212,7 @@ export function TokenTradingPage({
     hash: lpApprovalWrite.data,
   });
   const { language, t } = useLanguage();
+  const a11y = accessibilityCopy[language];
   const advancedCopy = advancedTokenCopy[language];
   const tokenSnapshot = useTokenSnapshot(tokenAddress);
 
@@ -817,7 +823,9 @@ export function TokenTradingPage({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={metadata.image}
-                alt=""
+                alt={interpolate(a11y.tokenLogo, {
+                  name: tokenName ?? tokenSymbol ?? tokenAddress,
+                })}
                 onError={() => setImageFailed(true)}
               />
             ) : (

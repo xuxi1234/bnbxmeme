@@ -19,6 +19,7 @@ type AccessibilityCopy = {
   chart: string;
   chartPeriod: string;
   graduationPresets: string;
+  tokenLogo: string;
 };
 
 export const accessibilityCopy: Record<Language, AccessibilityCopy> = {
@@ -33,6 +34,7 @@ export const accessibilityCopy: Record<Language, AccessibilityCopy> = {
     chart: "K 线图",
     chartPeriod: "K 线周期",
     graduationPresets: "毕业额度预设",
+    tokenLogo: "{name} 代币 Logo",
   },
   en: {
     brandHome: "BNBX home",
@@ -45,6 +47,7 @@ export const accessibilityCopy: Record<Language, AccessibilityCopy> = {
     chart: "Candlestick chart",
     chartPeriod: "Chart interval",
     graduationPresets: "Graduation target presets",
+    tokenLogo: "{name} token logo",
   },
   ko: {
     brandHome: "BNBX 홈",
@@ -57,6 +60,7 @@ export const accessibilityCopy: Record<Language, AccessibilityCopy> = {
     chart: "캔들 차트",
     chartPeriod: "차트 주기",
     graduationPresets: "졸업 목표 프리셋",
+    tokenLogo: "{name} 토큰 로고",
   },
   ja: {
     brandHome: "BNBX ホーム",
@@ -69,6 +73,7 @@ export const accessibilityCopy: Record<Language, AccessibilityCopy> = {
     chart: "ローソク足チャート",
     chartPeriod: "チャート期間",
     graduationPresets: "卒業目標プリセット",
+    tokenLogo: "{name} トークンロゴ",
   },
 };
 

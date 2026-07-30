@@ -18,6 +18,7 @@ import {
   type MarketFilter,
 } from "@/lib/market-ranking-core";
 import { useLanguage } from "./language-provider";
+import { accessibilityCopy, interpolate } from "@/lib/localization-copy";
 
 type MarketEntry = {
   token: `0x${string}`;
@@ -66,7 +67,8 @@ function TokenCard({
   entry: MarketEntry;
   score?: MarketScore;
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const a11y = accessibilityCopy[language];
   const [imageFailed, setImageFailed] = useState(false);
   const { metadata } = useTokenMetadata(entry.metadataURI ?? undefined);
   const principal = asBigInt(entry.principal);
@@ -87,7 +89,13 @@ function TokenCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={metadata.image}
-            alt=""
+            alt={interpolate(a11y.tokenLogo, {
+              name:
+                entry.name ??
+                metadata?.name ??
+                entry.symbol ??
+                entry.token.slice(0, 10),
+            })}
             loading="lazy"
             onError={() => setImageFailed(true)}
           />

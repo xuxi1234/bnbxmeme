@@ -11,13 +11,11 @@ export async function generateMetadata({
   if (!isAddress(address)) {
     return { robots: { index: false, follow: false } };
   }
-  return buildPageMetadata(`/token/${address.toLowerCase()}`);
+  return buildPageMetadata(`/creator/${address.toLowerCase()}`);
 }
 
-export default function TokenProjectLayout({
+export default function CreatorLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return children;
 }

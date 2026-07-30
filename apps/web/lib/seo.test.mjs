@@ -1,0 +1,75 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import {
+  buildPageMetadata,
+  buildSiteMetadata,
+  seoCopy,
+  SHARE_IMAGE_PATH,
+  SITE_URL,
+} from "./seo.ts";
+
+test("publishes canonical and complete social metadata", () => {
+  const root = buildSiteMetadata();
+  const page = buildPageMetadata("/");
+  assert.equal(root.metadataBase.toString(), `${SITE_URL}/`);
+  assert.equal(page.alternates.canonical, "/");
+  assert.equal(page.openGraph.url, "/");
+  assert.equal(page.openGraph.title, seoCopy.zh.title);
+  assert.equal(page.openGraph.description, seoCopy.zh.description);
+  assert.equal(page.openGraph.images[0].url, SHARE_IMAGE_PATH);
+  assert.equal(page.openGraph.images[0].width, 1200);
+  assert.equal(page.openGraph.images[0].height, 630);
+  assert.equal(page.twitter.card, "summary_large_image");
+});
+
+test("keeps SEO title and description localized in all four languages", () => {
+  for (const language of ["zh", "en", "ko", "ja"]) {
+    assert.ok(seoCopy[language].title.trim());
+    assert.ok(seoCopy[language].description.trim());
+  }
+  assert.match(seoCopy.ko.title, /[\uac00-\ud7af]/);
+  assert.match(seoCopy.ko.description, /[\uac00-\ud7af]/);
+  assert.doesNotMatch(seoCopy.ko.description, /模块化|代币|联合曲线/);
+});
+
+test("wires canonical, localized metadata, share image, and token alt text", async () => {
+  const [
+    layout,
+    home,
+    languageMetadata,
+    tokenMarket,
+    tokenPage,
+    openGraphImage,
+  ] = await Promise.all([
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../components/language-metadata.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../components/token-market.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../app/token/[address]/token-trading-page.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(new URL("../app/opengraph-image.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(layout, /buildSiteMetadata/);
+  assert.match(layout, /<LanguageMetadata \/>/);
+  assert.match(home, /buildPageMetadata\(\"\/\"\)/);
+  assert.match(languageMetadata, /meta\[name="description"\]/);
+  assert.match(languageMetadata, /meta\[property="og:description"\]/);
+  assert.match(openGraphImage, /width:\s*1200/);
+  assert.match(openGraphImage, /height:\s*630/);
+  assert.doesNotMatch(tokenMarket, /alt=""/);
+  assert.doesNotMatch(tokenPage, /alt=""/);
+  assert.match(tokenMarket, /a11y\.tokenLogo/);
+  assert.match(tokenPage, /a11y\.tokenLogo/);
+});
