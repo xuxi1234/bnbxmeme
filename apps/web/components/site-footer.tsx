@@ -11,6 +11,7 @@ export function SiteFooter() {
       <p>{t("risk")}</p>
       <nav className="footer-socials" aria-label="BNBX">
         <Link href="/security">{t("securityCenter")}</Link>
+        <Link href="/roadmap">{t("networkRoadmap")}</Link>
         <a href="https://t.me/bnbxmeme" target="_blank" rel="noreferrer">Telegram ↗</a>
         <a href="https://x.com/bnbxmeme" target="_blank" rel="noreferrer">X / Twitter ↗</a>
         <a href="https://m.debox.pro/group?id=6wsohe3g&amp;code=57h6sfxd" target="_blank" rel="noreferrer">DeBox ↗</a>

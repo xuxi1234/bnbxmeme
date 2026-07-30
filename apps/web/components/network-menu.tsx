@@ -1,23 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { LIVE_NETWORK } from "@/lib/network-roadmap";
 import { useLanguage } from "./language-provider";
-
-const networks = [
-  { name: "BNB Chain", short: "BNB", mark: "B", color: "#f3ba2f", active: true },
-  { name: "Ethereum", short: "ETH", mark: "◆", color: "#627eea" },
-  { name: "Base", short: "BASE", mark: "B", color: "#0052ff" },
-  { name: "Arbitrum", short: "ARB", mark: "A", color: "#28a0f0" },
-  { name: "Optimism", short: "OP", mark: "O", color: "#ff0420" },
-  { name: "Solana", short: "SOL", mark: "S", color: "#14f195" },
-  { name: "Polygon", short: "POL", mark: "P", color: "#8247e5" },
-  { name: "Avalanche", short: "AVAX", mark: "A", color: "#e84142" },
-  { name: "Monad", short: "MON", mark: "M", color: "#836ef9" },
-  { name: "Sui", short: "SUI", mark: "S", color: "#6fbcf0" },
-  { name: "TON", short: "TON", mark: "T", color: "#0098ea" },
-  { name: "X Layer", short: "XL", mark: "X", color: "#ffffff" },
-  { name: "Linea", short: "LINEA", mark: "L", color: "#61dfff" },
-] as const;
 
 export function NetworkMenu() {
   const { t } = useLanguage();
@@ -44,48 +30,47 @@ export function NetworkMenu() {
       <button
         className="network-trigger"
         type="button"
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="network-logo">B</span>
-        <span>BSC</span>
+        <span className="network-logo">{LIVE_NETWORK.mark}</span>
+        <span>{LIVE_NETWORK.short}</span>
         <i aria-hidden="true">⌄</i>
       </button>
       {open && (
-        <div className="network-popover" role="menu" aria-label={t("chooseNetwork")}>
+        <div
+          className="network-popover"
+          role="dialog"
+          aria-label={t("chooseNetwork")}
+        >
           <div className="network-popover-heading">
-            <strong>{t("chooseNetwork")}</strong>
+            <strong>{t("currentNetwork")}</strong>
             <span>{t("networkRoadmap")}</span>
           </div>
           <div className="network-list">
-            {networks.map((network) => {
-              const isActive = network.name === "BNB Chain";
-              return (
-                <button
-                  key={network.name}
-                  className={isActive ? "active" : ""}
-                  type="button"
-                  role="menuitem"
-                  disabled={!isActive}
-                >
-                  <span className="network-option-logo" style={{ background: network.color, color: network.name === "X Layer" ? "#050505" : "#071007" }}>
-                    {network.mark}
-                  </span>
-                  <span>
-                    <strong>{network.name}</strong>
-                    <small>{network.short}</small>
-                  </span>
-                  {isActive ? (
-                    <em>{t("currentNetwork")} ✓</em>
-                  ) : (
-                    <em>{t("comingSoon")}</em>
-                  )}
-                </button>
-              );
-            })}
+            <div className="network-current">
+              <span
+                className="network-option-logo"
+                style={{ background: LIVE_NETWORK.color }}
+              >
+                {LIVE_NETWORK.mark}
+              </span>
+              <span>
+                <strong>{LIVE_NETWORK.name}</strong>
+                <small>{LIVE_NETWORK.short}</small>
+              </span>
+              <em>{t("currentNetwork")} ✓</em>
+            </div>
           </div>
           <p>{t("networkSoonHelp")}</p>
+          <Link
+            className="network-roadmap-link"
+            href="/roadmap"
+            onClick={() => setOpen(false)}
+          >
+            {t("networkRoadmap")} <span aria-hidden="true">→</span>
+          </Link>
         </div>
       )}
     </div>
