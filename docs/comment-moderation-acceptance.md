@@ -6,13 +6,15 @@ wallet message; it does not send a transaction or spend gas.
 
 ## Preconditions
 
-- Use a wallet returned by `feeRecipient()` from an official BNBX Factory, or
-  a wallet already present in the server-only
-  `BNBX_COMMENT_ADMIN_WALLETS` allowlist.
+- Use the dedicated platform admin signing wallet configured in the
+  server-only `BNBX_ADMIN_SIGNING_WALLET` variable. It defaults to
+  `0xbE37AB912De351B9312FA593C9f99e3279FDB0a2`.
+- The Factory `feeRecipient()` is the fixed platform revenue wallet. It never
+  inherits admin access and must not be used for this acceptance test.
 - Keep a second, non-admin test wallet and one disposable test comment
   available for reversible moderation checks.
-- Do not change Factory contracts, production environment variables, or
-  comment settings merely to make this checklist pass.
+- Do not change Factory contracts, the platform revenue wallet, or comment
+  settings merely to make this checklist pass.
 
 ## Authentication boundary
 

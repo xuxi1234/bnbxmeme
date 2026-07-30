@@ -581,7 +581,7 @@ export const adminCopy: Record<Language, AdminCopy> = {
     walletConfirm: "请在钱包确认…",
     authenticate: "签名验证管理员",
     loginHelp:
-      "只有 BNBX 官方 Factory 的手续费接收钱包或预先配置的钱包可以进入。",
+      "只有预先配置的平台管理签名钱包可以进入；平台营收钱包不具备管理权限。",
     commentsFeature: "评论功能",
     enabled: "已开放",
     disabled: "已下架",
@@ -628,7 +628,7 @@ export const adminCopy: Record<Language, AdminCopy> = {
     walletConfirm: "Confirm in your wallet…",
     authenticate: "Sign in as admin",
     loginHelp:
-      "Access is limited to the official BNBX Factory fee recipient or a preconfigured admin wallet.",
+      "Access is limited to the configured platform admin signing wallet. The platform revenue wallet has no admin access.",
     commentsFeature: "Comments",
     enabled: "Enabled",
     disabled: "Disabled",
@@ -677,7 +677,7 @@ export const adminCopy: Record<Language, AdminCopy> = {
     walletConfirm: "지갑에서 확인하세요…",
     authenticate: "관리자 서명 인증",
     loginHelp:
-      "공식 BNBX Factory 수수료 수령 지갑 또는 사전 등록된 관리자 지갑만 접근할 수 있습니다.",
+      "사전 등록된 플랫폼 관리자 서명 지갑만 접근할 수 있습니다. 플랫폼 수익 지갑에는 관리 권한이 없습니다.",
     commentsFeature: "댓글 기능",
     enabled: "활성화",
     disabled: "비활성화",
@@ -726,7 +726,7 @@ export const adminCopy: Record<Language, AdminCopy> = {
     walletConfirm: "ウォレットで確認してください…",
     authenticate: "管理者として署名",
     loginHelp:
-      "公式BNBX Factoryの手数料受取ウォレット、または事前登録済みの管理者ウォレットのみアクセスできます。",
+      "事前登録済みのプラットフォーム管理署名ウォレットのみアクセスできます。収益受取ウォレットに管理権限はありません。",
     commentsFeature: "コメント機能",
     enabled: "有効",
     disabled: "無効",

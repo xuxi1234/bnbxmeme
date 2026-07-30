@@ -40,6 +40,8 @@ packages/chain-config shared chain addresses and IDs
 - Chain ID: `56`
 - PancakeSwap V2 Router: `0x10ED43C718714eb63d5aA57B78B54704E256024E`
 - Fee recipient: `0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`
+- Platform admin signing wallet:
+  `0xbE37AB912De351B9312FA593C9f99e3279FDB0a2`
 - Advanced token deployer: `0xe7061e64991855a474ba29ad8adf7b6984c29cb4`
 - Rewards Factory: `0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8`
 - Advanced token deployer deployment:
@@ -50,7 +52,10 @@ packages/chain-config shared chain addresses and IDs
   `0x843d747e99275ce20183da0a4bb11a834f2581e2b3f42563c83da0d8abc29623`
 
 The web deployment uses server-only `PINATA_JWT`, `BSC_MAINNET_RPC_URL`, and
-`BSC_LOG_RPC_URL` environment variables. `BSC_LOG_RPC_URL` must be
+`BSC_LOG_RPC_URL` environment variables. Platform management signatures use
+the server-only `BNBX_ADMIN_SIGNING_WALLET` variable. The Factory fee
+recipient remains the fixed platform revenue address and does not inherit
+management access. `BSC_LOG_RPC_URL` must be
 archive-capable so historical project indexes can backfill from the official
 Factory deployment blocks. Never expose these values through a
 `NEXT_PUBLIC_*` variable, print them in logs, or commit them to this
