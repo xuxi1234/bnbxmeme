@@ -28,6 +28,7 @@ import {
   formatTokenPriceUsdt,
   tokenPriceUsdt,
 } from "@/lib/market-format";
+import { buildExternalMarketLinks } from "@/lib/external-market-links";
 import {
   type ActivitySummary,
   TokenActivity,
@@ -553,6 +554,10 @@ export function TokenTradingPage({
     liquidityPairAddress !== zeroAddress
       ? liquidityPairAddress
       : undefined;
+  const externalMarketLinks = buildExternalMarketLinks(
+    tokenAddress,
+    activePairAddress,
+  );
   const handleActivitySummary = useCallback((summary: ActivitySummary) => {
     setActivitySummary(summary);
   }, []);
@@ -1083,7 +1088,7 @@ export function TokenTradingPage({
           )}
           <a
             className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
-            href={`https://ave.ai/token/${tokenAddress}-bsc`}
+            href={externalMarketLinks.ave}
             target="_blank"
             rel="noreferrer"
           >
@@ -1091,20 +1096,22 @@ export function TokenTradingPage({
           </a>
           <a
             className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
-            href={`https://dexscreener.com/bsc/${tokenAddress}`}
+            href={externalMarketLinks.dexScreener}
             target="_blank"
             rel="noreferrer"
           >
             DexScreener ↗
           </a>
-          <a
-            className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
-            href={`https://www.dextools.io/app/en/bnb/pair-explorer/${tokenAddress}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            DEXTools ↗
-          </a>
+          {externalMarketLinks.dexTools && (
+            <a
+              className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
+              href={externalMarketLinks.dexTools}
+              target="_blank"
+              rel="noreferrer"
+            >
+              DEXTools ↗
+            </a>
+          )}
         </div>
         {qqCopied && (
           <div className="copy-toast" role="status" aria-live="polite">
