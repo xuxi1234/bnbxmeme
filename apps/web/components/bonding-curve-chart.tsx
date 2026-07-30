@@ -26,6 +26,7 @@ import {
 } from "@/lib/market-chart-core";
 import {
   accessibilityCopy,
+  interpolate,
   localeByLanguage,
 } from "@/lib/localization-copy";
 import { useLanguage } from "./language-provider";
@@ -60,12 +61,14 @@ export function BondingCurveChart({
   curve,
   token,
   pair,
+  name,
   symbol,
   refreshKey,
 }: {
   curve: `0x${string}`;
   token?: `0x${string}`;
   pair?: `0x${string}`;
+  name: string;
   symbol: string;
   refreshKey?: `0x${string}`;
 }) {
@@ -361,7 +364,7 @@ export function BondingCurveChart({
               : "BNBX BONDING CURVE · ON-CHAIN"}
           </p>
           <h2>{symbol} / USDT</h2>
-          <small>{t("priceUnit")}</small>
+          <small>{interpolate(t("priceUnit"), { tokenName: name })}</small>
         </div>
         <div className="chart-summary">
           <strong>{formatTokenPriceUsdt(latest?.close, locale)}</strong>
