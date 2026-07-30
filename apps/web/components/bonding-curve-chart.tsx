@@ -18,18 +18,15 @@ import {
   chartPricePrecision,
   formatTokenPriceUsdt,
 } from "@/lib/market-format";
+import {
+  aggregateChartPoints,
+  coalesceChartPointsByTimestamp,
+  initialChartLogicalRange,
+  type ChartPoint,
+} from "@/lib/market-chart-core";
 import { useLanguage } from "./language-provider";
 
 type Period = 60 | 300 | 900 | 3600 | 14400 | 86400;
-type Point = { timestamp: number; price: number; volume: number };
-type Candle = {
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-};
 type HoverData = {
   open: number;
   high: number;
@@ -55,25 +52,6 @@ function compact(value: number) {
   }).format(value);
 }
 
-function aggregate(points: Point[], period: Period) {
-  const groups = new Map<number, Point[]>();
-  for (const point of points) {
-    const bucket = Math.floor(point.timestamp / period) * period;
-    groups.set(bucket, [...(groups.get(bucket) ?? []), point]);
-  }
-  return [...groups.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([timestamp, items]): Candle => ({
-      timestamp,
-      open: items[0].price,
-      high: Math.max(...items.map((item) => item.price)),
-      low: Math.min(...items.map((item) => item.price)),
-      close: items.at(-1)!.price,
-      volume: items.reduce((sum, item) => sum + item.volume, 0),
-    }))
-    .slice(-240);
-}
-
 export function BondingCurveChart({
   curve,
   token,
@@ -90,7 +68,7 @@ export function BondingCurveChart({
   const { language, t } = useLanguage();
   const chartContainer = useRef<HTMLDivElement>(null);
   const hasPoints = useRef(false);
-  const [points, setPoints] = useState<Point[]>([]);
+  const [points, setPoints] = useState<ChartPoint[]>([]);
   const [period, setPeriod] = useState<Period>(300);
   const [statusKey, setStatusKey] = useState("chartSyncing");
   const [loadError, setLoadError] = useState(false);
@@ -128,7 +106,7 @@ export function BondingCurveChart({
           throw new Error("BNB/USDT price unavailable");
         }
         const next = data.trades
-          .map((trade): Point | null => {
+          .map((trade): ChartPoint | null => {
             const tokenWei = BigInt(trade.tokens);
             const bnbWei = BigInt(trade.priceBNB);
             if (!tokenWei || !bnbWei) return null;
@@ -143,7 +121,7 @@ export function BondingCurveChart({
               volume: Number(formatEther(BigInt(trade.bnb))),
             };
           })
-          .filter((point): point is Point => Boolean(point?.timestamp))
+          .filter((point): point is ChartPoint => Boolean(point?.timestamp))
           .sort((a, b) => a.timestamp - b.timestamp);
         if (!controller.signal.aborted) {
           hasPoints.current = next.length > 0;
@@ -167,8 +145,15 @@ export function BondingCurveChart({
     };
   }, [curve, pair, refreshKey, reloadKey, token]);
 
-  const candles = useMemo(() => aggregate(points, period), [period, points]);
-  const sparse = points.length > 0 && points.length < 12;
+  const candles = useMemo(
+    () => aggregateChartPoints(points, period),
+    [period, points],
+  );
+  const linePoints = useMemo(
+    () => coalesceChartPointsByTimestamp(points),
+    [points],
+  );
+  const sparse = linePoints.length > 0 && linePoints.length < 12;
   const latest = candles.at(-1);
   const first = candles[0];
   const change =
@@ -261,7 +246,7 @@ export function BondingCurveChart({
 
     const volumeData: HistogramData<UTCTimestamp>[] = (
       sparse
-        ? points
+        ? linePoints
         : candles.map((candle) => ({
             timestamp: candle.timestamp,
             volume: candle.volume,
@@ -291,7 +276,7 @@ export function BondingCurveChart({
           minMove: priceFormat.minMove,
         },
       });
-      const lineData: LineData<UTCTimestamp>[] = points.map((point) => ({
+      const lineData: LineData<UTCTimestamp>[] = linePoints.map((point) => ({
         time: point.timestamp as UTCTimestamp,
         value: point.price,
       }));
@@ -302,7 +287,7 @@ export function BondingCurveChart({
           setHover(null);
           return;
         }
-        const point = points.find(
+        const point = linePoints.find(
           (candidate) => candidate.timestamp === Number(parameter.time),
         );
         setHover({
@@ -357,11 +342,17 @@ export function BondingCurveChart({
       });
     }
 
-    chart.timeScale().fitContent();
+    const initialRange = initialChartLogicalRange(
+      sparse ? linePoints.length : candles.length,
+    );
+    if (initialRange) {
+      chart.timeScale().setVisibleLogicalRange(initialRange);
+    }
     return () => chart.remove();
   }, [
     candles,
     language,
+    linePoints,
     points,
     priceFormat.minMove,
     priceFormat.precision,

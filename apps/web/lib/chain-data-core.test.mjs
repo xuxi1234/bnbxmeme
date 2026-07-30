@@ -192,6 +192,15 @@ test("deduplicates overlapping logs by transaction hash and log index", () => {
   ]);
 });
 
+test("orders same-block trades by numeric log index for correct OHLC", () => {
+  const laterLog = trade({ id: `${"0".repeat(64)}-10`, blockNumber: 10 });
+  const earlierLog = trade({ id: `${"f".repeat(64)}-2`, blockNumber: 10 });
+  assert.deepEqual(
+    mergeIndexedTrades([], [laterLog, earlierLog]).map(({ id }) => id),
+    [earlierLog.id, laterLog.id],
+  );
+});
+
 test("accumulates holder balances across incremental transfer batches", () => {
   const initial = applyTransferDeltas({}, [
     { from: null, to: buyer, value: "100" },

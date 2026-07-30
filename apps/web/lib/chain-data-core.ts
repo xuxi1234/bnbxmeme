@@ -124,7 +124,23 @@ export function mergeIndexedTrades(
   return [...unique.values()].sort((left, right) => {
     const leftBlock = BigInt(left.blockNumber);
     const rightBlock = BigInt(right.blockNumber);
-    if (leftBlock === rightBlock) return left.id.localeCompare(right.id);
+    if (leftBlock === rightBlock) {
+      const leftSeparator = left.id.lastIndexOf("-");
+      const rightSeparator = right.id.lastIndexOf("-");
+      const leftLogIndex = left.id.slice(leftSeparator + 1);
+      const rightLogIndex = right.id.slice(rightSeparator + 1);
+      if (
+        leftSeparator >= 0 &&
+        rightSeparator >= 0 &&
+        isUnsignedInteger(leftLogIndex) &&
+        isUnsignedInteger(rightLogIndex)
+      ) {
+        const leftIndex = BigInt(leftLogIndex);
+        const rightIndex = BigInt(rightLogIndex);
+        if (leftIndex !== rightIndex) return leftIndex < rightIndex ? -1 : 1;
+      }
+      return left.id.localeCompare(right.id);
+    }
     return leftBlock < rightBlock ? -1 : 1;
   });
 }
