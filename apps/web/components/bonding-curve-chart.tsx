@@ -24,6 +24,10 @@ import {
   initialChartLogicalRange,
   type ChartPoint,
 } from "@/lib/market-chart-core";
+import {
+  accessibilityCopy,
+  localeByLanguage,
+} from "@/lib/localization-copy";
 import { useLanguage } from "./language-provider";
 
 type Period = 60 | 300 | 900 | 3600 | 14400 | 86400;
@@ -66,6 +70,7 @@ export function BondingCurveChart({
   refreshKey?: `0x${string}`;
 }) {
   const { language, t } = useLanguage();
+  const a11y = accessibilityCopy[language];
   const chartContainer = useRef<HTMLDivElement>(null);
   const hasPoints = useRef(false);
   const [points, setPoints] = useState<ChartPoint[]>([]);
@@ -166,14 +171,7 @@ export function BondingCurveChart({
     () => chartPricePrecision(latest?.close),
     [latest?.close],
   );
-  const locale =
-    language === "zh"
-      ? "zh-CN"
-      : language === "ko"
-        ? "ko-KR"
-        : language === "ja"
-          ? "ja-JP"
-          : "en-US";
+  const locale = localeByLanguage[language];
 
   useEffect(() => {
     const container = chartContainer.current;
@@ -222,16 +220,7 @@ export function BondingCurveChart({
         mouseWheel: true,
         pinch: true,
       },
-      localization: {
-        locale:
-          language === "zh"
-            ? "zh-CN"
-            : language === "ko"
-              ? "ko-KR"
-              : language === "ja"
-                ? "ja-JP"
-                : "en-US",
-      },
+      localization: { locale },
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -351,8 +340,8 @@ export function BondingCurveChart({
     return () => chart.remove();
   }, [
     candles,
-    language,
     linePoints,
+    locale,
     points,
     priceFormat.minMove,
     priceFormat.precision,
@@ -360,7 +349,10 @@ export function BondingCurveChart({
   ]);
 
   return (
-    <section className="curve-chart" aria-label={`${symbol} / USDT K 线`}>
+    <section
+      className="curve-chart"
+      aria-label={`${symbol} / USDT ${a11y.chart}`}
+    >
       <div className="chart-heading">
         <div>
           <p className="eyebrow">
@@ -382,7 +374,7 @@ export function BondingCurveChart({
           </span>
         </div>
       </div>
-      <div className="chart-toolbar" aria-label="K线周期">
+      <div className="chart-toolbar" aria-label={a11y.chartPeriod}>
         {sparse ? (
           <button className="active" type="button" disabled>
             {t("tradeLine")}

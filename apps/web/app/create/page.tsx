@@ -24,6 +24,11 @@ import {
 } from "@/lib/web3";
 import { useLanguage } from "@/components/language-provider";
 import { validateCommunityLinks } from "@/lib/community-links";
+import {
+  accessibilityCopy,
+  createCopy,
+  localizeCreateErrorMessage,
+} from "@/lib/localization-copy";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 // Some injected mobile wallets incorrectly submit gasLimit=0 when estimation is
@@ -158,12 +163,22 @@ function readableWalletError(error: unknown, language: "zh" | "en" | "ko" | "ja"
   if (message.includes("revert") || message.includes("execution reverted")) {
     return localized.reverted;
   }
-  return message;
+  const translated = localizeCreateErrorMessage(message, language);
+  if (
+    translated !== message ||
+    Object.values(createCopy[language].errors).includes(message) ||
+    language === "en"
+  ) {
+    return translated;
+  }
+  return localized.fallback;
 }
 
 export default function CreateTokenPage() {
   const router = useRouter();
   const { language, t } = useLanguage();
+  const copy = createCopy[language];
+  const a11y = accessibilityCopy[language];
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [description, setDescription] = useState("");
@@ -269,25 +284,25 @@ export default function CreateTokenPage() {
       error?: string;
     };
     if (!response.ok || !result.metadataURI) {
-      throw new Error(result.error ?? "代币资料上传失败");
+      throw new Error(result.error ?? copy.errors.metadataUploadFailed);
     }
     return result.metadataURI;
   }
 
   async function findVanitySalt() {
-    if (!address) throw new Error("请先连接钱包");
+    if (!address) throw new Error(copy.errors.walletRequired);
     const tokenName = name.trim();
     const tokenSymbol = symbol.trim();
     const start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
     const marketing =
       marketingWallet.trim() === "" ? address : marketingWallet.trim();
     if (template !== "standard" && (!marketing || !isAddress(marketing))) {
-      throw new Error("营销钱包地址格式错误");
+      throw new Error(copy.errors.marketingWalletInvalid);
     }
     const marketingAddress = marketing as `0x${string}`;
     if (template === "holders" || template === "lp") {
       if (!rewardsFactoryAddress) {
-        throw new Error("分红模板主网 Factory 尚未配置");
+        throw new Error(copy.errors.rewardsFactoryMissing);
       }
       const templateValue = template === "holders" ? 2 : 3;
       const minimumShare = parseEther(minimumRewardBalance || "0");
@@ -322,10 +337,10 @@ export default function CreateTokenPage() {
           requestAnimationFrame(() => resolve()),
         );
       }
-      throw new Error("暂未找到 1111 靓号，请重新提交");
+      throw new Error(copy.errors.vanityUnavailable);
     } else if (template === "liquidity") {
       if (!autoLiquidityFactoryAddress) {
-        throw new Error("自动回流主网 Factory 尚未配置");
+        throw new Error(copy.errors.liquidityFactoryMissing);
       }
       setVanityProgress(0);
       for (
@@ -385,7 +400,7 @@ export default function CreateTokenPage() {
         );
       }
     }
-    throw new Error("暂未找到 1111 靓号，请重新提交");
+    throw new Error(copy.errors.vanityUnavailable);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -414,11 +429,13 @@ export default function CreateTokenPage() {
           ? rewardsFactoryAbi
           : autoLiquidityFactoryAbi;
         if (!selectedFactory) {
-          throw new Error("所选模板主网 Factory 尚未配置");
+          throw new Error(copy.errors.selectedFactoryMissing);
         }
         const marketing =
           marketingWallet.trim() === "" ? address : marketingWallet.trim();
-        if (!isAddress(marketing)) throw new Error("营销钱包地址格式错误");
+        if (!isAddress(marketing)) {
+          throw new Error(copy.errors.marketingWalletInvalid);
+        }
         const request = {
           name: name.trim(),
           symbol: symbol.trim(),
@@ -537,7 +554,9 @@ export default function CreateTokenPage() {
     });
   } catch (linkError) {
     communityLinkError =
-      linkError instanceof Error ? linkError.message : "社区链接格式无效";
+      linkError instanceof Error
+        ? localizeCreateErrorMessage(linkError.message, language)
+        : copy.errors.communityInvalid;
   }
   const previewInitialBuyWei = safeInitialBuy(initialBuy)
     ? parseEther(initialBuy || "0")
@@ -574,13 +593,7 @@ export default function CreateTokenPage() {
         <p className="eyebrow">01 / CONFIGURE · BNB MAINNET</p>
         <h1 className="form-title">{t("createTitle")}</h1>
         <p className="lead">
-          {language === "zh"
-            ? "零代码创建固定 10 亿供应的代币。先选择公开模板与税费规则，创建者首笔买入可与部署在同一笔交易内完成。"
-            : language === "ko"
-              ? "코딩 없이 10억 고정 공급 토큰을 생성합니다. 공개 템플릿과 수수료 규칙을 선택하고 생성과 최초 구매를 한 거래에서 처리할 수 있습니다."
-              : language === "ja"
-                ? "コード不要で10億固定供給トークンを作成。公開テンプレートと税設定を選択し、作成と初回購入を同一取引で実行できます。"
-                : "Create a fixed 1B supply token without code. Choose a disclosed template and fee model; creation and the initial buy can run atomically."}
+          {copy.lead}
         </p>
 
         <form className="launch-form" onSubmit={submit}>
@@ -588,40 +601,7 @@ export default function CreateTokenPage() {
             <legend>{t("templateSelect")}</legend>
             <div className="template-grid">
               {templateIds.map((id) => {
-                const content = {
-                  standard: {
-                    name: language === "zh" ? "标准 0 税" : "Standard 0% Tax",
-                    badge: language === "zh" ? "推荐新手 · 永久 0 税" : "RECOMMENDED · PERMANENT 0%",
-                    text:
-                      language === "zh"
-                        ? "低复杂度 · 无增发、无黑名单 · 创建费 0.001 BNB。"
-                        : "Low complexity · no mint or blacklist · 0.001 BNB creation fee.",
-                  },
-                  liquidity: {
-                    name: language === "zh" ? "自动回流" : "Auto Liquidity",
-                    badge: language === "zh" ? "进阶 · 毕业后有税" : "ADVANCED · POST-GRAD TAX",
-                    text:
-                      language === "zh"
-                        ? "中等复杂度 · 配置销毁、加池和营销税 · 创建费 0.001 BNB。"
-                        : "Medium complexity · burn, liquidity and marketing tax · 0.001 BNB fee.",
-                  },
-                  holders: {
-                    name: language === "zh" ? "持币分红" : "Holder Rewards",
-                    badge: language === "zh" ? "高级 · 分红税" : "ADVANCED · REWARD TAX",
-                    text:
-                      language === "zh"
-                        ? "高复杂度 · 按合格持币数量分配 BNB 奖励 · 创建费 0.001 BNB。"
-                        : "High complexity · BNB rewards for eligible holders · 0.001 BNB fee.",
-                  },
-                  lp: {
-                    name: language === "zh" ? "LP 分红" : "LP Rewards",
-                    badge: language === "zh" ? "高级 · LP 分红税" : "ADVANCED · LP REWARDS",
-                    text:
-                      language === "zh"
-                        ? "高复杂度 · 毕业后按 Pancake LP 份额分配 BNB 奖励 · 创建费 0.001 BNB。"
-                        : "High complexity · BNB rewards by Pancake LP share · 0.001 BNB fee.",
-                  },
-                }[id];
+                const content = copy.templates[id];
                 const enabled =
                   id === "standard" ||
                   (id === "liquidity" && Boolean(autoLiquidityFactoryAddress)) ||
@@ -653,35 +633,15 @@ export default function CreateTokenPage() {
 
           {advancedTemplate && (
             <div className="advanced-template-warning" role="status">
-              <strong>
-                {{
-                  zh: "你选择的是毕业后有税模板",
-                  en: "You selected a post-graduation tax template",
-                  ko: "졸업 후 세금이 적용되는 템플릿을 선택했습니다",
-                  ja: "卒業後に税が適用されるテンプレートです",
-                }[language]}
-              </strong>
-              <p>
-                {{
-                  zh: "内盘交易和毕业加池期间不收代币税；进入 PancakeSwap V2 后，才按下方公开配置启用买入税和卖出税。请确认税率、营销钱包和分红门槛后再创建。",
-                  en: "Token tax remains off during the bonding curve and migration. The disclosed buy and sell taxes activate only after the PancakeSwap V2 launch. Confirm every tax, the marketing wallet, and any reward threshold before creating.",
-                  ko: "본딩 커브와 유동성 이전 중에는 토큰 세금이 없습니다. 아래 공개된 매수·매도 세금은 PancakeSwap V2 출시 후에만 적용됩니다. 생성 전에 세율, 마케팅 지갑, 보상 기준을 확인하세요.",
-                  ja: "ボンディングカーブと流動性移行中はトークン税がかかりません。下記の公開された売買税はPancakeSwap V2移行後のみ有効です。作成前に税率、マーケティングウォレット、報酬条件を確認してください。",
-                }[language]}
-              </p>
+              <strong>{copy.advancedWarningTitle}</strong>
+              <p>{copy.advancedWarningBody}</p>
             </div>
           )}
 
           {advancedTemplate && (
             <fieldset className="tax-config">
-              <legend>
-                {language === "zh" ? "毕业后的代币税配置" : "Post-graduation taxes"}
-              </legend>
-              <p className="field-help">
-                {language === "zh"
-                  ? "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 10%。"
-                  : "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 10% after Pancake V2 migration."}
-              </p>
+              <legend>{copy.taxTitle}</legend>
+              <p className="field-help">{copy.taxHelp}</p>
               {(["buy", "sell"] as const).map((side) => {
                 const values = side === "buy" ? buyTaxes : sellTaxes;
                 const update = side === "buy" ? setBuyTaxes : setSellTaxes;
@@ -690,9 +650,7 @@ export default function CreateTokenPage() {
                   <section className="tax-side" key={side}>
                     <div className="tax-heading">
                       <strong>
-                        {side === "buy"
-                          ? language === "zh" ? "买入税" : "Buy tax"
-                          : language === "zh" ? "卖出税" : "Sell tax"}
+                        {side === "buy" ? copy.buyTax : copy.sellTax}
                       </strong>
                       <b className={total > MAX_SIDE_TAX ? "over-limit" : ""}>
                         {total.toFixed(2)}% / {MAX_SIDE_TAX}%
@@ -703,12 +661,7 @@ export default function CreateTokenPage() {
                         const hidden =
                           template === "liquidity" && key === "rewards";
                         if (hidden) return null;
-                        const labels: Record<TaxKey, string> = {
-                          burn: language === "zh" ? "销毁" : "Burn",
-                          liquidity: language === "zh" ? "自动加池" : "Liquidity",
-                          marketing: language === "zh" ? "营销" : "Marketing",
-                          rewards: language === "zh" ? "分红" : "Rewards",
-                        };
+                        const labels = copy.taxLabels;
                         const otherTotal = Object.entries(values).reduce(
                           (sum, [taxKey, value]) =>
                             taxKey === key ? sum : sum + value,
@@ -746,12 +699,12 @@ export default function CreateTokenPage() {
                 );
               })}
               <label>
-                {language === "zh" ? "营销钱包" : "Marketing wallet"}
+                {copy.marketingWallet}
                 <input
                   value={marketingWallet}
                   placeholder={
                     address
-                      ? `${address} (${language === "zh" ? "默认创建者" : "creator default"})`
+                      ? `${address} (${copy.creatorDefault})`
                       : "0x..."
                   }
                   onChange={(event) => setMarketingWallet(event.target.value)}
@@ -759,13 +712,9 @@ export default function CreateTokenPage() {
               </label>
               {(template === "holders" || template === "lp") && (
                 <label>
-                  {language === "zh"
-                    ? template === "holders"
-                      ? "最低参与分红持币量"
-                      : "最低参与分红 LP 数量"
-                    : template === "holders"
-                      ? "Minimum token balance for rewards"
-                      : "Minimum LP balance for rewards"}
+                  {template === "holders"
+                    ? copy.minimumHolderBalance
+                    : copy.minimumLpBalance}
                   <input
                     inputMode="decimal"
                     min="0"
@@ -777,17 +726,13 @@ export default function CreateTokenPage() {
                     }
                   />
                   <span className="field-help">
-                    {language === "zh"
-                      ? "分红税自动兑换为 BNB，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。"
-                      : "Reward tax is converted to BNB and claimed by eligible users. Burn, curve, and pair addresses are excluded."}
+                    {copy.rewardsHelp}
                   </span>
                 </label>
               )}
               {unavailableTemplate && (
                 <p className="preview-lock">
-                  {language === "zh"
-                    ? "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。"
-                    : "Safety lock: creation is disabled until the corresponding mainnet Factory is configured."}
+                  {copy.factorySafetyLock}
                 </p>
               )}
             </fieldset>
@@ -887,7 +832,10 @@ export default function CreateTokenPage() {
               <span>{(target / 100).toFixed(2)}</span>
               <small>BNB</small>
             </div>
-            <div className="graduation-presets" aria-label={`${t("graduationTarget")} presets`}>
+            <div
+              className="graduation-presets"
+              aria-label={a11y.graduationPresets}
+            >
               {[1, 10, 18].map((value) => (
                 <button
                   className={target === value ? "active" : ""}
@@ -963,9 +911,7 @@ export default function CreateTokenPage() {
 
           {taxInvalid && (
             <p className="error">
-              {language === "zh"
-                ? "买入税或卖出税合计超过 10%，请降低税率。"
-                : "Buy or sell tax exceeds the 10% maximum."}
+              {copy.taxInvalid}
             </p>
           )}
 

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { WalletButton } from "./wallet-button";
 import { NetworkMenu } from "./network-menu";
 import { useLanguage, type Language } from "./language-provider";
+import { accessibilityCopy } from "@/lib/localization-copy";
 
 const languageLabels: Record<Language, string> = {
   zh: "中文",
@@ -20,6 +21,7 @@ export function SiteHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const languageMenu = useRef<HTMLDivElement>(null);
   const mobileMenu = useRef<HTMLDivElement>(null);
+  const a11y = accessibilityCopy[language];
   const navigation = [
     [t("market"), "/?market=hot#market"],
     [t("today"), "/?market=graduating#market"],
@@ -59,7 +61,7 @@ export function SiteHeader() {
 
   return (
     <header className="site-header">
-      <Link className="site-brand" href="/" aria-label="BNBX 首页">
+      <Link className="site-brand" href="/" aria-label={a11y.brandHome}>
         <Image
           className="brand-logo"
           src="/bnbx-logo.png"
@@ -74,7 +76,7 @@ export function SiteHeader() {
         </span>
       </Link>
 
-      <nav className="desktop-nav" aria-label="主导航">
+      <nav className="desktop-nav" aria-label={a11y.primaryNavigation}>
         {navigation.map(([label, href]) => (
           <Link key={label} href={href}>
             {label}
@@ -87,7 +89,7 @@ export function SiteHeader() {
           <button
             className="language-trigger"
             type="button"
-            aria-label="Language"
+            aria-label={t("language")}
             aria-haspopup="menu"
             aria-expanded={languageMenuOpen}
             onClick={() => setLanguageMenuOpen((open) => !open)}
@@ -96,7 +98,7 @@ export function SiteHeader() {
             <i aria-hidden="true">⌄</i>
           </button>
           {languageMenuOpen && (
-            <div className="language-options" role="menu" aria-label="Language">
+            <div className="language-options" role="menu" aria-label={t("language")}>
               {(Object.keys(languageLabels) as Language[]).map((option) => (
                 <button
                   key={option}
@@ -174,7 +176,7 @@ export function SiteHeader() {
           )}
         </div>
       </div>
-      <nav className="mobile-nav" aria-label="移动端导航">
+      <nav className="mobile-nav" aria-label={a11y.mobileNavigation}>
         {navigation.map(([label, href]) => (
           <Link key={label} href={href}>{label}</Link>
         ))}

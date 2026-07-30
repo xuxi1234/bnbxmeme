@@ -40,6 +40,7 @@ import { ProjectDiscussion } from "@/components/project-discussion";
 import { useLanguage } from "@/components/language-provider";
 import { resolveLpBurnStatus } from "@/lib/lp-security-core";
 import { publicQuoteReadConfig } from "@/lib/trade-quote-core";
+import { advancedTokenCopy, localeByLanguage } from "@/lib/localization-copy";
 import { ProjectState } from "./project-state";
 
 const SLIPPAGE_BPS = 100n;
@@ -205,7 +206,8 @@ export function TokenTradingPage({
   const lpApprovalReceipt = useWaitForTransactionReceipt({
     hash: lpApprovalWrite.data,
   });
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const advancedCopy = advancedTokenCopy[language];
   const tokenSnapshot = useTokenSnapshot(tokenAddress);
 
   const launchManager = useReadContract({
@@ -944,32 +946,39 @@ export function TokenTradingPage({
                 </span>
                 <strong>
                   {isHolderRewards
-                    ? "持币分红代币"
+                    ? advancedCopy.holderRewardsToken
                     : isLPRewards
-                      ? "添加 LP 分红代币"
-                      : "自动回流代币"}
+                      ? advancedCopy.lpRewardsToken
+                      : advancedCopy.autoLiquidityToken}
                 </strong>
               </div>
-              <span>买入税 {taxPercent(buyTaxTotal)} · 卖出税 {taxPercent(sellTaxTotal)}</span>
+              <span>
+                {advancedCopy.buyTax} {taxPercent(buyTaxTotal)} ·{" "}
+                {advancedCopy.sellTax} {taxPercent(sellTaxTotal)}
+              </span>
             </div>
             <div className="tax-breakdown">
               <div>
-                <span>买入税分配</span>
+                <span>{advancedCopy.buyAllocation}</span>
                 <strong>
-                  销毁 {taxPercent(buyTaxes.data?.[0])} · 回流 {taxPercent(buyTaxes.data?.[1])} ·
-                  营销 {taxPercent(buyTaxes.data?.[2])} · 分红 {taxPercent(buyTaxes.data?.[3])}
+                  {advancedCopy.burn} {taxPercent(buyTaxes.data?.[0])} ·{" "}
+                  {advancedCopy.liquidity} {taxPercent(buyTaxes.data?.[1])} ·{" "}
+                  {advancedCopy.marketing} {taxPercent(buyTaxes.data?.[2])} ·{" "}
+                  {advancedCopy.rewards} {taxPercent(buyTaxes.data?.[3])}
                 </strong>
               </div>
               <div>
-                <span>卖出税分配</span>
+                <span>{advancedCopy.sellAllocation}</span>
                 <strong>
-                  销毁 {taxPercent(sellTaxes.data?.[0])} · 回流 {taxPercent(sellTaxes.data?.[1])} ·
-                  营销 {taxPercent(sellTaxes.data?.[2])} · 分红 {taxPercent(sellTaxes.data?.[3])}
+                  {advancedCopy.burn} {taxPercent(sellTaxes.data?.[0])} ·{" "}
+                  {advancedCopy.liquidity} {taxPercent(sellTaxes.data?.[1])} ·{" "}
+                  {advancedCopy.marketing} {taxPercent(sellTaxes.data?.[2])} ·{" "}
+                  {advancedCopy.rewards} {taxPercent(sellTaxes.data?.[3])}
                 </strong>
               </div>
               <div>
-                <span>营销钱包</span>
-                <strong>{marketingWallet.data ?? "读取中…"}</strong>
+                <span>{advancedCopy.marketingWallet}</span>
+                <strong>{marketingWallet.data ?? t("loading")}</strong>
               </div>
             </div>
           </section>
@@ -980,21 +989,24 @@ export function TokenTradingPage({
               <div>
                 <span className="eyebrow">BNB REWARD VAULT</span>
                 <strong>
-                  {isHolderRewards ? "持币分红金库" : "LP 质押分红金库"}
+                  {isHolderRewards
+                    ? advancedCopy.holderVault
+                    : advancedCopy.lpVault}
                 </strong>
               </div>
               <span>
-                可领取 {formatEther(claimableRewards.data ?? 0n)} BNB
+                {advancedCopy.claimable}{" "}
+                {formatEther(claimableRewards.data ?? 0n)} BNB
               </span>
             </div>
             <div className="tax-breakdown">
               <div>
-                <span>我的分红权重</span>
+                <span>{advancedCopy.myRewardWeight}</span>
                 <strong>{formatEther(rewardShares.data ?? 0n)}</strong>
               </div>
               {isHolderRewards && (
                 <div>
-                  <span>最低持币门槛</span>
+                  <span>{advancedCopy.minimumHolderBalance}</span>
                   <strong>
                     {formatEther(minimumRewardShare.data ?? 0n)}{" "}
                     {tokenSymbol ?? "—"}
@@ -1004,11 +1016,11 @@ export function TokenTradingPage({
               {isLPRewards && (
                 <>
                   <div>
-                    <span>钱包可用 LP</span>
+                    <span>{advancedCopy.walletLp}</span>
                     <strong>{formatEther(lpBalance.data ?? 0n)} LP</strong>
                   </div>
                   <label>
-                    质押或取回 LP 数量
+                    {advancedCopy.lpAmount}
                     <input
                       min="0"
                       step="0.000000001"
@@ -1023,7 +1035,7 @@ export function TokenTradingPage({
                         setLPAmount(formatEther(lpBalance.data ?? 0n))
                       }
                     >
-                      全部可用 LP
+                      {advancedCopy.allAvailableLp}
                     </button>
                     <button
                       type="button"
@@ -1031,7 +1043,7 @@ export function TokenTradingPage({
                         setLPAmount(formatEther(rewardShares.data ?? 0n))
                       }
                     >
-                      全部已质押 LP
+                      {advancedCopy.allStakedLp}
                     </button>
                   </div>
                   {(lpAllowance.data ?? 0n) < lpWei ? (
@@ -1046,7 +1058,7 @@ export function TokenTradingPage({
                       }
                       onClick={approveLP}
                     >
-                      授权 LP
+                      {advancedCopy.approveLp}
                     </button>
                   ) : (
                     <button
@@ -1055,7 +1067,7 @@ export function TokenTradingPage({
                       disabled={!user || lpWei === 0n || rewardWrite.isPending}
                       onClick={stakeLP}
                     >
-                      质押 LP
+                      {advancedCopy.stakeLp}
                     </button>
                   )}
                   <button
@@ -1069,7 +1081,7 @@ export function TokenTradingPage({
                     }
                     onClick={withdrawLP}
                   >
-                    取回 LP
+                    {advancedCopy.withdrawLp}
                   </button>
                 </>
               )}
@@ -1084,11 +1096,11 @@ export function TokenTradingPage({
                 }
                 onClick={claimRewards}
               >
-                领取 BNB 分红
+                {advancedCopy.claimRewards}
               </button>
               {(rewardWrite.error || lpApprovalWrite.error) && (
                 <p className="error">
-                  {(rewardWrite.error ?? lpApprovalWrite.error)?.message}
+                  {advancedCopy.rewardTransactionFailed}
                 </p>
               )}
             </div>
@@ -1308,7 +1320,7 @@ export function TokenTradingPage({
             {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
             {(tradeWrite.error || approvalWrite.error || approvalReceipt.error) && (
               <p className="error">
-                {(tradeWrite.error ?? approvalWrite.error ?? approvalReceipt.error)?.message}
+                {t("tradeFailed")}
               </p>
             )}
           </article>
@@ -1380,7 +1392,9 @@ export function TokenTradingPage({
               <strong>
                 {totalSupplyValue === undefined
                   ? "—"
-                  : `${Number(formatEther(totalSupplyValue)).toLocaleString()} 枚`}
+                  : `${Number(formatEther(totalSupplyValue)).toLocaleString(
+                      localeByLanguage[language],
+                    )} ${t("units")}`}
               </strong>
             </div>
             <div>

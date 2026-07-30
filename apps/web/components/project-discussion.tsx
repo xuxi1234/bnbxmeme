@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { buildCommentMessage } from "@/lib/comment-message";
+import { localeByLanguage } from "@/lib/localization-copy";
 import { useLanguage } from "./language-provider";
 
 type ProjectComment = {
@@ -91,27 +92,24 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
           setEnabled(false);
           throw new Error(t("commentsDisabled"));
         }
-        throw new Error(result.error ?? t("commentFailed"));
+        throw new Error(t("commentFailed"));
       }
       setComments((current) => [result.comment!, ...current]);
       setBody("");
     } catch (submitError) {
+      const message =
+        submitError instanceof Error ? submitError.message : "";
       setError(
-        submitError instanceof Error ? submitError.message : t("commentFailed"),
+        message === t("commentBlocked") || message === t("commentsDisabled")
+          ? message
+          : t("commentFailed"),
       );
     } finally {
       setIsPosting(false);
     }
   }
 
-  const locale =
-    language === "zh"
-      ? "zh-CN"
-      : language === "ko"
-        ? "ko-KR"
-        : language === "ja"
-          ? "ja-JP"
-          : "en-US";
+  const locale = localeByLanguage[language];
 
   if (!isLoading && !enabled) return null;
 
