@@ -16,7 +16,9 @@ export {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
   lpBurnAddress,
+  pancakeRouterAddress,
   rewardsFactoryAddress,
+  standardFactoryAddress,
 };
 export const testnetFactoryAddress = standardFactoryAddress;
 export const testnetPancakeRouterAddress = pancakeRouterAddress;

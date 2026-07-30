@@ -29,13 +29,13 @@ import {
   createCopy,
   localizeCreateErrorMessage,
 } from "@/lib/localization-copy";
+import { MAX_TEMPLATE_SIDE_TAX_PERCENT as MAX_SIDE_TAX } from "@/lib/template-rules";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 // Some injected mobile wallets incorrectly submit gasLimit=0 when estimation is
 // interrupted. This cap prevents that invalid request; users still pay only for
 // gas actually consumed by the transaction.
 const CREATE_GAS_LIMIT = 8_000_000n;
-const MAX_SIDE_TAX = 10;
 const VANITY_SEARCH_LIMIT = 500_000;
 // One eth_call can safely search a much larger CREATE2 salt range than the
 // previous 1,000-attempt batch. 10,000 keeps the call below common BSC RPC

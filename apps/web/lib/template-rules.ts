@@ -1,0 +1,1 @@
+export const MAX_TEMPLATE_SIDE_TAX_PERCENT = 10;
