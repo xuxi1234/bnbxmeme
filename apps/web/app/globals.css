@@ -1577,6 +1577,21 @@ h2 { margin: 10px 0 0; font-size: clamp(34px, 5vw, 56px); letter-spacing: -.055e
 }
 .social-fields { display: grid; gap: 10px; margin: 0; padding: 18px; border: 1px solid var(--line); }
 .social-fields legend { padding: 0 7px; color: var(--brand); font-size: 12px; font-weight: 800; }
+.social-field { display: grid; gap: 6px; }
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.submit-blocker {
+  margin: -12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
 .input-action { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 .input-action button { padding: 0 14px; border: 1px solid var(--line); border-radius: 5px; background: #1a2117; color: var(--brand); font-weight: 800; cursor: pointer; }
 .success { color: var(--brand); }

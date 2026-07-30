@@ -1,4 +1,5 @@
 import type { Language } from "@/components/language-provider";
+import type { CreateSubmitBlocker } from "./create-validation-core";
 
 export const localeByLanguage: Record<Language, string> = {
   zh: "zh-CN",
@@ -119,6 +120,7 @@ type CreateCopy = {
   rewardsHelp: string;
   factorySafetyLock: string;
   taxInvalid: string;
+  submitBlockers: Record<CreateSubmitBlocker, string>;
   errors: CreateErrorCopy;
 };
 
@@ -166,6 +168,17 @@ export const createCopy: Record<Language, CreateCopy> = {
     rewardsHelp: "分红税自动兑换为 BNB，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。",
     factorySafetyLock: "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。",
     taxInvalid: "买入税或卖出税合计超过 10%，请降低税率。",
+    submitBlockers: {
+      wallet: "请先连接钱包，才能创建代币。",
+      factory: "主网 Factory 尚未配置，暂时无法创建。",
+      template: "所选模板当前不可用，请选择可用模板。",
+      name: "请填写代币名称。",
+      symbol: "请填写代币符号。",
+      community: "请修正上方标出的社区链接。",
+      initialBuy: "首购金额必须是有效的非负 BNB 数字。",
+      tax: "请将买入税和卖出税各自降到 10% 以内。",
+      rewards: "分红模板需要大于 0 的分红税和最低参与余额。",
+    },
     errors: {
       metadataUploadFailed: "代币资料上传失败",
       walletRequired: "请先连接钱包",
@@ -234,6 +247,17 @@ export const createCopy: Record<Language, CreateCopy> = {
     rewardsHelp: "Reward tax is converted to BNB and claimed by eligible users. Burn, curve, and pair addresses are excluded.",
     factorySafetyLock: "Safety lock: creation is disabled until the corresponding Mainnet Factory is configured.",
     taxInvalid: "Buy or sell tax exceeds the 10% maximum.",
+    submitBlockers: {
+      wallet: "Connect a wallet before creating a token.",
+      factory: "The Mainnet Factory is not configured, so creation is unavailable.",
+      template: "The selected template is unavailable. Choose an available template.",
+      name: "Enter a token name.",
+      symbol: "Enter a token symbol.",
+      community: "Correct the highlighted community link fields above.",
+      initialBuy: "The initial buy must be a valid non-negative BNB amount.",
+      tax: "Reduce both the combined buy tax and sell tax to 10% or less.",
+      rewards: "Reward templates require a reward tax and minimum eligible balance above zero.",
+    },
     errors: {
       metadataUploadFailed: "Token metadata upload failed",
       walletRequired: "Connect your wallet first",
@@ -302,6 +326,17 @@ export const createCopy: Record<Language, CreateCopy> = {
     rewardsHelp: "보상 세금은 BNB로 전환되며 조건을 충족한 사용자가 청구할 수 있습니다. 소각, 커브, 거래쌍 주소는 제외됩니다.",
     factorySafetyLock: "안전 잠금: 해당 메인넷 Factory가 설정될 때까지 실제 생성을 차단합니다.",
     taxInvalid: "매수 또는 매도 세금 합계가 최대 10%를 초과했습니다.",
+    submitBlockers: {
+      wallet: "토큰을 생성하려면 먼저 지갑을 연결하세요.",
+      factory: "메인넷 Factory가 설정되지 않아 현재 생성할 수 없습니다.",
+      template: "선택한 템플릿을 사용할 수 없습니다. 사용 가능한 템플릿을 선택하세요.",
+      name: "토큰 이름을 입력하세요.",
+      symbol: "토큰 심볼을 입력하세요.",
+      community: "위에 표시된 커뮤니티 링크 항목을 수정하세요.",
+      initialBuy: "최초 구매액은 유효한 0 이상의 BNB 숫자여야 합니다.",
+      tax: "매수 및 매도 세금 합계를 각각 10% 이하로 낮추세요.",
+      rewards: "보상 템플릿에는 0보다 큰 보상 세금과 최소 참여 잔액이 필요합니다.",
+    },
     errors: {
       metadataUploadFailed: "토큰 메타데이터 업로드에 실패했습니다",
       walletRequired: "먼저 지갑을 연결하세요",
@@ -370,6 +405,17 @@ export const createCopy: Record<Language, CreateCopy> = {
     rewardsHelp: "報酬税は BNB に変換され、条件を満たすユーザーが請求できます。バーン、カーブ、ペアの各アドレスは対象外です。",
     factorySafetyLock: "安全ロック：対応するメインネットFactoryが設定されるまで実際の作成を無効にします。",
     taxInvalid: "買い税または売り税の合計が上限10%を超えています。",
+    submitBlockers: {
+      wallet: "トークンを作成するには先にウォレットを接続してください。",
+      factory: "メインネットFactoryが未設定のため、現在は作成できません。",
+      template: "選択したテンプレートは利用できません。利用可能なものを選んでください。",
+      name: "トークン名を入力してください。",
+      symbol: "トークンシンボルを入力してください。",
+      community: "上で示されたコミュニティリンク欄を修正してください。",
+      initialBuy: "初回購入額には0以上の有効なBNB数値を入力してください。",
+      tax: "購入税と売却税の合計をそれぞれ10%以下にしてください。",
+      rewards: "報酬テンプレートには0より大きい報酬税と最低参加残高が必要です。",
+    },
     errors: {
       metadataUploadFailed: "トークン情報のアップロードに失敗しました",
       walletRequired: "先にウォレットを接続してください",

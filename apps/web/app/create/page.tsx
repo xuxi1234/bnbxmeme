@@ -23,7 +23,12 @@ import {
   testnetFactoryAddress,
 } from "@/lib/web3";
 import { useLanguage } from "@/components/language-provider";
-import { validateCommunityLinks } from "@/lib/community-links";
+import {
+  getCommunityLinkErrors,
+  validateCommunityLinks,
+  type CommunityLinkField,
+} from "@/lib/community-links";
+import { resolveCreateSubmitBlocker } from "@/lib/create-validation-core";
 import {
   accessibilityCopy,
   createCopy,
@@ -543,21 +548,21 @@ export default function CreateTokenPage() {
   const sellTaxTotal = Object.values(sellTaxes).reduce((sum, value) => sum + value, 0);
   const taxInvalid =
     buyTaxTotal > MAX_SIDE_TAX || sellTaxTotal > MAX_SIDE_TAX;
-  let communityLinkError = "";
-  try {
-    validateCommunityLinks({
-      website,
-      telegram,
-      twitter,
-      debox,
-      qqGroupNumber,
-    });
-  } catch (linkError) {
-    communityLinkError =
-      linkError instanceof Error
-        ? localizeCreateErrorMessage(linkError.message, language)
-        : copy.errors.communityInvalid;
-  }
+  const rawCommunityLinkErrors = getCommunityLinkErrors({
+    website,
+    telegram,
+    twitter,
+    debox,
+    qqGroupNumber,
+  });
+  const communityLinkErrors = Object.fromEntries(
+    Object.entries(rawCommunityLinkErrors).map(([field, message]) => [
+      field,
+      localizeCreateErrorMessage(message, language),
+    ]),
+  ) as Partial<Record<CommunityLinkField, string>>;
+  const communityLinkError =
+    Object.values(communityLinkErrors).find(Boolean) ?? "";
   const previewInitialBuyWei = safeInitialBuy(initialBuy)
     ? parseEther(initialBuy || "0")
     : 0n;
@@ -566,19 +571,25 @@ export default function CreateTokenPage() {
     previewInitialBuyWei,
   );
   const previewTotalValue = CREATION_FEE_WEI + previewInitialBuyWei;
-  const canSubmit =
-    isConnected &&
-    !wrongChain &&
-    !unavailableTemplate &&
-    !taxInvalid &&
-    !communityLinkError &&
-    (!(template === "holders" || template === "lp") ||
-      (buyTaxes.rewards + sellTaxes.rewards > 0 &&
-        Number(minimumRewardBalance) > 0)) &&
-    Boolean(factoryAddress) &&
-    name.trim().length > 0 &&
-    symbol.trim().length > 0 &&
-    safeInitialBuy(initialBuy);
+  const rewardsValid =
+    !(template === "holders" || template === "lp") ||
+    (buyTaxes.rewards + sellTaxes.rewards > 0 &&
+      Number(minimumRewardBalance) > 0);
+  const submitBlocker = resolveCreateSubmitBlocker({
+    isConnected,
+    factoryAvailable: Boolean(factoryAddress),
+    templateAvailable: !unavailableTemplate,
+    name,
+    symbol,
+    communityValid: !communityLinkError,
+    initialBuyValid: safeInitialBuy(initialBuy),
+    taxValid: !taxInvalid,
+    rewardsValid,
+  });
+  const submitBlockerText = submitBlocker
+    ? copy.submitBlockers[submitBlocker]
+    : "";
+  const canSubmit = !wrongChain && submitBlocker === null;
 
   return (
     <main>
@@ -783,47 +794,109 @@ export default function CreateTokenPage() {
 
           <fieldset className="social-fields">
             <legend>{t("socialLinks")}</legend>
-            <input
-              type="text"
-              maxLength={100}
-              value={website}
-              placeholder={t("websitePlaceholder")}
-              onChange={(event) => setWebsite(event.target.value)}
-            />
-            <input
-              type="text"
-              maxLength={100}
-              value={telegram}
-              placeholder={t("telegramPlaceholder")}
-              onChange={(event) => setTelegram(event.target.value)}
-            />
-            <input
-              type="text"
-              maxLength={100}
-              value={twitter}
-              placeholder={t("twitterPlaceholder")}
-              onChange={(event) => setTwitter(event.target.value)}
-            />
-            <input
-              type="text"
-              maxLength={100}
-              value={debox}
-              placeholder={t("deboxPlaceholder")}
-              onChange={(event) => setDebox(event.target.value)}
-            />
-            <input
-              type="text"
-              aria-label={t("qqGroupNumber")}
-              maxLength={100}
-              value={qqGroupNumber}
-              placeholder={t("qqPlaceholder")}
-              onChange={(event) => setQqGroupNumber(event.target.value)}
-            />
-            {communityLinkError && (
-              <p className="error" role="alert">
-                {communityLinkError}
-              </p>
-            )}
+            <div className="social-field">
+              <input
+                id="website"
+                type="text"
+                inputMode="url"
+                aria-label={t("websitePlaceholder")}
+                aria-invalid={Boolean(communityLinkErrors.website)}
+                aria-describedby={
+                  communityLinkErrors.website ? "website-error" : undefined
+                }
+                maxLength={100}
+                value={website}
+                placeholder={t("websitePlaceholder")}
+                onChange={(event) => setWebsite(event.target.value)}
+              />
+              {communityLinkErrors.website && (
+                <small className="field-error" id="website-error">
+                  {communityLinkErrors.website}
+                </small>
+              )}
+            </div>
+            <div className="social-field">
+              <input
+                id="telegram"
+                type="text"
+                aria-label={t("telegramPlaceholder")}
+                aria-invalid={Boolean(communityLinkErrors.telegram)}
+                aria-describedby={
+                  communityLinkErrors.telegram ? "telegram-error" : undefined
+                }
+                maxLength={100}
+                value={telegram}
+                placeholder={t("telegramPlaceholder")}
+                onChange={(event) => setTelegram(event.target.value)}
+              />
+              {communityLinkErrors.telegram && (
+                <small className="field-error" id="telegram-error">
+                  {communityLinkErrors.telegram}
+                </small>
+              )}
+            </div>
+            <div className="social-field">
+              <input
+                id="twitter"
+                type="text"
+                aria-label={t("twitterPlaceholder")}
+                aria-invalid={Boolean(communityLinkErrors.twitter)}
+                aria-describedby={
+                  communityLinkErrors.twitter ? "twitter-error" : undefined
+                }
+                maxLength={100}
+                value={twitter}
+                placeholder={t("twitterPlaceholder")}
+                onChange={(event) => setTwitter(event.target.value)}
+              />
+              {communityLinkErrors.twitter && (
+                <small className="field-error" id="twitter-error">
+                  {communityLinkErrors.twitter}
+                </small>
+              )}
+            </div>
+            <div className="social-field">
+              <input
+                id="debox"
+                type="text"
+                aria-label={t("deboxPlaceholder")}
+                aria-invalid={Boolean(communityLinkErrors.debox)}
+                aria-describedby={
+                  communityLinkErrors.debox ? "debox-error" : undefined
+                }
+                maxLength={100}
+                value={debox}
+                placeholder={t("deboxPlaceholder")}
+                onChange={(event) => setDebox(event.target.value)}
+              />
+              {communityLinkErrors.debox && (
+                <small className="field-error" id="debox-error">
+                  {communityLinkErrors.debox}
+                </small>
+              )}
+            </div>
+            <div className="social-field">
+              <input
+                id="qq-group-number"
+                type="text"
+                aria-label={t("qqGroupNumber")}
+                aria-invalid={Boolean(communityLinkErrors.qqGroupNumber)}
+                aria-describedby={
+                  communityLinkErrors.qqGroupNumber
+                    ? "qq-group-number-error"
+                    : undefined
+                }
+                maxLength={100}
+                value={qqGroupNumber}
+                placeholder={t("qqPlaceholder")}
+                onChange={(event) => setQqGroupNumber(event.target.value)}
+              />
+              {communityLinkErrors.qqGroupNumber && (
+                <small className="field-error" id="qq-group-number-error">
+                  {communityLinkErrors.qqGroupNumber}
+                </small>
+              )}
+            </div>
           </fieldset>
 
           <fieldset className="graduation-control">
@@ -964,7 +1037,11 @@ export default function CreateTokenPage() {
             <button
               className="button wide"
               type="submit"
+              aria-describedby={
+                submitBlocker ? "create-submit-blocker" : undefined
+              }
               disabled={!canSubmit || isPending || receipt.isLoading || isUploading || isFindingVanity}
+              title={submitBlockerText || undefined}
             >
               {isUploading
                 ? t("uploading")
@@ -976,6 +1053,15 @@ export default function CreateTokenPage() {
                 ? t("confirming")
                 : t("createToken")}
             </button>
+          )}
+          {!wrongChain && submitBlockerText && (
+            <p
+              className="submit-blocker"
+              id="create-submit-blocker"
+              role="status"
+            >
+              {submitBlockerText}
+            </p>
           )}
 
           {hash && (
