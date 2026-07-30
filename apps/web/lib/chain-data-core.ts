@@ -1,4 +1,4 @@
-export const CHAIN_INDEX_VERSION = 2 as const;
+export const CHAIN_INDEX_VERSION = 3 as const;
 export const DEFAULT_INDEX_BLOCK_SPAN = 100_000n;
 
 export type IndexedTrade = {
@@ -36,6 +36,11 @@ export type TransferDelta = {
   from?: `0x${string}` | null;
   to?: `0x${string}` | null;
   value: string;
+};
+
+export type IndexedTokenTransfer = TransferDelta & {
+  transactionHash: `0x${string}`;
+  logIndex: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -173,6 +178,80 @@ export function applyTransferDeltas(
       .filter(([, balance]) => balance !== 0n)
       .map(([address, balance]) => [address, balance.toString()]),
   );
+}
+
+export function resolveSwapAccount({
+  transactionHash,
+  swapLogIndex,
+  side,
+  pair,
+  tokenAmount,
+  fallbackRecipient,
+  transfers,
+}: {
+  transactionHash: `0x${string}`;
+  swapLogIndex: number;
+  side: "buy" | "sell";
+  pair: `0x${string}`;
+  tokenAmount: string;
+  fallbackRecipient?: `0x${string}` | null;
+  transfers: IndexedTokenTransfer[];
+}) {
+  const pairAddress = pair.toLowerCase();
+  const fallbackAddress = fallbackRecipient?.toLowerCase();
+  const candidates = transfers
+    .filter(
+      (transfer) =>
+        transfer.transactionHash.toLowerCase() ===
+          transactionHash.toLowerCase() &&
+        transfer.logIndex < swapLogIndex &&
+        (side === "buy"
+          ? transfer.from?.toLowerCase() === pairAddress
+          : transfer.to?.toLowerCase() === pairAddress),
+    )
+    .flatMap((transfer) => {
+      try {
+        const account = side === "buy" ? transfer.to : transfer.from;
+        if (
+          !account ||
+          account.toLowerCase() === pairAddress ||
+          account.toLowerCase() === "0x0000000000000000000000000000000000000000"
+        ) {
+          return [];
+        }
+        return [
+          {
+            account,
+            exactAmount: BigInt(transfer.value) === BigInt(tokenAmount),
+            fallbackMatch:
+              side === "buy" && transfer.to?.toLowerCase() === fallbackAddress,
+            logIndex: transfer.logIndex,
+          },
+        ];
+      } catch {
+        return [];
+      }
+    })
+    .sort((left, right) => {
+      if (left.exactAmount !== right.exactAmount) {
+        return left.exactAmount ? -1 : 1;
+      }
+      if (left.fallbackMatch !== right.fallbackMatch) {
+        return left.fallbackMatch ? -1 : 1;
+      }
+      return right.logIndex - left.logIndex;
+    });
+
+  if (candidates[0]) return candidates[0].account;
+  if (
+    side === "buy" &&
+    fallbackRecipient &&
+    fallbackAddress !== pairAddress &&
+    fallbackAddress !== "0x0000000000000000000000000000000000000000"
+  ) {
+    return fallbackRecipient;
+  }
+  return null;
 }
 
 export function materializeHolders(

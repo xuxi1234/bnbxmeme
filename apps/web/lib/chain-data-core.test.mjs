@@ -10,6 +10,7 @@ import {
   materializeHolders,
   mergeIndexedTrades,
   pricePerMillionBnb,
+  resolveSwapAccount,
   resolveScanWindow,
   summarizeTrades,
   verifiedReservePrice,
@@ -158,7 +159,7 @@ test("rejects legacy, mismatched Pair, and malformed holder cache states", () =>
   };
   assert.equal(isCompatibleIndexState(undefined, identity), false);
   assert.equal(
-    isCompatibleIndexState(indexState({ version: 1 }), identity),
+    isCompatibleIndexState(indexState({ version: 2 }), identity),
     false,
   );
   assert.equal(
@@ -214,6 +215,117 @@ test("accumulates holder balances across incremental transfer batches", () => {
     [buyer]: "75",
     [seller]: "65",
   });
+});
+
+test("attributes a Pancake sell to the token sender instead of Swap.to", () => {
+  const router = "0x6666666666666666666666666666666666666666";
+  const transactionHash = `0x${"a".repeat(64)}`;
+  assert.equal(
+    resolveSwapAccount({
+      transactionHash,
+      swapLogIndex: 15,
+      side: "sell",
+      pair,
+      tokenAmount: "90",
+      fallbackRecipient: router,
+      transfers: [
+        {
+          transactionHash,
+          logIndex: 10,
+          from: seller,
+          to: pair,
+          value: "90",
+        },
+        {
+          transactionHash,
+          logIndex: 11,
+          from: seller,
+          to: dead,
+          value: "10",
+        },
+      ],
+    }),
+    seller,
+  );
+});
+
+test("attributes taxed Pancake buys to the Swap recipient", () => {
+  const transactionHash = `0x${"b".repeat(64)}`;
+  assert.equal(
+    resolveSwapAccount({
+      transactionHash,
+      swapLogIndex: 15,
+      side: "buy",
+      pair,
+      tokenAmount: "100",
+      fallbackRecipient: buyer,
+      transfers: [
+        {
+          transactionHash,
+          logIndex: 12,
+          from: pair,
+          to: buyer,
+          value: "90",
+        },
+        {
+          transactionHash,
+          logIndex: 13,
+          from: pair,
+          to: dead,
+          value: "10",
+        },
+      ],
+    }),
+    buyer,
+  );
+});
+
+test("prefers an exact buy transfer over a misleading Swap recipient", () => {
+  const router = "0x6666666666666666666666666666666666666666";
+  const transactionHash = `0x${"d".repeat(64)}`;
+  assert.equal(
+    resolveSwapAccount({
+      transactionHash,
+      swapLogIndex: 15,
+      side: "buy",
+      pair,
+      tokenAmount: "100",
+      fallbackRecipient: router,
+      transfers: [
+        {
+          transactionHash,
+          logIndex: 12,
+          from: pair,
+          to: buyer,
+          value: "100",
+        },
+        {
+          transactionHash,
+          logIndex: 13,
+          from: pair,
+          to: router,
+          value: "1",
+        },
+      ],
+    }),
+    buyer,
+  );
+});
+
+test("does not invent a seller when no matching transfer exists", () => {
+  const transactionHash = `0x${"c".repeat(64)}`;
+  assert.equal(
+    resolveSwapAccount({
+      transactionHash,
+      swapLogIndex: 15,
+      side: "sell",
+      pair,
+      tokenAmount: "90",
+      fallbackRecipient: buyer,
+      transfers: [],
+    }),
+    null,
+  );
 });
 
 test("excludes Curve, Pair, zero and burn addresses from holder counts", () => {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
+import { pancakeRouterAddress } from "@/lib/deployments";
 
 type Trade = {
   id: string;
@@ -97,8 +98,9 @@ export function TokenActivity({
       [
         curve,
         pair,
+        token,
         zeroAddress,
-        "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+        pancakeRouterAddress,
       ]
         .filter(Boolean)
         .map((address) => address!.toLowerCase()),
@@ -123,7 +125,7 @@ export function TokenActivity({
     return [...totals.values()]
       .sort((a, b) => (a.volume > b.volume ? -1 : 1))
       .slice(0, 20);
-  }, [curve, pair, trades]);
+  }, [curve, pair, token, trades]);
 
   useEffect(() => {
     if (token === zeroAddress || curve === zeroAddress) return;

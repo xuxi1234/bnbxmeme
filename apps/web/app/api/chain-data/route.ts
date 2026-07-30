@@ -10,12 +10,14 @@ import {
   materializeHolders,
   mergeIndexedTrades,
   pricePerMillionBnb,
+  resolveSwapAccount,
   resolveScanWindow,
   summarizeTrades,
   verifiedReservePrice,
   type ChainIndexIdentity,
   type ChainIndexState,
   type IndexedTrade,
+  type IndexedTokenTransfer,
 } from "@/lib/chain-data-core";
 import { resolveFactoryDeploymentBlock } from "@/lib/factory-deployment-blocks";
 import {
@@ -643,6 +645,27 @@ export async function GET(request: NextRequest) {
         getBnbUsdPrice(),
       ]);
     const [buys, sells, transfers, graduations, swaps] = scanResults;
+    const indexedTransfers: IndexedTokenTransfer[] = transfers.map((log) => ({
+      transactionHash: log.transactionHash,
+      logIndex: log.logIndex,
+      from:
+        log.args.from &&
+        log.args.from.toLowerCase() !== zeroAddress.toLowerCase()
+          ? log.args.from
+          : null,
+      to:
+        log.args.to && log.args.to.toLowerCase() !== zeroAddress.toLowerCase()
+          ? log.args.to
+          : null,
+      value: (log.args.value ?? 0n).toString(),
+    }));
+    const transfersByTransaction = new Map<string, IndexedTokenTransfer[]>();
+    for (const transfer of indexedTransfers) {
+      const transactionHash = transfer.transactionHash.toLowerCase();
+      const transactionTransfers = transfersByTransaction.get(transactionHash);
+      if (transactionTransfers) transactionTransfers.push(transfer);
+      else transfersByTransaction.set(transactionHash, [transfer]);
+    }
 
     const uniqueTradeBlocks = [
       ...new Set(
@@ -715,12 +738,25 @@ export async function GET(request: NextRequest) {
           if (!isBuy && !isSell) return [];
           const bnb = isBuy ? bnbIn : bnbOut;
           const tokensOutOrIn = isBuy ? tokenOut : tokenIn;
+          const side = isBuy ? ("buy" as const) : ("sell" as const);
           return [
             {
               id: `${log.transactionHash}-${log.logIndex}`,
-              side: isBuy ? ("buy" as const) : ("sell" as const),
+              side,
               source: "pancake" as const,
-              account: log.args.to ?? zeroAddress,
+              account:
+                resolveSwapAccount({
+                  transactionHash: log.transactionHash,
+                  swapLogIndex: log.logIndex,
+                  side,
+                  pair: pairAddress!,
+                  tokenAmount: tokensOutOrIn.toString(),
+                  fallbackRecipient: log.args.to,
+                  transfers:
+                    transfersByTransaction.get(
+                      log.transactionHash.toLowerCase(),
+                    ) ?? [],
+                }) ?? zeroAddress,
               bnb: bnb.toString(),
               priceBNB: bnb.toString(),
               tokens: tokensOutOrIn.toString(),
@@ -737,18 +773,7 @@ export async function GET(request: NextRequest) {
     );
     const holderBalances = applyTransferDeltas(
       cachedIndex ? cachedIndex.holderBalances : {},
-      transfers.map((log) => ({
-        from:
-          log.args.from &&
-          log.args.from.toLowerCase() !== zeroAddress.toLowerCase()
-            ? log.args.from
-            : null,
-        to:
-          log.args.to && log.args.to.toLowerCase() !== zeroAddress.toLowerCase()
-            ? log.args.to
-            : null,
-        value: (log.args.value ?? 0n).toString(),
-      })),
+      indexedTransfers,
     );
     const holderSnapshot = materializeHolders(holderBalances, [
       curveAddress,

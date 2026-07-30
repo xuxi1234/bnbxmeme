@@ -132,14 +132,21 @@ export function calculateHotRanking({
   holderCount,
   graduated,
   nowSeconds,
+  excludedAccounts = [],
 }: {
   trades: RankingTrade[];
   market?: MarketActivity;
   holderCount: number;
   graduated: boolean;
   nowSeconds: number;
+  excludedAccounts?: Array<string | null | undefined>;
 }) {
   const cutoff24h = nowSeconds - 86_400;
+  const excluded = new Set(
+    excludedAccounts
+      .filter((account): account is string => Boolean(account))
+      .map((account) => account.toLowerCase()),
+  );
   const qualifiedTrades = trades.filter(
     (trade) =>
       trade.timestamp >= cutoff24h &&
@@ -149,7 +156,10 @@ export function calculateHotRanking({
   const uniqueTraders = new Set(
     qualifiedTrades
       .map((trade) => trade.account?.toLowerCase())
-      .filter(Boolean),
+      .filter(
+        (account): account is string =>
+          account !== undefined && !excluded.has(account),
+      ),
   ).size;
   const hasMarketActivity = market?.buys24h != null && market?.sells24h != null;
   const activity = hasMarketActivity

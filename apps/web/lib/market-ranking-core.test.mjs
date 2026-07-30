@@ -119,6 +119,39 @@ test("internal Hot ranking keeps qualifying curve activity", () => {
   assert.ok(ranking.hotScore > 0);
 });
 
+test("does not count infrastructure or unknown accounts as unique traders", () => {
+  const router = "0x6666666666666666666666666666666666666666";
+  const ranking = calculateHotRanking({
+    trades: [
+      {
+        bnb: "1000000000000000000",
+        timestamp: 999_000,
+        account: "0x0000000000000000000000000000000000000000",
+        source: "pancake",
+      },
+      {
+        bnb: "1000000000000000000",
+        timestamp: 999_000,
+        account: router,
+        source: "pancake",
+      },
+      {
+        bnb: "1000000000000000000",
+        timestamp: 999_000,
+        account: "0xRealTrader",
+        source: "pancake",
+      },
+    ],
+    holderCount: 1,
+    graduated: true,
+    nowSeconds: 1_000_000,
+    excludedAccounts: ["0x0000000000000000000000000000000000000000", router],
+  });
+
+  assert.equal(ranking.uniqueTraders, 1);
+  assert.equal(ranking.activity, 3);
+});
+
 test("only summarizes market activity when every listed token is complete", () => {
   assert.deepEqual(
     summarizeCompleteMarketActivity(["alpha", "beta"], {

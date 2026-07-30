@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useTokenMetadata } from "@/lib/metadata";
+import { pancakeRouterAddress } from "@/lib/deployments";
 import {
   formatCompactMetric,
   formatTokenPriceUsdt,
@@ -318,6 +319,13 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
             holderCount,
             graduated: entry.state === 2,
             nowSeconds: Math.floor(Date.now() / 1000),
+            excludedAccounts: [
+              zeroAddress,
+              entry.token,
+              entry.curve,
+              entry.liquidityPair,
+              pancakeRouterAddress,
+            ],
           });
           return [
             entry.token,
