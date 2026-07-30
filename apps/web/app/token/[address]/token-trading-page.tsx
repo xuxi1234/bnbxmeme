@@ -26,8 +26,8 @@ import {
 } from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
 import {
+  formatCompactTokenPriceUsdt,
   formatExactCount,
-  formatTokenPriceUsdt,
   tokenPriceUsdt,
 } from "@/lib/market-format";
 import { buildExternalMarketLinks } from "@/lib/external-market-links";
@@ -872,7 +872,11 @@ export function TokenTradingPage({
             <div>
               <span>{t("currentPrice")}</span>
               <strong>
-                {formatTokenPriceUsdt(currentTokenPriceUsdt)} USDT
+                {formatCompactTokenPriceUsdt(
+                  currentTokenPriceUsdt,
+                  localeByLanguage[language],
+                )}{" "}
+                USDT
               </strong>
               <small>/ 1 {tokenSymbol ?? t("token")}</small>
             </div>

@@ -8,7 +8,7 @@ import { pancakeRouterAddress } from "@/lib/deployments";
 import { chunkItems } from "@/lib/market-data-core";
 import {
   formatCompactMetric,
-  formatTokenPriceUsdt,
+  formatCompactTokenPriceUsdt,
   tokenPriceUsdt,
 } from "@/lib/market-format";
 import {
@@ -19,7 +19,11 @@ import {
 } from "@/lib/market-ranking-core";
 import { resolveMarketNoResults } from "@/lib/market-empty-state-core";
 import { useLanguage } from "./language-provider";
-import { accessibilityCopy, interpolate } from "@/lib/localization-copy";
+import {
+  accessibilityCopy,
+  interpolate,
+  localeByLanguage,
+} from "@/lib/localization-copy";
 
 type MarketEntry = {
   token: `0x${string}`;
@@ -135,7 +139,10 @@ function TokenCard({
       <div className="token-card-market">
         <div>
           <span>{t("currentPrice")}</span>
-          <strong>{formatTokenPriceUsdt(priceUsdt)} USDT</strong>
+          <strong>
+            {formatCompactTokenPriceUsdt(priceUsdt, localeByLanguage[language])}{" "}
+            USDT
+          </strong>
           <small>
             / 1 {entry.symbol ?? t("token")}
             {score?.priceChange24h !== undefined

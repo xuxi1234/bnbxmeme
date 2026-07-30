@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatCompactMetric, formatExactCount } from "./market-format.ts";
+import {
+  formatCompactMetric,
+  formatCompactTokenPriceUsdt,
+  formatExactCount,
+} from "./market-format.ts";
+
+test("keeps tiny token prices readable in compact metric cards", () => {
+  assert.equal(formatCompactTokenPriceUsdt(0.0000000016939427), "1.693943e-9");
+  assert.equal(formatCompactTokenPriceUsdt(0.000123456), "0.000123456");
+  assert.equal(formatCompactTokenPriceUsdt(null), "—");
+});
 
 test("formats an exact zero count instead of treating it as missing", () => {
   assert.equal(formatExactCount(0), "0");
