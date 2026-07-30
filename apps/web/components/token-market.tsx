@@ -8,9 +8,13 @@ import {
   formatTokenPriceUsdt,
   tokenPriceUsdt,
 } from "@/lib/market-format";
+import {
+  calculateHotRanking,
+  compareMarketEntries,
+  type MarketFilter,
+} from "@/lib/market-ranking-core";
 import { useLanguage } from "./language-provider";
 
-type MarketFilter = "hot" | "latest" | "graduating" | "graduated";
 type MarketEntry = {
   token: `0x${string}`;
   name: string | null;
@@ -272,6 +276,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
               timestamp: number;
               account?: string;
               side?: "buy" | "sell";
+              source?: "curve" | "pancake";
             }>;
             holders: Array<unknown>;
             holderCount?: number;
@@ -310,49 +315,20 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
           const latestBnb = latestTrade
             ? Number(formatEther(BigInt(latestTrade.priceBNB)))
             : 0;
-          const cutoff24h = Math.floor(Date.now() / 1000) - 86_400;
-          const qualifiedTrades = data.trades.filter(
-            (trade) =>
-              trade.timestamp >= cutoff24h &&
-              Number(formatEther(BigInt(trade.bnb))) >= 0.00001,
-          );
-          const uniqueTraders = new Set(
-            qualifiedTrades.map((trade) => trade.account?.toLowerCase()).filter(Boolean),
-          ).size;
-          const activity =
-            (data.market?.buys24h ?? 0) + (data.market?.sells24h ?? 0) ||
-            qualifiedTrades.length;
-          const volume24hBnb =
-            data.market?.volume24hBnb ??
-            qualifiedTrades.reduce(
-              (sum, trade) => sum + Number(formatEther(BigInt(trade.bnb))),
-              0,
-            );
           const holderCount = data.holderCount ?? data.holders.length;
-          const mostRecentTimestamp = data.trades.reduce(
-            (latest, trade) => Math.max(latest, trade.timestamp),
-            0,
-          );
-          const recencyHours =
-            mostRecentTimestamp > 0
-              ? Math.max(0, (Date.now() / 1000 - mostRecentTimestamp) / 3600)
-              : 24;
-          const cappedTradeCount = Math.min(
-            qualifiedTrades.length,
-            Math.max(uniqueTraders, 1) * 5,
-          );
-          const hotScore =
-            Math.log1p(volume24hBnb * 1_000) * 40 +
-            Math.min(uniqueTraders, 25) * 12 +
-            cappedTradeCount * 2 +
-            Math.min(holderCount, 100) * 0.4 +
-            Math.max(0, 24 - recencyHours);
+          const ranking = calculateHotRanking({
+            trades: data.trades,
+            market: data.market,
+            holderCount,
+            graduated: entry.state === 2,
+            nowSeconds: Math.floor(Date.now() / 1000),
+          });
           return [
             entry.token,
             {
-              volume24hBnb,
-              activity,
-              uniqueTraders,
+              volume24hBnb: ranking.volume24hBnb,
+              activity: ranking.activity,
+              uniqueTraders: ranking.uniqueTraders,
               lastBlock: data.trades.reduce(
                 (latest, trade) =>
                   BigInt(trade.blockNumber) > latest
@@ -370,7 +346,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
               bnbUsd: data.bnbUsd,
               holderCount,
               graduatedAt: data.market?.graduatedAt ?? undefined,
-              hotScore,
+              hotScore: ranking.hotScore,
             },
           ] as const;
         } catch {
@@ -421,48 +397,9 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       if (filter === "graduated") return entry.state === 2;
       return true;
     });
-    return visible.sort((a, b) => {
-      if (filter === "latest") return b.creationIndex - a.creationIndex;
-      if (filter === "graduating") {
-        const aPrincipal = asBigInt(a.principal);
-        const aTarget = asBigInt(a.target);
-        const bPrincipal = asBigInt(b.principal);
-        const bTarget = asBigInt(b.target);
-        const aProgress =
-          aPrincipal !== undefined && aTarget
-            ? (aPrincipal * 1_000_000n) / aTarget
-            : 0n;
-        const bProgress =
-          bPrincipal !== undefined && bTarget
-            ? (bPrincipal * 1_000_000n) / bTarget
-            : 0n;
-        return aProgress === bProgress
-          ? b.creationIndex - a.creationIndex
-          : aProgress > bProgress
-            ? -1
-            : 1;
-      }
-      if (filter === "graduated") {
-        const aGraduatedAt = scores[a.token]?.graduatedAt;
-        const bGraduatedAt = scores[b.token]?.graduatedAt;
-        if (aGraduatedAt === undefined || bGraduatedAt === undefined) {
-          return b.creationIndex - a.creationIndex;
-        }
-        return aGraduatedAt === bGraduatedAt
-          ? b.creationIndex - a.creationIndex
-          : bGraduatedAt - aGraduatedAt;
-      }
-      const aScore = scores[a.token]?.hotScore;
-      const bScore = scores[b.token]?.hotScore;
-      if (aScore === undefined || bScore === undefined) {
-        return b.creationIndex - a.creationIndex;
-      }
-      return aScore === bScore
-        ? b.creationIndex - a.creationIndex
-        : aScore > bScore
-          ? -1
-          : 1;
-    });
+    return visible.sort((a, b) =>
+      compareMarketEntries(filter, scores, a, b),
+    );
   }, [entries, filter, query, scores]);
 
   if (isLoading && !payload) {
