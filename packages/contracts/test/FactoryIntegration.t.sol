@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import { BNBXFactory } from "../src/BNBXFactory.sol";
-import { BNBXToken } from "../src/BNBXToken.sol";
+import { BNBXTokenV3 } from "../src/BNBXTokenV3.sol";
 import { BondingCurve } from "../src/BondingCurve.sol";
 import { IERC20Minimal } from "../src/interfaces/IERC20Minimal.sol";
 
@@ -30,8 +30,12 @@ contract ReenteringFeeRecipient {
         attempted = true;
         (succeeded,) = address(factory).call{ value: msg.value }(
             abi.encodeCall(
-                factory.createToken,
-                ("Reentered", "REENTER", uint8(1), "")
+                factory.createVanityToken,
+                (
+                    BNBXFactory.CreateRequest(
+                        "Reentered", "REENTER", uint8(1), "", bytes32(0)
+                    )
+                )
             )
         );
     }
@@ -75,6 +79,10 @@ contract MockPair {
     function sync() external {
         reserve0 = uint112(IERC20Minimal(token0).balanceOf(address(this)));
         reserve1 = uint112(IERC20Minimal(token1).balanceOf(address(this)));
+    }
+
+    function transferAsset(address asset, address to, uint256 amount) external {
+        require(IERC20Minimal(asset).transfer(to, amount), "TRANSFER");
     }
 
     function getReserves()
@@ -212,6 +220,11 @@ contract FactoryIntegrationTest {
     MockPancakeRouter internal router;
     MockWBNB internal wbnb;
     BNBXFactory internal launchFactory;
+    RevertingReceiver internal rejectingFees;
+    BNBXFactory internal rejectingFactory;
+    ReenteringFeeRecipient internal reentering;
+    BNBXFactory internal protectedFactory;
+    mapping(bytes32 key => bytes32 salt) internal testSalts;
 
     receive() external payable {}
 
@@ -223,6 +236,43 @@ contract FactoryIntegrationTest {
         wbnb = new MockWBNB();
         router = new MockPancakeRouter(address(pancakeFactory), address(wbnb));
         launchFactory = new BNBXFactory(FEE_RECIPIENT, address(router));
+        rejectingFees = new RevertingReceiver();
+        rejectingFactory =
+            new BNBXFactory(address(rejectingFees), address(router));
+        reentering = new ReenteringFeeRecipient();
+        protectedFactory =
+            new BNBXFactory(address(reentering), address(router));
+        reentering.setFactory(protectedFactory);
+    }
+
+    function findTestSalt(
+        uint8 factoryKind,
+        string calldata name,
+        string calldata symbol,
+        uint256 start,
+        uint256 maxIterations
+    ) external view returns (bool found, bytes32 salt, address predicted) {
+        BNBXFactory factory = factoryKind == 1
+            ? rejectingFactory
+            : factoryKind == 2 ? protectedFactory : launchFactory;
+        return factory.findVanitySalt(name, symbol, start, maxIterations);
+    }
+
+    function testFactoryAddress(uint8 factoryKind)
+        external
+        view
+        returns (address)
+    {
+        if (factoryKind == 1) return address(rejectingFactory);
+        if (factoryKind == 2) return address(protectedFactory);
+        return address(launchFactory);
+    }
+
+    function setTestSalt(string calldata name, string calldata symbol, bytes32 salt)
+        external
+    {
+        require(salt != bytes32(0), "ZERO_SALT");
+        testSalts[_saltKey(name, symbol)] = salt;
     }
 
     function vanityRequest(
@@ -231,10 +281,17 @@ contract FactoryIntegrationTest {
         uint8 target,
         string memory metadataURI
     ) internal view returns (BNBXFactory.CreateRequest memory request) {
-        (bool found, bytes32 salt,) =
-            launchFactory.findVanitySalt(name, symbol, 0, 500_000);
-        require(found, "VANITY_NOT_FOUND");
+        bytes32 salt = testSalts[_saltKey(name, symbol)];
+        require(salt != bytes32(0), "SALT_NOT_PREPARED");
         request = BNBXFactory.CreateRequest(name, symbol, target, metadataURI, salt);
+    }
+
+    function _saltKey(string memory name, string memory symbol)
+        private
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(name, symbol));
     }
 
     function testCreateBuyFillGraduateAndBurnLPAtomically() public {
@@ -248,40 +305,49 @@ contract FactoryIntegrationTest {
                 )
             );
 
-        BNBXToken token = BNBXToken(tokenAddress);
+        BNBXTokenV3 token = BNBXTokenV3(tokenAddress);
         assert(uint16(uint160(tokenAddress)) == 0x1111);
         BondingCurve curve = BondingCurve(payable(curveAddress));
         address pairAddress = pancakeFactory.getPair(tokenAddress, address(wbnb));
         MockPair pair = MockPair(pairAddress);
 
-        assert(tokensOut == 800_000_000 ether);
-        assert(
+        require(tokensOut == 800_000_000 ether, "TOKENS_OUT");
+        require(
             keccak256(bytes(launchFactory.tokenMetadataURI(tokenAddress)))
-                == keccak256(bytes("ipfs://bnbx-test-metadata"))
+                == keccak256(bytes("ipfs://bnbx-test-metadata")),
+            "METADATA"
         );
-        assert(token.balanceOf(address(this)) == 800_000_000 ether);
-        assert(token.balanceOf(pairAddress) == 200_000_000 ether);
-        assert(curve.realBNBPrincipal() == 5 ether);
-        assert(uint256(curve.state()) == uint256(BondingCurve.State.Graduated));
-        assert(pair.reserve0() == uint112(200_000_000 ether));
-        assert(pair.reserve1() == uint112(5 ether));
-        assert(pair.liquidityBalance(DEAD) > 0);
-        assert(FEE_RECIPIENT.balance == 0.026125628140703518 ether);
+        require(token.balanceOf(address(this)) == 800_000_000 ether, "USER_BALANCE");
+        require(token.balanceOf(pairAddress) == 200_000_000 ether, "PAIR_BALANCE");
+        require(curve.realBNBPrincipal() == 0.05 ether, "PRINCIPAL");
+        require(
+            uint256(curve.state()) == uint256(BondingCurve.State.Graduated),
+            "STATE"
+        );
+        require(pair.reserve0() == uint112(200_000_000 ether), "TOKEN_RESERVE");
+        require(pair.reserve1() == uint112(0.05 ether), "BNB_RESERVE");
+        require(pair.liquidityBalance(DEAD) > 0, "LP_NOT_DEAD");
+        require(
+            FEE_RECIPIENT.balance == 0.001251256281407036 ether,
+            "FEE_BALANCE"
+        );
 
-        // Net cost is creation fee + the exact gross amount needed for 5 BNB
+        // Net cost is creation fee + the exact gross amount needed for 0.05 BNB
         // principal. The rest of the supplied 5.5 BNB is refunded.
-        uint256 expectedCost = 0.001 ether + 5_025_125_628_140_703_518;
-        assert(balanceBefore - address(this).balance == expectedCost);
+        uint256 expectedCost = 0.051251256281407036 ether;
+        require(balanceBefore - address(this).balance == expectedCost, "NET_COST");
     }
 
     function testCreateWithoutInitialBuy() public {
         uint256 feeBalanceBefore = FEE_RECIPIENT.balance;
         (address tokenAddress, address curveAddress) =
-            launchFactory.createToken{ value: 0.001 ether }(
-                "No First Buy", "NFB", 1, "ipfs://no-first-buy"
+            launchFactory.createVanityToken{ value: 0.001 ether }(
+                vanityRequest(
+                    "No First Buy", "NFB", 1, "ipfs://no-first-buy"
+                )
             );
 
-        BNBXToken token = BNBXToken(tokenAddress);
+        BNBXTokenV3 token = BNBXTokenV3(tokenAddress);
         assert(uint16(uint160(tokenAddress)) == 0x1111);
         BondingCurve curve = BondingCurve(payable(curveAddress));
         assert(launchFactory.tokenCount() == 1);
@@ -295,12 +361,12 @@ contract FactoryIntegrationTest {
     }
 
     function testGraduationTargetEndpoints() public {
-        (, address oneBNBCurve) = launchFactory.createToken{ value: 0.001 ether }(
-            "One", "ONE", 1, ""
-        );
+        (, address oneBNBCurve) = launchFactory.createVanityToken{
+            value: 0.001 ether
+        }(vanityRequest("One", "ONE", 1, ""));
         (, address eighteenBNBCurve) =
-            launchFactory.createToken{ value: 0.001 ether }(
-                "Eighteen", "EIGHTEEN", 18, ""
+            launchFactory.createVanityToken{ value: 0.001 ether }(
+                vanityRequest("Eighteen", "EIGHTEEN", 18, "")
             );
 
         assert(BondingCurve(payable(oneBNBCurve)).graduationTarget() == 0.01 ether);
@@ -310,12 +376,14 @@ contract FactoryIntegrationTest {
 
         (bool belowSuccess,) = address(launchFactory).call{ value: 0.001 ether }(
             abi.encodeCall(
-                launchFactory.createToken, ("Below", "LOW", uint8(0), "")
+                launchFactory.createVanityToken,
+                (vanityRequest("Below", "LOW", 0, ""))
             )
         );
         (bool aboveSuccess,) = address(launchFactory).call{ value: 0.001 ether }(
             abi.encodeCall(
-                launchFactory.createToken, ("Above", "HIGH", uint8(19), "")
+                launchFactory.createVanityToken,
+                (vanityRequest("Above", "HIGH", 19, ""))
             )
         );
         assert(!belowSuccess);
@@ -326,7 +394,8 @@ contract FactoryIntegrationTest {
         string memory oversized = string(new bytes(257));
         (bool success,) = address(launchFactory).call{ value: 0.001 ether }(
             abi.encodeCall(
-                launchFactory.createToken, ("Oversized", "BIG", uint8(5), oversized)
+                launchFactory.createVanityToken,
+                (vanityRequest("Oversized", "BIG", 5, oversized))
             )
         );
         assert(!success);
@@ -334,9 +403,9 @@ contract FactoryIntegrationTest {
     }
 
     function testBuyEnforcesDeadlineAndSlippage() public {
-        (address tokenAddress,) = launchFactory.createToken{ value: 0.001 ether }(
-            "Protected", "SAFE", 5, ""
-        );
+        (address tokenAddress,) = launchFactory.createVanityToken{
+            value: 0.001 ether
+        }(vanityRequest("Protected", "SAFE", 5, ""));
 
         (bool expiredSuccess,) = address(launchFactory).call{ value: 0.1 ether }(
             abi.encodeCall(
@@ -366,17 +435,17 @@ contract FactoryIntegrationTest {
 
     function testPairLockDefeatsOneSidedWBNBGriefing() public {
         (address tokenAddress, address curveAddress,) =
-            launchFactory.createVanityTokenAndBuy{ value: 0.101 ether }(
+            launchFactory.createVanityTokenAndBuy{ value: 0.011 ether }(
                 vanityRequest("Pair Safe", "PAIRSAFE", 5, ""),
                 BNBXFactory.BuyRequest(1, block.timestamp, address(this))
             );
-        BNBXToken token = BNBXToken(tokenAddress);
+        BNBXTokenV3 token = BNBXTokenV3(tokenAddress);
         BondingCurve curve = BondingCurve(payable(curveAddress));
         address pairAddress =
             pancakeFactory.getPair(tokenAddress, address(wbnb));
         MockPair pair = MockPair(pairAddress);
 
-        assert(token.launchManager() == address(0));
+        assert(token.launchManager() == DEAD);
         assert(token.graduationAuthority() == curveAddress);
         (bool earlyPairTransfer,) = tokenAddress.call(
             abi.encodeCall(token.transfer, (pairAddress, 1 ether))
@@ -401,16 +470,16 @@ contract FactoryIntegrationTest {
 
         assert(uint256(curve.state()) == uint256(BondingCurve.State.Graduated));
         assert(token.liquidityPairUnlocked());
-        assert(token.graduationAuthority() == address(0));
+        assert(token.graduationAuthority() == DEAD);
         assert(token.balanceOf(pairAddress) == 200_000_000 ether);
-        assert(wbnb.balanceOf(pairAddress) == 5.001 ether);
+        assert(wbnb.balanceOf(pairAddress) == 0.051 ether);
         assert(pair.liquidityBalance(DEAD) > 0);
     }
 
     function testFailedRefundRevertsCompleteBuy() public {
         (address tokenAddress, address curveAddress) =
-            launchFactory.createToken{ value: 0.001 ether }(
-                "Refund Safe", "REFUND", 5, ""
+            launchFactory.createVanityToken{ value: 0.001 ether }(
+                vanityRequest("Refund Safe", "REFUND", 5, "")
             );
         RevertingReceiver rejectingRefund = new RevertingReceiver();
         uint256 feeBalanceBefore = FEE_RECIPIENT.balance;
@@ -431,19 +500,15 @@ contract FactoryIntegrationTest {
         assert(
             BondingCurve(payable(curveAddress)).realBNBPrincipal() == 0
         );
-        assert(BNBXToken(tokenAddress).balanceOf(address(this)) == 0);
+        assert(BNBXTokenV3(tokenAddress).balanceOf(address(this)) == 0);
         assert(FEE_RECIPIENT.balance == feeBalanceBefore);
     }
 
     function testRejectingFeeRecipientRevertsCreation() public {
-        RevertingReceiver rejectingFees = new RevertingReceiver();
-        BNBXFactory rejectingFactory =
-            new BNBXFactory(address(rejectingFees), address(router));
-
         (bool success,) = address(rejectingFactory).call{ value: 0.001 ether }(
             abi.encodeCall(
-                rejectingFactory.createToken,
-                ("Reject Fee", "NOFEE", uint8(5), "")
+                rejectingFactory.createVanityToken,
+                (vanityRequest("Reject Fee", "NOFEE", 5, ""))
             )
         );
 
@@ -452,13 +517,8 @@ contract FactoryIntegrationTest {
     }
 
     function testFeeRecipientCannotReenterFactory() public {
-        ReenteringFeeRecipient reentering = new ReenteringFeeRecipient();
-        BNBXFactory protectedFactory =
-            new BNBXFactory(address(reentering), address(router));
-        reentering.setFactory(protectedFactory);
-
-        protectedFactory.createToken{ value: 0.001 ether }(
-            "Protected", "LOCKED", 5, ""
+        protectedFactory.createVanityToken{ value: 0.001 ether }(
+            vanityRequest("Protected", "LOCKED", 5, "")
         );
 
         assert(reentering.attempted());
@@ -473,7 +533,7 @@ contract FactoryIntegrationTest {
                 vanityRequest("Finished", "DONE", 5, ""),
                 BNBXFactory.BuyRequest(1, block.timestamp, address(this))
             );
-        BNBXToken token = BNBXToken(tokenAddress);
+        BNBXTokenV3 token = BNBXTokenV3(tokenAddress);
         token.approve(curveAddress, 1 ether);
 
         (bool buySuccess,) = address(launchFactory).call{ value: 0.01 ether }(
@@ -505,13 +565,13 @@ contract FactoryIntegrationTest {
 
 contract TradingIntegrationTest is FactoryIntegrationTest {
     function testPartialBuyThenSellChargesFeeBothWays() public {
-        (, address curveAddress,) = launchFactory.createVanityTokenAndBuy{ value: 0.101 ether }(
+        (, address curveAddress,) = launchFactory.createVanityTokenAndBuy{ value: 0.011 ether }(
             vanityRequest("Round Trip", "RT", 5, ""),
             BNBXFactory.BuyRequest(1, block.timestamp, address(this))
         );
 
         BondingCurve curve = BondingCurve(payable(curveAddress));
-        BNBXToken token = BNBXToken(address(curve.token()));
+        BNBXTokenV3 token = BNBXTokenV3(address(curve.token()));
         uint256 principalAfterBuy = curve.realBNBPrincipal();
         uint256 tokensBought = token.balanceOf(address(this));
         uint256 sellAmount = tokensBought / 2;

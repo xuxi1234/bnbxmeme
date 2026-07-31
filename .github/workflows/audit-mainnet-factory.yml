@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   audit:
-    name: Compare deployed Factory with 25% and 10% artifacts
+    name: Compare legacy V2 Factory with pinned 25% and 10% artifacts
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.number == 32
     runs-on: ubuntu-latest
     timeout-minutes: 20

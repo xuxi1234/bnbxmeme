@@ -7,19 +7,27 @@ import { advancedFactoryAbi } from "./advanced-factory-abi";
 import {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  legacyRewardsFactoryAddress,
+  legacyStandardFactoryAddress,
   lpBurnAddress,
+  pancakeFactoryAddress,
   pancakeRouterAddress,
   rewardsFactoryAddress,
   standardFactoryAddress,
+  v3StandardFactoryAddress,
 } from "./deployments";
 
 export {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  legacyRewardsFactoryAddress,
+  legacyStandardFactoryAddress,
   lpBurnAddress,
+  pancakeFactoryAddress,
   pancakeRouterAddress,
   rewardsFactoryAddress,
   standardFactoryAddress,
+  v3StandardFactoryAddress,
 };
 export const testnetFactoryAddress = standardFactoryAddress;
 export const testnetPancakeRouterAddress = pancakeRouterAddress;
@@ -302,6 +310,13 @@ export const tokenAbi = [
   },
   {
     type: "function",
+    name: "decimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+  {
+    type: "function",
     name: "balanceOf",
     stateMutability: "view",
     inputs: [{ name: "account", type: "address" }],
@@ -368,6 +383,13 @@ export const tokenAbi = [
   {
     type: "function",
     name: "rewardVault",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "rewardToken",
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "address" }],

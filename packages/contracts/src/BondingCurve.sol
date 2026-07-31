@@ -9,9 +9,8 @@ import { FeeMath } from "./libraries/FeeMath.sol";
 /// @notice Trading is routed through BNBXFactory so creation and first buy can
 /// be executed atomically.
 contract BondingCurve {
-    /// @dev Mainnet canary unit. A target step of 1..18 represents
-    /// 0.01..0.18 BNB. The full-scale launch will redeploy the factories with
-    /// this unit restored to 1 ether after canary acceptance.
+    /// @dev A target step of 1..18 permanently represents 0.01..0.18 BNB for
+    /// this immutable Factory release.
     uint256 public constant GRADUATION_UNIT = 0.01 ether;
     using FeeMath for uint256;
 

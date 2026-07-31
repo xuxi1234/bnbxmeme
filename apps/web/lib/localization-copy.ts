@@ -87,8 +87,9 @@ type CreateErrorCopy = {
   metadataUploadFailed: string;
   walletRequired: string;
   marketingWalletInvalid: string;
+  rewardTokenInvalid: string;
+  rewardPoolMissing: string;
   rewardsFactoryMissing: string;
-  liquidityFactoryMissing: string;
   selectedFactoryMissing: string;
   vanityUnavailable: string;
   communityInvalid: string;
@@ -110,7 +111,7 @@ type CreateErrorCopy = {
 
 type CreateCopy = {
   lead: string;
-  templates: Record<"standard" | "liquidity" | "holders" | "lp", TemplateCopy>;
+  templates: Record<"standard" | "holders" | "lp", TemplateCopy>;
   advancedWarningTitle: string;
   advancedWarningBody: string;
   taxTitle: string;
@@ -119,12 +120,15 @@ type CreateCopy = {
   sellTax: string;
   taxLabels: Record<"burn" | "liquidity" | "marketing" | "rewards", string>;
   marketingWallet: string;
+  rewardToken: string;
+  rewardTokenHelp: string;
   creatorDefault: string;
   minimumHolderBalance: string;
   minimumLpBalance: string;
   rewardsHelp: string;
   factorySafetyLock: string;
   taxInvalid: string;
+  taxNumberInvalid: string;
   submitBlockers: Record<CreateSubmitBlocker, string>;
   errors: CreateErrorCopy;
 };
@@ -138,20 +142,15 @@ export const createCopy: Record<Language, CreateCopy> = {
         badge: "推荐新手 · 永久 0 税",
         text: "低复杂度 · 无增发、无黑名单 · 创建费 0.001 BNB。",
       },
-      liquidity: {
-        name: "自动回流",
-        badge: "进阶 · 毕业后有税",
-        text: "中等复杂度 · 配置销毁、加池和营销税 · 创建费 0.001 BNB。",
-      },
       holders: {
         name: "持币分红",
         badge: "高级 · 分红税",
-        text: "高复杂度 · 按合格持币数量分配 BNB 奖励 · 创建费 0.001 BNB。",
+        text: "高复杂度 · 按合格持币数量分配指定代币奖励 · 创建费 0.001 BNB。",
       },
       lp: {
         name: "LP 分红",
         badge: "高级 · LP 分红税",
-        text: "高复杂度 · 毕业后按 Pancake LP 份额分配 BNB 奖励 · 创建费 0.001 BNB。",
+        text: "高复杂度 · 质押新增 Pancake LP 后按份额领取指定代币 · 创建费 0.001 BNB。",
       },
     },
     advancedWarningTitle: "你选择的是毕业后有税模板",
@@ -169,14 +168,18 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewards: "分红",
     },
     marketingWallet: "营销钱包",
+    rewardToken: "分红代币合约地址",
+    rewardTokenHelp:
+      "必须是 BSC 上已有 WBNB 流动池的 BEP-20 代币，不能填写 BNB、WBNB 或本次创建的代币。",
     creatorDefault: "默认创建者",
     minimumHolderBalance: "最低参与分红持币量",
     minimumLpBalance: "最低参与分红 LP 数量",
     rewardsHelp:
-      "分红税自动兑换为 BNB，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。",
+      "分红税自动兑换为上方指定代币，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。LP 分红需先把新增 LP 质押到公开分红金库。",
     factorySafetyLock:
       "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。",
     taxInvalid: "买入税或卖出税合计超过 10%，请降低税率。",
+    taxNumberInvalid: "请输入 0 或更大的数字，最多两位小数。",
     submitBlockers: {
       wallet: "请先连接钱包，才能创建代币。",
       factory: "主网 Factory 尚未配置，暂时无法创建。",
@@ -186,14 +189,16 @@ export const createCopy: Record<Language, CreateCopy> = {
       community: "请修正上方标出的社区链接。",
       initialBuy: "首购金额必须是有效的非负 BNB 数字。",
       tax: "请将买入税和卖出税各自降到 10% 以内。",
-      rewards: "分红模板需要大于 0 的分红税和最低参与余额。",
+      rewards: "请填写有效的分红代币地址和大于 0 的最低参与余额。",
     },
     errors: {
       metadataUploadFailed: "代币资料上传失败",
       walletRequired: "请先连接钱包",
       marketingWalletInvalid: "营销钱包地址格式错误",
+      rewardTokenInvalid: "分红代币合约地址格式错误",
+      rewardPoolMissing:
+        "分红代币必须是已部署合约，并且在 PancakeSwap V2 与 WBNB 的交易对已有非零流动性。",
       rewardsFactoryMissing: "分红模板主网 Factory 尚未配置",
-      liquidityFactoryMissing: "自动回流主网 Factory 尚未配置",
       selectedFactoryMissing: "所选模板主网 Factory 尚未配置",
       vanityUnavailable: "暂未找到 1111 靓号，请重新提交",
       communityInvalid: "社区链接格式无效",
@@ -221,20 +226,15 @@ export const createCopy: Record<Language, CreateCopy> = {
         badge: "RECOMMENDED · PERMANENT 0%",
         text: "Low complexity · no mint or blacklist · 0.001 BNB creation fee.",
       },
-      liquidity: {
-        name: "Auto Liquidity",
-        badge: "ADVANCED · POST-GRAD TAX",
-        text: "Medium complexity · burn, liquidity, and marketing tax · 0.001 BNB fee.",
-      },
       holders: {
         name: "Holder Rewards",
         badge: "ADVANCED · REWARD TAX",
-        text: "High complexity · BNB rewards for eligible holders · 0.001 BNB fee.",
+        text: "High complexity · selected-token rewards for eligible holders · 0.001 BNB fee.",
       },
       lp: {
         name: "LP Rewards",
         badge: "ADVANCED · LP REWARDS",
-        text: "High complexity · BNB rewards by Pancake LP share · 0.001 BNB fee.",
+        text: "High complexity · selected-token rewards for staked Pancake LP · 0.001 BNB fee.",
       },
     },
     advancedWarningTitle: "You selected a post-graduation tax template",
@@ -252,14 +252,19 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewards: "Rewards",
     },
     marketingWallet: "Marketing wallet",
+    rewardToken: "Reward token contract",
+    rewardTokenHelp:
+      "Must be a BEP-20 token with an existing WBNB pool on BSC. BNB, WBNB, and the token being created are not accepted.",
     creatorDefault: "creator default",
     minimumHolderBalance: "Minimum token balance for rewards",
     minimumLpBalance: "Minimum LP balance for rewards",
     rewardsHelp:
-      "Reward tax is converted to BNB and claimed by eligible users. Burn, curve, and pair addresses are excluded.",
+      "Reward tax is converted to the selected token and claimed by eligible users. LP rewards require staking newly acquired LP in the public vault.",
     factorySafetyLock:
       "Safety lock: creation is disabled until the corresponding Mainnet Factory is configured.",
     taxInvalid: "Buy or sell tax exceeds the 10% maximum.",
+    taxNumberInvalid:
+      "Enter zero or a positive number with no more than two decimals.",
     submitBlockers: {
       wallet: "Connect a wallet before creating a token.",
       factory:
@@ -272,15 +277,16 @@ export const createCopy: Record<Language, CreateCopy> = {
       initialBuy: "The initial buy must be a valid non-negative BNB amount.",
       tax: "Reduce both the combined buy tax and sell tax to 10% or less.",
       rewards:
-        "Reward templates require a reward tax and minimum eligible balance above zero.",
+        "Enter a valid reward-token address and a minimum eligible balance above zero.",
     },
     errors: {
       metadataUploadFailed: "Token metadata upload failed",
       walletRequired: "Connect your wallet first",
       marketingWalletInvalid: "The marketing wallet address is invalid",
+      rewardTokenInvalid: "The reward token contract address is invalid",
+      rewardPoolMissing:
+        "The reward token must be deployed and have non-zero liquidity in its PancakeSwap V2 WBNB pair.",
       rewardsFactoryMissing: "The Mainnet rewards Factory is not configured",
-      liquidityFactoryMissing:
-        "The Mainnet auto-liquidity Factory is not configured",
       selectedFactoryMissing:
         "The Mainnet Factory for this template is not configured",
       vanityUnavailable:
@@ -312,20 +318,15 @@ export const createCopy: Record<Language, CreateCopy> = {
         badge: "초보자 추천 · 영구 0%",
         text: "낮은 복잡도 · 추가 발행 및 블랙리스트 없음 · 생성 수수료 0.001 BNB.",
       },
-      liquidity: {
-        name: "자동 유동성",
-        badge: "고급 · 졸업 후 세금",
-        text: "중간 복잡도 · 소각, 유동성, 마케팅 세금 설정 · 수수료 0.001 BNB.",
-      },
       holders: {
         name: "홀더 보상",
         badge: "고급 · 보상 세금",
-        text: "높은 복잡도 · 조건을 충족한 홀더에게 BNB 보상 · 수수료 0.001 BNB.",
+        text: "높은 복잡도 · 조건을 충족한 홀더에게 지정 토큰 보상 · 수수료 0.001 BNB.",
       },
       lp: {
         name: "LP 보상",
         badge: "고급 · LP 보상",
-        text: "높은 복잡도 · Pancake LP 지분에 따라 BNB 보상 · 수수료 0.001 BNB.",
+        text: "높은 복잡도 · 스테이킹한 Pancake LP에 지정 토큰 보상 · 수수료 0.001 BNB.",
       },
     },
     advancedWarningTitle: "졸업 후 세금이 적용되는 템플릿을 선택했습니다",
@@ -343,14 +344,18 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewards: "보상",
     },
     marketingWallet: "마케팅 지갑",
+    rewardToken: "보상 토큰 컨트랙트",
+    rewardTokenHelp:
+      "BSC에서 기존 WBNB 풀이 있는 BEP-20 토큰이어야 합니다. BNB, WBNB 및 새로 생성할 토큰은 사용할 수 없습니다.",
     creatorDefault: "생성자 기본값",
     minimumHolderBalance: "보상 최소 토큰 보유량",
     minimumLpBalance: "보상 최소 LP 보유량",
     rewardsHelp:
-      "보상 세금은 BNB로 전환되며 조건을 충족한 사용자가 청구할 수 있습니다. 소각, 커브, 거래쌍 주소는 제외됩니다.",
+      "보상 세금은 지정 토큰으로 전환됩니다. LP 보상은 새로 취득한 LP를 공개 보상 금고에 스테이킹해야 합니다.",
     factorySafetyLock:
       "안전 잠금: 해당 메인넷 Factory가 설정될 때까지 실제 생성을 차단합니다.",
     taxInvalid: "매수 또는 매도 세금 합계가 최대 10%를 초과했습니다.",
+    taxNumberInvalid: "0 이상의 숫자를 소수 둘째 자리까지 입력하세요.",
     submitBlockers: {
       wallet: "토큰을 생성하려면 먼저 지갑을 연결하세요.",
       factory: "메인넷 Factory가 설정되지 않아 현재 생성할 수 없습니다.",
@@ -361,16 +366,16 @@ export const createCopy: Record<Language, CreateCopy> = {
       community: "위에 표시된 커뮤니티 링크 항목을 수정하세요.",
       initialBuy: "최초 구매액은 유효한 0 이상의 BNB 숫자여야 합니다.",
       tax: "매수 및 매도 세금 합계를 각각 10% 이하로 낮추세요.",
-      rewards:
-        "보상 템플릿에는 0보다 큰 보상 세금과 최소 참여 잔액이 필요합니다.",
+      rewards: "유효한 보상 토큰 주소와 0보다 큰 최소 참여 잔액을 입력하세요.",
     },
     errors: {
       metadataUploadFailed: "토큰 메타데이터 업로드에 실패했습니다",
       walletRequired: "먼저 지갑을 연결하세요",
       marketingWalletInvalid: "마케팅 지갑 주소가 올바르지 않습니다",
+      rewardTokenInvalid: "보상 토큰 컨트랙트 주소가 올바르지 않습니다",
+      rewardPoolMissing:
+        "보상 토큰은 배포된 컨트랙트여야 하며 PancakeSwap V2 WBNB 페어에 0보다 큰 유동성이 있어야 합니다.",
       rewardsFactoryMissing: "메인넷 보상 Factory가 설정되지 않았습니다",
-      liquidityFactoryMissing:
-        "메인넷 자동 유동성 Factory가 설정되지 않았습니다",
       selectedFactoryMissing:
         "선택한 템플릿의 메인넷 Factory가 설정되지 않았습니다",
       vanityUnavailable:
@@ -402,20 +407,15 @@ export const createCopy: Record<Language, CreateCopy> = {
         badge: "初心者向け · 永久 0%",
         text: "低複雑度 · 追加発行・ブラックリストなし · 作成手数料 0.001 BNB。",
       },
-      liquidity: {
-        name: "自動流動性",
-        badge: "上級 · 卒業後に課税",
-        text: "中複雑度 · バーン、流動性、マーケティング税を設定 · 手数料 0.001 BNB。",
-      },
       holders: {
         name: "ホルダー報酬",
         badge: "上級 · 報酬税",
-        text: "高複雑度 · 条件を満たすホルダーに BNB 報酬 · 手数料 0.001 BNB。",
+        text: "高複雑度 · 条件を満たすホルダーに指定トークン報酬 · 手数料 0.001 BNB。",
       },
       lp: {
         name: "LP 報酬",
         badge: "上級 · LP 報酬",
-        text: "高複雑度 · Pancake LP 持分に応じて BNB 報酬 · 手数料 0.001 BNB。",
+        text: "高複雑度 · ステーク済み Pancake LP に指定トークン報酬 · 手数料 0.001 BNB。",
       },
     },
     advancedWarningTitle: "卒業後に税が適用されるテンプレートです",
@@ -433,14 +433,18 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewards: "報酬",
     },
     marketingWallet: "マーケティングウォレット",
+    rewardToken: "報酬トークンのコントラクト",
+    rewardTokenHelp:
+      "BSC 上で既存の WBNB プールを持つ BEP-20 が必要です。BNB、WBNB、今回作成するトークンは指定できません。",
     creatorDefault: "作成者を初期値に使用",
     minimumHolderBalance: "報酬対象の最低トークン保有量",
     minimumLpBalance: "報酬対象の最低 LP 保有量",
     rewardsHelp:
-      "報酬税は BNB に変換され、条件を満たすユーザーが請求できます。バーン、カーブ、ペアの各アドレスは対象外です。",
+      "報酬税は指定トークンに変換されます。LP 報酬には新たに取得した LP を公開報酬保管庫へステークする必要があります。",
     factorySafetyLock:
       "安全ロック：対応するメインネットFactoryが設定されるまで実際の作成を無効にします。",
     taxInvalid: "買い税または売り税の合計が上限10%を超えています。",
+    taxNumberInvalid: "0以上の数値を小数点以下2桁まで入力してください。",
     submitBlockers: {
       wallet: "トークンを作成するには先にウォレットを接続してください。",
       factory: "メインネットFactoryが未設定のため、現在は作成できません。",
@@ -452,15 +456,16 @@ export const createCopy: Record<Language, CreateCopy> = {
       initialBuy: "初回購入額には0以上の有効なBNB数値を入力してください。",
       tax: "購入税と売却税の合計をそれぞれ10%以下にしてください。",
       rewards:
-        "報酬テンプレートには0より大きい報酬税と最低参加残高が必要です。",
+        "有効な報酬トークンアドレスと0より大きい最低参加残高を入力してください。",
     },
     errors: {
       metadataUploadFailed: "トークン情報のアップロードに失敗しました",
       walletRequired: "先にウォレットを接続してください",
       marketingWalletInvalid: "マーケティングウォレットのアドレスが無効です",
+      rewardTokenInvalid: "報酬トークンのコントラクトアドレスが無効です",
+      rewardPoolMissing:
+        "報酬トークンはデプロイ済みで、PancakeSwap V2 の WBNB ペアにゼロではない流動性が必要です。",
       rewardsFactoryMissing: "メインネット報酬Factoryが設定されていません",
-      liquidityFactoryMissing:
-        "メインネット自動流動性Factoryが設定されていません",
       selectedFactoryMissing:
         "選択したテンプレートのメインネットFactoryが設定されていません",
       vanityUnavailable:
@@ -494,7 +499,6 @@ const createErrorKeyByMessage: Record<string, keyof CreateErrorCopy> = {
   请先连接钱包: "walletRequired",
   营销钱包地址格式错误: "marketingWalletInvalid",
   "分红模板主网 Factory 尚未配置": "rewardsFactoryMissing",
-  "自动回流主网 Factory 尚未配置": "liquidityFactoryMissing",
   "所选模板主网 Factory 尚未配置": "selectedFactoryMissing",
   "暂未找到 1111 靓号，请重新提交": "vanityUnavailable",
   社区链接格式无效: "communityInvalid",
@@ -786,10 +790,10 @@ type DeploymentCopy = {
   leadTestnet: string;
   factoryType: string;
   rewardsOption: string;
-  liquidityOption: string;
   standardOption: string;
   connectMainnetWallet: string;
   connectTestnetWallet: string;
+  authorizedWalletOnly: string;
   switchMainnet: string;
   switchTestnet: string;
   advancedStepsHelp: string;
@@ -800,7 +804,6 @@ type DeploymentCopy = {
   step2Done: string;
   step2Confirm: string;
   step2Waiting: string;
-  step2Liquidity: string;
   step2Rewards: string;
   step3Done: string;
   step3Confirm: string;
@@ -813,7 +816,6 @@ type DeploymentCopy = {
   deploymentTransaction: string;
   factoryDeployed: string;
   advancedDeployer: string;
-  autoLiquidity: string;
   rewards: string;
   configured: string;
   errorCancelled: string;
@@ -833,14 +835,15 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
       "仅部署到 BSC Testnet。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
     factoryType: "Factory 类型",
     rewardsOption: "持币分红 / LP 分红 Factory",
-    liquidityOption: "自动回流 V2 Factory",
     standardOption: "标准 0 税 Factory",
     connectMainnetWallet: "请先连接持有 BNB 的部署钱包。",
     connectTestnetWallet: "请先连接持有 tBNB 的部署钱包。",
+    authorizedWalletOnly:
+      "正式 Factory 只能由已授权部署钱包 0xbE37…B0a2 签名。平台营收地址不会改变。",
     switchMainnet: "切换到 BNB 主网",
     switchTestnet: "切换到 BNB 测试网",
     advancedStepsHelp:
-      "自动回流及分红模板需依次完成三笔链上操作。每一步确认后才会开放下一步。",
+      "持币分红与 LP 分红共用 V3 Factory，需依次完成三笔链上操作。每一步确认后才会开放下一步。",
     step1Done: "步骤 1 已完成",
     step1Confirm: "请确认步骤 1…",
     step1Waiting: "等待步骤 1 上链…",
@@ -848,7 +851,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     step2Done: "步骤 2 已完成",
     step2Confirm: "请确认步骤 2…",
     step2Waiting: "等待步骤 2 上链…",
-    step2Liquidity: "步骤 2：部署自动回流 V2 Factory",
     step2Rewards: "步骤 2：部署分红 Factory",
     step3Done: "步骤 3 已完成，Factory 可用",
     step3Confirm: "请确认步骤 3…",
@@ -861,7 +863,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     deploymentTransaction: "部署交易",
     factoryDeployed: "Factory 部署成功",
     advancedDeployer: "高级代币部署器",
-    autoLiquidity: "自动回流",
     rewards: "分红",
     configured: "配置成功。请将 {variable} 设为：{address}",
     errorCancelled: "你已在 MetaMask 取消部署。",
@@ -880,14 +881,15 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
       "Deploys only to BSC Testnet. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
     factoryType: "Factory type",
     rewardsOption: "Holder / LP Rewards Factory",
-    liquidityOption: "Auto Liquidity V2 Factory",
     standardOption: "Standard 0% Tax Factory",
     connectMainnetWallet: "Connect a deployment wallet funded with BNB.",
     connectTestnetWallet: "Connect a deployment wallet funded with tBNB.",
+    authorizedWalletOnly:
+      "The official Factory must be signed by the authorized 0xbE37…B0a2 deployment wallet. The platform revenue recipient stays unchanged.",
     switchMainnet: "Switch to BNB Mainnet",
     switchTestnet: "Switch to BNB Testnet",
     advancedStepsHelp:
-      "Auto-liquidity and rewards templates require three on-chain steps in order. Each next step unlocks after the previous confirmation.",
+      "Holder and LP rewards share one V3 Factory and require three on-chain steps in order. Each next step unlocks after the previous confirmation.",
     step1Done: "Step 1 complete",
     step1Confirm: "Confirm step 1…",
     step1Waiting: "Waiting for step 1…",
@@ -895,7 +897,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     step2Done: "Step 2 complete",
     step2Confirm: "Confirm step 2…",
     step2Waiting: "Waiting for step 2…",
-    step2Liquidity: "Step 2: deploy the Auto Liquidity V2 Factory",
     step2Rewards: "Step 2: deploy the Rewards Factory",
     step3Done: "Step 3 complete; Factory is ready",
     step3Confirm: "Confirm step 3…",
@@ -908,7 +909,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     deploymentTransaction: "Deployment transaction",
     factoryDeployed: "Factory deployed",
     advancedDeployer: "Advanced token deployer",
-    autoLiquidity: "Auto Liquidity",
     rewards: "Rewards",
     configured: "Configuration complete. Set {variable} to {address}",
     errorCancelled: "You cancelled the deployment in MetaMask.",
@@ -929,14 +929,15 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
       "BSC Testnet에만 배포합니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
     factoryType: "Factory 유형",
     rewardsOption: "홀더 / LP 보상 Factory",
-    liquidityOption: "자동 유동성 V2 Factory",
     standardOption: "표준 0% 세금 Factory",
     connectMainnetWallet: "BNB가 있는 배포 지갑을 연결하세요.",
     connectTestnetWallet: "tBNB가 있는 배포 지갑을 연결하세요.",
+    authorizedWalletOnly:
+      "공식 Factory는 승인된 0xbE37…B0a2 배포 지갑으로만 서명해야 합니다. 플랫폼 수익 주소는 변경되지 않습니다.",
     switchMainnet: "BNB 메인넷으로 전환",
     switchTestnet: "BNB 테스트넷으로 전환",
     advancedStepsHelp:
-      "자동 유동성과 보상 템플릿은 세 단계의 온체인 작업을 순서대로 완료해야 합니다. 이전 단계가 확인되면 다음 단계가 열립니다.",
+      "홀더 및 LP 보상은 하나의 V3 Factory를 공유하며 세 단계의 온체인 작업을 순서대로 완료해야 합니다. 이전 단계가 확인되면 다음 단계가 열립니다.",
     step1Done: "1단계 완료",
     step1Confirm: "1단계를 확인하세요…",
     step1Waiting: "1단계 온체인 확인 중…",
@@ -944,7 +945,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     step2Done: "2단계 완료",
     step2Confirm: "2단계를 확인하세요…",
     step2Waiting: "2단계 온체인 확인 중…",
-    step2Liquidity: "2단계: 자동 유동성 V2 Factory 배포",
     step2Rewards: "2단계: 보상 Factory 배포",
     step3Done: "3단계 완료; Factory 사용 가능",
     step3Confirm: "3단계를 확인하세요…",
@@ -957,7 +957,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     deploymentTransaction: "배포 거래",
     factoryDeployed: "Factory 배포 완료",
     advancedDeployer: "고급 토큰 배포기",
-    autoLiquidity: "자동 유동성",
     rewards: "보상",
     configured: "설정 완료. {variable} 값을 {address}(으)로 지정하세요.",
     errorCancelled: "MetaMask에서 배포를 취소했습니다.",
@@ -976,16 +975,17 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
       "BSC Testnetのみにデプロイします。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
     factoryType: "Factory の種類",
     rewardsOption: "ホルダー / LP 報酬 Factory",
-    liquidityOption: "自動流動性 V2 Factory",
     standardOption: "標準 0% 税 Factory",
     connectMainnetWallet:
       "BNBを保有するデプロイ用ウォレットを接続してください。",
     connectTestnetWallet:
       "tBNBを保有するデプロイ用ウォレットを接続してください。",
+    authorizedWalletOnly:
+      "公式Factoryは承認済みのデプロイウォレット 0xbE37…B0a2 でのみ署名できます。プラットフォーム収益先は変更されません。",
     switchMainnet: "BNBメインネットへ切替",
     switchTestnet: "BNBテストネットへ切替",
     advancedStepsHelp:
-      "自動流動性と報酬テンプレートでは、3つのオンチェーン操作を順番に行います。前の手順が確定すると次へ進めます。",
+      "ホルダー報酬とLP報酬は1つのV3 Factoryを共有し、3つのオンチェーン操作を順番に行います。前の手順が確定すると次へ進めます。",
     step1Done: "手順1完了",
     step1Confirm: "手順1を確認してください…",
     step1Waiting: "手順1の確定待ち…",
@@ -993,7 +993,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     step2Done: "手順2完了",
     step2Confirm: "手順2を確認してください…",
     step2Waiting: "手順2の確定待ち…",
-    step2Liquidity: "手順2：自動流動性 V2 Factoryをデプロイ",
     step2Rewards: "手順2：報酬Factoryをデプロイ",
     step3Done: "手順3完了；Factoryを利用できます",
     step3Confirm: "手順3を確認してください…",
@@ -1006,7 +1005,6 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     deploymentTransaction: "デプロイ取引",
     factoryDeployed: "Factoryのデプロイ完了",
     advancedDeployer: "高機能トークンデプロイヤー",
-    autoLiquidity: "自動流動性",
     rewards: "報酬",
     configured: "設定完了。{variable} を {address} に設定してください。",
     errorCancelled: "MetaMaskでデプロイをキャンセルしました。",
@@ -1075,7 +1073,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "授权 LP",
     stakeLp: "质押 LP",
     withdrawLp: "取回 LP",
-    claimRewards: "领取 BNB 分红",
+    claimRewards: "领取分红",
     rewardTransactionFailed: "分红交易失败，请在钱包中查看详情。",
   },
   en: {
@@ -1103,7 +1101,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "Approve LP",
     stakeLp: "Stake LP",
     withdrawLp: "Withdraw LP",
-    claimRewards: "Claim BNB rewards",
+    claimRewards: "Claim rewards",
     rewardTransactionFailed:
       "The reward transaction failed. Check your wallet for details.",
   },
@@ -1132,7 +1130,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "LP 승인",
     stakeLp: "LP 스테이킹",
     withdrawLp: "LP 출금",
-    claimRewards: "BNB 보상 청구",
+    claimRewards: "보상 청구",
     rewardTransactionFailed:
       "보상 거래에 실패했습니다. 지갑에서 상세 내용을 확인하세요.",
   },
@@ -1161,7 +1159,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "LP を承認",
     stakeLp: "LP をステーク",
     withdrawLp: "LP を引き出す",
-    claimRewards: "BNB 報酬を請求",
+    claimRewards: "報酬を請求",
     rewardTransactionFailed:
       "報酬取引に失敗しました。ウォレットで詳細を確認してください。",
   },

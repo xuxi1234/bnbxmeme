@@ -4,10 +4,12 @@ import Link from "next/link";
 import {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  legacyRewardsFactoryAddress,
+  legacyStandardFactoryAddress,
   lpBurnAddress,
   pancakeRouterAddress,
   rewardsFactoryAddress,
-  standardFactoryAddress,
+  v3StandardFactoryAddress,
 } from "@/lib/web3";
 import { useLanguage } from "@/components/language-provider";
 import { resolveSecurityCopy } from "@/lib/security-copy";
@@ -15,14 +17,29 @@ import { MAX_TEMPLATE_SIDE_TAX_PERCENT } from "@/lib/template-rules";
 
 export default function SecurityPage() {
   const { language, t } = useLanguage();
-  const content = resolveSecurityCopy(
-    language,
-    MAX_TEMPLATE_SIDE_TAX_PERCENT,
-  );
+  const content = resolveSecurityCopy(language, MAX_TEMPLATE_SIDE_TAX_PERCENT);
   const officialAddresses = [
+    ...(v3StandardFactoryAddress
+      ? [
+          {
+            label: content.factoryLabels.standard,
+            address: v3StandardFactoryAddress,
+            sourceCode: true,
+          },
+        ]
+      : []),
+    ...(rewardsFactoryAddress
+      ? [
+          {
+            label: content.factoryLabels.rewards,
+            address: rewardsFactoryAddress,
+            sourceCode: true,
+          },
+        ]
+      : []),
     {
-      label: content.factoryLabels.standard,
-      address: standardFactoryAddress,
+      label: content.factoryLabels.legacyStandard,
+      address: legacyStandardFactoryAddress,
       sourceCode: true,
     },
     {
@@ -31,8 +48,8 @@ export default function SecurityPage() {
       sourceCode: true,
     },
     {
-      label: content.factoryLabels.rewards,
-      address: rewardsFactoryAddress,
+      label: content.factoryLabels.legacyRewards,
+      address: legacyRewardsFactoryAddress,
       sourceCode: true,
     },
     {
@@ -45,7 +62,13 @@ export default function SecurityPage() {
       address: lpBurnAddress,
       sourceCode: false,
     },
-  ] as const;
+  ].filter(
+    (entry, index, entries) =>
+      entries.findIndex(
+        (candidate) =>
+          candidate.address.toLowerCase() === entry.address.toLowerCase(),
+      ) === index,
+  );
 
   return (
     <main className="security-page">
@@ -64,7 +87,10 @@ export default function SecurityPage() {
           <h2>{content.fees}</h2>
           <dl>
             {content.feeItems.map(([label, value]) => (
-              <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
             ))}
           </dl>
         </article>
@@ -90,7 +116,10 @@ export default function SecurityPage() {
           <p>{content.templateRuleHelp}</p>
           <dl>
             {content.templateItems.map(([label, value]) => (
-              <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
             ))}
           </dl>
         </article>
@@ -99,7 +128,10 @@ export default function SecurityPage() {
           <p>{content.dataStatusHelp}</p>
           <dl>
             {content.dataItems.map(([label, value]) => (
-              <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
             ))}
           </dl>
         </article>
@@ -107,7 +139,11 @@ export default function SecurityPage() {
       <section className="trust-grid">
         <article>
           <h2>{content.wallet}</h2>
-          <ul>{content.walletItems.map((item) => <li key={item}>{item}</li>)}</ul>
+          <ul>
+            {content.walletItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
         </article>
         <article>
           <h2>{content.source}</h2>
@@ -122,7 +158,9 @@ export default function SecurityPage() {
             {content.verifyBurnAddress} ↗
           </a>
           <p className="trust-warning">{content.report}</p>
-          <Link className="button secondary" href="/create">{t("createToken")}</Link>
+          <Link className="button secondary" href="/create">
+            {t("createToken")}
+          </Link>
         </article>
       </section>
     </main>

@@ -7,10 +7,10 @@ rules without a reviewed specification change.
 
 Each launch creates exactly `1,000,000,000 * 10^18` token units.
 
-| Allocation | Tokens | Share |
-| --- | ---: | ---: |
-| Internal bonding curve | 800,000,000 | 80% |
-| PancakeSwap V2 graduation | 200,000,000 | 20% |
+| Allocation                |      Tokens | Share |
+| ------------------------- | ----------: | ----: |
+| Internal bonding curve    | 800,000,000 |   80% |
+| PancakeSwap V2 graduation | 200,000,000 |   20% |
 
 There is no creator, team, protocol, marketing, or treasury token allocation.
 A creator who wants tokens must buy them through the same curve as every other
@@ -37,6 +37,14 @@ renounces that setup role. Before graduation, the curve has a single one-way
 ability to remove the transfer lock for that Pair. The curve loses that ability
 as it unlocks the Pair. This automated role cannot change balances, mint, tax,
 pause, relock, or redirect liquidity.
+
+Holder- and LP-reward templates use the same supply and allocation. Their buy
+and sell taxes are immutable at creation, disabled until graduation, and each
+side is capped at 10%. Burned tokens and both graduation/automatic-liquidity LP
+tokens go directly to
+`0x000000000000000000000000000000000000dEaD`. Reward tax is converted to the
+creator-selected external reward token and distributed through a per-token
+pull vault; it is not platform revenue.
 
 ## Fees
 
@@ -69,7 +77,7 @@ the contracts.
 
 ## Graduation
 
-During the Mainnet canary, the creator selects one of 18 graduation targets
+The creator selects one of 18 graduation targets
 from 0.01 through 0.18 BNB in 0.01 BNB steps. The contract stores the selected
 step and derives the immutable wei target using `GRADUATION_UNIT`.
 

@@ -15,18 +15,11 @@ import {
 import { bsc, bscTestnet } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
 import { useLanguage } from "@/components/language-provider";
-import {
-  deploymentCopy,
-  interpolate,
-} from "@/lib/localization-copy";
+import { deploymentCopy, interpolate } from "@/lib/localization-copy";
 import {
   factoryDeploymentAbi,
   factoryDeploymentBytecode,
 } from "@/lib/factory-deployment";
-import {
-  autoLiquidityFactoryDeploymentAbi,
-  autoLiquidityFactoryDeploymentBytecode,
-} from "@/lib/auto-liquidity-factory-deployment";
 import {
   advancedTokenDeployerDeploymentAbi,
   advancedTokenDeployerDeploymentBytecode,
@@ -35,10 +28,9 @@ import {
 } from "@/lib/rewards-factory-deployment";
 
 const FEE_RECIPIENT = "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6";
-const PANCAKE_V2_TESTNET_ROUTER =
-  "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
-const PANCAKE_V2_MAINNET_ROUTER =
-  "0x10ED43C718714eb63d5aA57B78B54704E256024E";
+const AUTHORIZED_DEPLOYER = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
+const PANCAKE_V2_TESTNET_ROUTER = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
+const PANCAKE_V2_MAINNET_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 const DEPLOYMENT_GAS_LIMIT = 8_000_000n;
 
 function deploymentErrorMessage(
@@ -51,9 +43,7 @@ function deploymentErrorMessage(
     return copy.errorCancelled;
   }
   if (message.includes("insufficient funds")) {
-    return isMainnet
-      ? copy.errorMainnetFunds
-      : copy.errorTestnetFunds;
+    return isMainnet ? copy.errorMainnetFunds : copy.errorTestnetFunds;
   }
   if (message.includes("max code size exceeded")) {
     return copy.errorCodeSize;
@@ -70,22 +60,24 @@ export default function DeployTestnetPage() {
   const pancakeRouter = isMainnet
     ? PANCAKE_V2_MAINNET_ROUTER
     : PANCAKE_V2_TESTNET_ROUTER;
-  const [factoryType, setFactoryType] = useState<
-    "standard" | "liquidity" | "rewards"
-  >("rewards");
-  const [resumedTokenDeployer, setResumedTokenDeployer] =
-    useState<`0x${string}` | null>(null);
-  const [resumedRewardsFactory, setResumedRewardsFactory] =
-    useState<`0x${string}` | null>(null);
+  const [factoryType, setFactoryType] = useState<"standard" | "rewards">(
+    "rewards",
+  );
+  const [resumedTokenDeployer, setResumedTokenDeployer] = useState<
+    `0x${string}` | null
+  >(null);
+  const [resumedRewardsFactory, setResumedRewardsFactory] = useState<
+    `0x${string}` | null
+  >(null);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const legacyDeployment = useDeployContract();
+  const standardDeployment = useDeployContract();
   const tokenDeployerDeployment = useDeployContract();
   const rewardsFactoryDeployment = useDeployContract();
   const managerConfiguration = useWriteContract();
-  const legacyReceipt = useWaitForTransactionReceipt({
-    hash: legacyDeployment.data,
+  const standardReceipt = useWaitForTransactionReceipt({
+    hash: standardDeployment.data,
   });
   const tokenDeployerReceipt = useWaitForTransactionReceipt({
     hash: tokenDeployerDeployment.data,
@@ -101,6 +93,8 @@ export default function DeployTestnetPage() {
   const rewardsFactoryAddress =
     rewardsFactoryReceipt.data?.contractAddress ?? resumedRewardsFactory;
   const wrongChain = isConnected && chainId !== activeChain.id;
+  const wrongSigner =
+    isConnected && address?.toLowerCase() !== AUTHORIZED_DEPLOYER.toLowerCase();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -114,9 +108,9 @@ export default function DeployTestnetPage() {
     }
   }, []);
 
-  function deployLegacyFactory() {
-    if (!address) return;
-    legacyDeployment.deployContract({
+  function deployStandardFactory() {
+    if (!address || wrongSigner) return;
+    standardDeployment.deployContract({
       abi: factoryDeploymentAbi,
       bytecode: factoryDeploymentBytecode,
       args: [FEE_RECIPIENT, pancakeRouter],
@@ -127,7 +121,7 @@ export default function DeployTestnetPage() {
   }
 
   function deployAdvancedTokenDeployer() {
-    if (!address) return;
+    if (!address || wrongSigner) return;
     tokenDeployerDeployment.deployContract({
       abi: advancedTokenDeployerDeploymentAbi,
       bytecode: advancedTokenDeployerDeploymentBytecode,
@@ -139,21 +133,11 @@ export default function DeployTestnetPage() {
   }
 
   function deployRewardsFactory() {
-    if (!address || !tokenDeployerAddress) return;
+    if (!address || wrongSigner || !tokenDeployerAddress) return;
     rewardsFactoryDeployment.deployContract({
-      abi:
-        factoryType === "liquidity"
-          ? autoLiquidityFactoryDeploymentAbi
-          : rewardsFactoryDeploymentAbi,
-      bytecode:
-        factoryType === "liquidity"
-          ? autoLiquidityFactoryDeploymentBytecode
-          : rewardsFactoryDeploymentBytecode,
-      args: [
-        FEE_RECIPIENT,
-        pancakeRouter,
-        tokenDeployerAddress,
-      ],
+      abi: rewardsFactoryDeploymentAbi,
+      bytecode: rewardsFactoryDeploymentBytecode,
+      args: [FEE_RECIPIENT, pancakeRouter, tokenDeployerAddress],
       chainId: activeChain.id,
       account: address,
       gas: DEPLOYMENT_GAS_LIMIT,
@@ -161,7 +145,13 @@ export default function DeployTestnetPage() {
   }
 
   function configureRewardsFactory() {
-    if (!address || !tokenDeployerAddress || !rewardsFactoryAddress) return;
+    if (
+      !address ||
+      wrongSigner ||
+      !tokenDeployerAddress ||
+      !rewardsFactoryAddress
+    )
+      return;
     managerConfiguration.reset();
     managerConfiguration.writeContract({
       abi: advancedTokenDeployerDeploymentAbi,
@@ -177,9 +167,9 @@ export default function DeployTestnetPage() {
   const currentError =
     factoryType !== "standard" && rewardsFactoryAddress
       ? managerConfiguration.error
-      : legacyDeployment.error ??
+      : (standardDeployment.error ??
         tokenDeployerDeployment.error ??
-        rewardsFactoryDeployment.error;
+        rewardsFactoryDeployment.error);
 
   return (
     <main>
@@ -192,7 +182,7 @@ export default function DeployTestnetPage() {
       <section className="form-shell">
         <p className="eyebrow">
           {isMainnet
-            ? "MAINNET CANARY / FACTORY DEPLOYMENT"
+            ? "MAINNET / V3 FACTORY DEPLOYMENT"
             : "TESTNET / FACTORY DEPLOYMENT"}
         </p>
         <h1 className="form-title">
@@ -207,16 +197,10 @@ export default function DeployTestnetPage() {
             <select
               value={factoryType}
               onChange={(event) =>
-                setFactoryType(
-                  event.target.value as
-                    | "standard"
-                    | "liquidity"
-                    | "rewards",
-                )
+                setFactoryType(event.target.value as "standard" | "rewards")
               }
             >
               <option value="rewards">{copy.rewardsOption}</option>
-              <option value="liquidity">{copy.liquidityOption}</option>
               <option value="standard">{copy.standardOption}</option>
             </select>
           </label>
@@ -231,6 +215,8 @@ export default function DeployTestnetPage() {
                 ? copy.connectMainnetWallet
                 : copy.connectTestnetWallet}
             </p>
+          ) : wrongSigner ? (
+            <p className="error">{copy.authorizedWalletOnly}</p>
           ) : wrongChain ? (
             <button
               className="button wide"
@@ -241,9 +227,7 @@ export default function DeployTestnetPage() {
             </button>
           ) : factoryType !== "standard" ? (
             <div className="stack">
-              <p className="notice">
-                {copy.advancedStepsHelp}
-              </p>
+              <p className="notice">{copy.advancedStepsHelp}</p>
               <button
                 className="button wide"
                 type="button"
@@ -279,9 +263,7 @@ export default function DeployTestnetPage() {
                     ? copy.step2Confirm
                     : rewardsFactoryReceipt.isLoading
                       ? copy.step2Waiting
-                      : factoryType === "liquidity"
-                        ? copy.step2Liquidity
-                        : copy.step2Rewards}
+                      : copy.step2Rewards}
               </button>
               <button
                 className="button wide"
@@ -308,27 +290,27 @@ export default function DeployTestnetPage() {
               className="button wide"
               type="button"
               disabled={
-                legacyDeployment.isPending || legacyReceipt.isLoading
+                standardDeployment.isPending || standardReceipt.isLoading
               }
-              onClick={deployLegacyFactory}
+              onClick={deployStandardFactory}
             >
-              {legacyDeployment.isPending
+              {standardDeployment.isPending
                 ? copy.confirmDeploy
-                : legacyReceipt.isLoading
+                : standardReceipt.isLoading
                   ? isMainnet
                     ? copy.waitMainnet
                     : copy.waitTestnet
                   : copy.deployStandard}
             </button>
           )}
-          {legacyDeployment.data && (
+          {standardDeployment.data && (
             <p className="notice">
-              {copy.deploymentTransaction}：{legacyDeployment.data}
+              {copy.deploymentTransaction}：{standardDeployment.data}
             </p>
           )}
-          {legacyReceipt.data?.contractAddress && (
+          {standardReceipt.data?.contractAddress && (
             <p className="success">
-              {copy.factoryDeployed}：{legacyReceipt.data.contractAddress}
+              {copy.factoryDeployed}：{standardReceipt.data.contractAddress}
             </p>
           )}
           {tokenDeployerAddress && (
@@ -338,20 +320,14 @@ export default function DeployTestnetPage() {
           )}
           {rewardsFactoryAddress && (
             <p className="notice">
-              {factoryType === "liquidity"
-                ? copy.autoLiquidity
-                : copy.rewards}{" "}
-              Factory：
+              {copy.rewards} Factory：
               {rewardsFactoryAddress}
             </p>
           )}
           {managerReceipt.isSuccess && rewardsFactoryAddress && (
             <p className="success">
               {interpolate(copy.configured, {
-                variable:
-                  factoryType === "liquidity"
-                    ? "NEXT_PUBLIC_BNBX_AUTO_LIQUIDITY_FACTORY_ADDRESS"
-                    : "NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS",
+                variable: "NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS",
                 address: rewardsFactoryAddress,
               })}
             </p>

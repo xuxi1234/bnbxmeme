@@ -11,49 +11,37 @@ import { bsc } from "viem/chains";
 
 const CHAIN_ID = "56";
 const API_URL = "https://api.etherscan.io/v2/api";
-const apiKey = process.env.BSC_SCAN_API_KEY;
+const EXPECTED_DEPLOYER = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
+const EXPECTED_FEE_RECIPIENT = "0xDAF4f62914f7F64c9eabFd473F4dB4b7e74048A6";
+const EXPECTED_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 const dryRun = process.env.VERIFY_DRY_RUN === "1";
+const apiKey = process.env.BSC_SCAN_API_KEY;
 const rpcUrl =
-  process.env.BSC_MAINNET_RPC_URL?.trim() ||
-  "https://bsc-rpc.publicnode.com";
-const requestedFactories =
-  process.env.BNBX_MAINNET_FACTORY_ADDRESSES ??
-  [
-    "0xdb189396ae2a350c484ddd749a6af96baebc124b",
-    "0x9f572dc9d582ec8347d2a803f766652982220539",
-    "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8",
-  ].join(",");
+  process.env.BSC_MAINNET_RPC_URL?.trim() || "https://bsc-rpc.publicnode.com";
+const standardFactory = process.env.BNBX_V3_STANDARD_FACTORY_ADDRESS;
+const rewardsFactory = process.env.BNBX_V3_REWARDS_FACTORY_ADDRESS;
+const verifyLaunchedTokens = process.env.VERIFY_LAUNCHED_TOKENS === "1";
 
-if (!apiKey && !dryRun) throw new Error("BSC_SCAN_API_KEY is required");
-
-const factories = [
-  ...new Set(
-    requestedFactories
-      .split(",")
-      .map((address) => address.trim())
-      .filter(Boolean)
-      // Keep RPC arguments lowercase after validation. This also tolerates
-      // explorers/providers that return non-EIP-55 mixed-case addresses.
-      .map((address) => getAddress(address).toLowerCase()),
-  ),
-];
-if (factories.length === 0) {
-  throw new Error("BNBX_MAINNET_FACTORY_ADDRESSES must contain an address");
+if (!dryRun && !apiKey) throw new Error("BSC_SCAN_API_KEY is required");
+if (!dryRun && (!standardFactory || !rewardsFactory)) {
+  throw new Error(
+    "BNBX_V3_STANDARD_FACTORY_ADDRESS and BNBX_V3_REWARDS_FACTORY_ADDRESS are required",
+  );
 }
 
 const root = resolve(import.meta.dirname, "..");
 const sourcePaths = [
   "src/BNBXFactory.sol",
-  "src/BNBXToken.sol",
-  "src/BNBXAutoLiquidityFactory.sol",
+  "src/BNBXTokenV3.sol",
+  "src/BNBXRewardsFactoryV3.sol",
   "src/BNBXAdvancedTokenDeployer.sol",
-  "src/BNBXAutoLiquidityToken.sol",
-  "src/BNBXRewardVault.sol",
+  "src/BNBXDividendTokenV3.sol",
+  "src/BNBXRewardVaultV3.sol",
   "src/BondingCurve.sol",
   "src/interfaces/IERC20Minimal.sol",
   "src/interfaces/IPancakeV2.sol",
   "src/libraries/FeeMath.sol",
-  "src/libraries/TemplateConfig.sol",
+  "src/libraries/TemplateConfigV3.sol",
 ];
 const compilerInput = {
   language: "Solidity",
@@ -69,40 +57,110 @@ const compilerInput = {
     outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
   },
 };
-const versionMatch = solc.version().match(
-  /^(\d+\.\d+\.\d+\+commit\.[0-9a-f]+)/i,
+const compilation = JSON.parse(solc.compile(JSON.stringify(compilerInput)));
+const compileErrors = (compilation.errors ?? []).filter(
+  (item) => item.severity === "error",
 );
-if (!versionMatch) throw new Error(`Unsupported solc version: ${solc.version()}`);
+if (compileErrors.length) {
+  throw new Error(
+    compileErrors.map((item) => item.formattedMessage).join("\n"),
+  );
+}
+const versionMatch = solc
+  .version()
+  .match(/^(\d+\.\d+\.\d+\+commit\.[0-9a-f]+)/i);
+if (!versionMatch)
+  throw new Error(`Unsupported solc version: ${solc.version()}`);
 
+if (dryRun && (!standardFactory || !rewardsFactory)) {
+  console.log(
+    JSON.stringify(
+      {
+        status: "compiled",
+        compiler: `v${versionMatch[1]}`,
+        optimizerRuns: 200,
+        evmVersion: "shanghai",
+        sources: sourcePaths,
+      },
+      null,
+      2,
+    ),
+  );
+  process.exit(0);
+}
+
+const standardAddress = getAddress(standardFactory);
+const rewardsAddress = getAddress(rewardsFactory);
 const client = createPublicClient({
   chain: bsc,
   transport: http(rpcUrl, { timeout: 20_000, retryCount: 2 }),
 });
 
-const addressOutput = [{ type: "address" }];
-const uintOutput = [{ type: "uint256" }];
-const stringOutput = [{ type: "string" }];
-const readAbi = (name, outputs, inputs = []) => [
+const addressReadAbi = (name) => [
   {
     type: "function",
     name,
     stateMutability: "view",
-    inputs,
-    outputs,
+    inputs: [],
+    outputs: [{ type: "address" }],
   },
 ];
-const read = (address, name, outputs, args, inputs) =>
+const readAddress = (address, name) =>
   client.readContract({
     address,
-    abi: readAbi(name, outputs, inputs),
+    abi: addressReadAbi(name),
     functionName: name,
-    args,
   });
-const readAddress = (address, name, args, inputs) =>
-  read(address, name, addressOutput, args, inputs);
-const readUint = (address, name, args, inputs) =>
-  read(address, name, uintOutput, args, inputs);
-const readString = (address, name) => read(address, name, stringOutput);
+
+const [chainId, standardCode, rewardsCode] = await Promise.all([
+  client.getChainId(),
+  client.getCode({ address: standardAddress }),
+  client.getCode({ address: rewardsAddress }),
+]);
+if (chainId !== 56)
+  throw new Error(`Refusing verification on chain ${chainId}`);
+if (!standardCode || standardCode === "0x") {
+  throw new Error("Standard V3 Factory has no bytecode");
+}
+if (!rewardsCode || rewardsCode === "0x") {
+  throw new Error("Rewards V3 Factory has no bytecode");
+}
+
+const [standardFee, standardRouter, rewardsFee, rewardsRouter, tokenDeployer] =
+  await Promise.all([
+    readAddress(standardAddress, "feeRecipient"),
+    readAddress(standardAddress, "pancakeV2Router"),
+    readAddress(rewardsAddress, "feeRecipient"),
+    readAddress(rewardsAddress, "pancakeV2Router"),
+    readAddress(rewardsAddress, "tokenDeployer"),
+  ]);
+const [bootstrapOwner, manager, deployerCode] = await Promise.all([
+  readAddress(tokenDeployer, "bootstrapOwner"),
+  readAddress(tokenDeployer, "manager"),
+  client.getCode({ address: tokenDeployer }),
+]);
+if (!deployerCode || deployerCode === "0x") {
+  throw new Error("Advanced token deployer has no bytecode");
+}
+
+function requireAddress(actual, expected, label) {
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(`${label} mismatch: ${actual}`);
+  }
+}
+requireAddress(standardFee, EXPECTED_FEE_RECIPIENT, "Standard fee recipient");
+requireAddress(rewardsFee, EXPECTED_FEE_RECIPIENT, "Rewards fee recipient");
+requireAddress(standardRouter, EXPECTED_ROUTER, "Standard router");
+requireAddress(rewardsRouter, EXPECTED_ROUTER, "Rewards router");
+requireAddress(bootstrapOwner, EXPECTED_DEPLOYER, "Authorized deployer");
+requireAddress(manager, rewardsAddress, "Advanced deployer manager");
+if (
+  process.env.BNBX_V3_TOKEN_DEPLOYER_ADDRESS &&
+  tokenDeployer.toLowerCase() !==
+    process.env.BNBX_V3_TOKEN_DEPLOYER_ADDRESS.toLowerCase()
+) {
+  throw new Error(`Token deployer mismatch: ${tokenDeployer}`);
+}
 
 async function callApi(parameters) {
   const response = await fetch(`${API_URL}?chainid=${CHAIN_ID}`, {
@@ -120,9 +178,7 @@ async function callApi(parameters) {
 
 async function verify(address, contractName, constructorArguments) {
   if (dryRun) {
-    console.log(
-      `○ dry run ${contractName} ${address} (${constructorArguments.length - 2} constructor hex chars)`,
-    );
+    console.log(`○ ${contractName} ${address}`);
     return;
   }
   const submission = await callApi({
@@ -138,79 +194,110 @@ async function verify(address, contractName, constructorArguments) {
     licenseType: "3",
     constructorArguments: constructorArguments.slice(2),
   });
-  const submissionResult = String(submission.result);
+  const result = String(submission.result);
   if (
     submission.status === "0" &&
-    /already verified|source code already verified/i.test(submissionResult)
+    /already verified|source code already verified/i.test(result)
   ) {
     console.log(`✓ already verified ${contractName} ${address}`);
     return;
   }
   if (submission.status !== "1") {
-    throw new Error(
-      `Verification submission failed for ${contractName} ${address}: ${submissionResult}`,
-    );
+    throw new Error(`Verification submission failed for ${address}: ${result}`);
   }
-
   for (let attempt = 1; attempt <= 18; attempt += 1) {
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 5_000));
     const status = await callApi({
       action: "checkverifystatus",
-      guid: submissionResult,
+      guid: result,
     });
-    const result = String(status.result);
-    if (status.status === "1" || /already verified/i.test(result)) {
+    const statusResult = String(status.result);
+    if (status.status === "1" || /already verified/i.test(statusResult)) {
       console.log(`✓ verified ${contractName} ${address}`);
       return;
     }
-    if (!/pending|queue/i.test(result)) {
-      throw new Error(
-        `Verification failed for ${contractName} ${address}: ${result}`,
-      );
+    if (!/pending|queue/i.test(statusResult)) {
+      throw new Error(`Verification failed for ${address}: ${statusResult}`);
     }
-    console.log(`… pending ${contractName} ${address} (${attempt}/18)`);
   }
-  throw new Error(`Verification timed out for ${contractName} ${address}`);
+  throw new Error(`Verification timed out for ${address}`);
 }
 
-async function hasFunction(address, name) {
-  try {
-    await readAddress(address, name);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const stringReadAbi = (name) => [
+  {
+    type: "function",
+    name,
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }],
+  },
+];
+const uintReadAbi = (name, type = "uint256") => [
+  {
+    type: "function",
+    name,
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type }],
+  },
+];
+const sideTaxesReadAbi = (name) => [
+  {
+    type: "function",
+    name,
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "burn", type: "uint16" },
+      { name: "liquidity", type: "uint16" },
+      { name: "marketing", type: "uint16" },
+      { name: "rewards", type: "uint16" },
+    ],
+  },
+];
+const indexedAddressReadAbi = (name) => [
+  {
+    type: "function",
+    name,
+    stateMutability: "view",
+    inputs: [{ type: "uint256" }],
+    outputs: [{ type: "address" }],
+  },
+];
+const mappedAddressReadAbi = (name) => [
+  {
+    type: "function",
+    name,
+    stateMutability: "view",
+    inputs: [{ type: "address" }],
+    outputs: [{ type: "address" }],
+  },
+];
+const readValue = (address, abi, functionName, args = []) =>
+  client.readContract({ address, abi, functionName, args });
 
-const taxSideComponents = [
-  { name: "burn", type: "uint16" },
-  { name: "liquidity", type: "uint16" },
-  { name: "marketing", type: "uint16" },
-  { name: "rewards", type: "uint16" },
-];
-const taxesComponents = [
-  { name: "buy", type: "tuple", components: taxSideComponents },
-  { name: "sell", type: "tuple", components: taxSideComponents },
-];
+async function requireCode(address, label) {
+  const code = await client.getCode({ address });
+  if (!code || code === "0x")
+    throw new Error(`${label} has no bytecode: ${address}`);
+}
 
 async function verifyCurve(curve, token, factory) {
-  const [feeRecipient, creator, target, graduationUnit, pair, wbnb] =
-    await Promise.all([
-      readAddress(curve, "feeRecipient"),
-      readAddress(curve, "creator"),
-      readUint(curve, "graduationTarget"),
-      readUint(curve, "GRADUATION_UNIT"),
-      readAddress(curve, "liquidityPair"),
-      readAddress(curve, "wbnb"),
-    ]);
-  if (graduationUnit === 0n || target % graduationUnit !== 0n) {
-    throw new Error(`Invalid graduation unit or target on Curve ${curve}`);
+  await requireCode(curve, "BondingCurve");
+  const [fee, creator, pair, wbnb, graduationTarget] = await Promise.all([
+    readAddress(curve, "feeRecipient"),
+    readAddress(curve, "creator"),
+    readAddress(curve, "liquidityPair"),
+    readAddress(curve, "wbnb"),
+    readValue(curve, uintReadAbi("graduationTarget"), "graduationTarget"),
+  ]);
+  const graduationUnit = 10_000_000_000_000_000n;
+  if (graduationTarget % graduationUnit !== 0n) {
+    throw new Error(`Unexpected graduation target on ${curve}`);
   }
-  const targetStep = target / graduationUnit;
+  const targetStep = graduationTarget / graduationUnit;
   if (targetStep < 1n || targetStep > 18n) {
-    throw new Error(
-      `Invalid graduation target step ${targetStep} on Curve ${curve}`,
-    );
+    throw new Error(`Graduation target out of range on ${curve}`);
   }
   await verify(
     curve,
@@ -225,178 +312,222 @@ async function verifyCurve(curve, token, factory) {
         { type: "address" },
         { type: "address" },
       ],
-      [token, factory, feeRecipient, creator, Number(targetStep), pair, wbnb],
+      [token, factory, fee, creator, Number(targetStep), pair, wbnb],
     ),
   );
 }
 
-async function verifyStandardFactory(factory) {
-  const [feeRecipient, router] = await Promise.all([
-    readAddress(factory, "feeRecipient"),
-    readAddress(factory, "pancakeV2Router"),
+async function verifyRewardVault(vault) {
+  await requireCode(vault, "Reward vault");
+  const [mode, controller, rewardAsset, minimumShare] = await Promise.all([
+    readValue(vault, uintReadAbi("mode", "uint8"), "mode"),
+    readAddress(vault, "controller"),
+    readAddress(vault, "rewardToken"),
+    readValue(vault, uintReadAbi("minimumShare"), "minimumShare"),
   ]);
   await verify(
-    factory,
-    "src/BNBXFactory.sol:BNBXFactory",
+    vault,
+    "src/BNBXRewardVaultV3.sol:BNBXRewardVaultV3",
     encodeAbiParameters(
-      [{ type: "address" }, { type: "address" }],
-      [feeRecipient, router],
+      [
+        { type: "uint8" },
+        { type: "address" },
+        { type: "address" },
+        { type: "uint256" },
+      ],
+      [mode, controller, rewardAsset, minimumShare],
     ),
   );
-
-  const count = await readUint(factory, "tokenCount");
-  console.log(`Standard factory ${factory}: ${count} token(s)`);
-  for (let index = 0n; index < count; index += 1n) {
-    const token = await readAddress(
-      factory,
-      "allTokens",
-      [index],
-      [{ type: "uint256" }],
-    );
-    const [name, symbol, curve] = await Promise.all([
-      readString(token, "name"),
-      readString(token, "symbol"),
-      readAddress(
-        factory,
-        "curveOf",
-        [token],
-        [{ type: "address" }],
-      ),
-    ]);
-    await verify(
-      token,
-      "src/BNBXToken.sol:BNBXToken",
-      encodeAbiParameters(
-        [{ type: "string" }, { type: "string" }, { type: "address" }],
-        [name, symbol, factory],
-      ),
-    );
-    await verifyCurve(curve, token, factory);
-  }
 }
 
-async function verifyAdvancedFactory(factory) {
-  const [feeRecipient, router, tokenDeployer] = await Promise.all([
-    readAddress(factory, "feeRecipient"),
-    readAddress(factory, "pancakeV2Router"),
-    readAddress(factory, "tokenDeployer"),
+async function verifyStandardToken(token, factory) {
+  await requireCode(token, "Standard V3 token");
+  const [name, symbol] = await Promise.all([
+    readValue(token, stringReadAbi("name"), "name"),
+    readValue(token, stringReadAbi("symbol"), "symbol"),
   ]);
-  const bootstrapOwner = await readAddress(tokenDeployer, "bootstrapOwner");
   await verify(
-    tokenDeployer,
-    "src/BNBXAdvancedTokenDeployer.sol:BNBXAdvancedTokenDeployer",
-    encodeAbiParameters([{ type: "address" }], [bootstrapOwner]),
-  );
-  await verify(
-    factory,
-    "src/BNBXAutoLiquidityFactory.sol:BNBXAutoLiquidityFactory",
+    token,
+    "src/BNBXTokenV3.sol:BNBXTokenV3",
     encodeAbiParameters(
-      [{ type: "address" }, { type: "address" }, { type: "address" }],
-      [feeRecipient, router, tokenDeployer],
+      [{ type: "string" }, { type: "string" }, { type: "address" }],
+      [name, symbol, factory],
     ),
   );
+}
 
-  const count = await readUint(factory, "tokenCount");
-  console.log(`Advanced factory ${factory}: ${count} token(s)`);
-  for (let index = 0n; index < count; index += 1n) {
-    const token = await readAddress(
-      factory,
-      "allTokens",
-      [index],
-      [{ type: "uint256" }],
-    );
-    const [
-      name,
-      symbol,
-      marketingWallet,
-      template,
-      minimumRewardShare,
-      buyTaxes,
-      sellTaxes,
-      rewardVault,
-      curve,
-    ] = await Promise.all([
-      readString(token, "name"),
-      readString(token, "symbol"),
-      readAddress(token, "marketingWallet"),
-      readUint(token, "template"),
-      readUint(token, "minimumRewardShare"),
-      read(token, "buyTaxes", taxSideComponents),
-      read(token, "sellTaxes", taxSideComponents),
-      readAddress(token, "rewardVault"),
-      readAddress(
-        factory,
-        "curveOf",
-        [token],
-        [{ type: "address" }],
-      ),
-    ]);
-    const taxes = {
-      buy: {
-        burn: Number(buyTaxes[0]),
-        liquidity: Number(buyTaxes[1]),
-        marketing: Number(buyTaxes[2]),
-        rewards: Number(buyTaxes[3]),
-      },
-      sell: {
-        burn: Number(sellTaxes[0]),
-        liquidity: Number(sellTaxes[1]),
-        marketing: Number(sellTaxes[2]),
-        rewards: Number(sellTaxes[3]),
-      },
-    };
-    await verify(
-      token,
-      "src/BNBXAutoLiquidityToken.sol:BNBXAutoLiquidityToken",
-      encodeAbiParameters(
-        [
-          { type: "string" },
-          { type: "string" },
-          { type: "address" },
-          { type: "address" },
-          { type: "address" },
-          { type: "tuple", components: taxesComponents },
-          { type: "uint8" },
-          { type: "uint256" },
+async function verifyRewardsToken(token, factory) {
+  await requireCode(token, "Rewards V3 token");
+  const [
+    name,
+    symbol,
+    router,
+    marketingWallet,
+    rewardAsset,
+    buyTaxes,
+    sellTaxes,
+    template,
+    minimumRewardShare,
+    vault,
+  ] = await Promise.all([
+    readValue(token, stringReadAbi("name"), "name"),
+    readValue(token, stringReadAbi("symbol"), "symbol"),
+    readAddress(token, "router"),
+    readAddress(token, "marketingWallet"),
+    readAddress(token, "rewardToken"),
+    readValue(token, sideTaxesReadAbi("buyTaxes"), "buyTaxes"),
+    readValue(token, sideTaxesReadAbi("sellTaxes"), "sellTaxes"),
+    readValue(token, uintReadAbi("template", "uint8"), "template"),
+    readValue(token, uintReadAbi("minimumRewardShare"), "minimumRewardShare"),
+    readAddress(token, "rewardVault"),
+  ]);
+  const side = (values) => ({
+    burn: values[0],
+    liquidity: values[1],
+    marketing: values[2],
+    rewards: values[3],
+  });
+  const initType = {
+    type: "tuple",
+    components: [
+      { name: "name", type: "string" },
+      { name: "symbol", type: "string" },
+      { name: "launchManager", type: "address" },
+      { name: "router", type: "address" },
+      { name: "marketingWallet", type: "address" },
+      { name: "rewardToken", type: "address" },
+      {
+        name: "taxes",
+        type: "tuple",
+        components: [
+          {
+            name: "buy",
+            type: "tuple",
+            components: [
+              { name: "burn", type: "uint16" },
+              { name: "liquidity", type: "uint16" },
+              { name: "marketing", type: "uint16" },
+              { name: "rewards", type: "uint16" },
+            ],
+          },
+          {
+            name: "sell",
+            type: "tuple",
+            components: [
+              { name: "burn", type: "uint16" },
+              { name: "liquidity", type: "uint16" },
+              { name: "marketing", type: "uint16" },
+              { name: "rewards", type: "uint16" },
+            ],
+          },
         ],
-        [
+      },
+      { name: "template", type: "uint8" },
+      { name: "minimumRewardShare", type: "uint256" },
+    ],
+  };
+  await verify(
+    token,
+    "src/BNBXDividendTokenV3.sol:BNBXDividendTokenV3",
+    encodeAbiParameters(
+      [initType],
+      [
+        {
           name,
           symbol,
-          factory,
+          launchManager: factory,
           router,
           marketingWallet,
-          taxes,
-          Number(template),
+          rewardToken: rewardAsset,
+          taxes: { buy: side(buyTaxes), sell: side(sellTaxes) },
+          template,
           minimumRewardShare,
-        ],
-      ),
+        },
+      ],
+    ),
+  );
+  await verifyRewardVault(vault);
+}
+
+async function verifyLaunched(factory, kind) {
+  const count = await readValue(
+    factory,
+    uintReadAbi("tokenCount"),
+    "tokenCount",
+  );
+  const maxTokens = BigInt(process.env.BNBX_VERIFY_MAX_TOKENS || "250");
+  if (count > maxTokens) {
+    throw new Error(
+      `${kind} Factory has ${count} tokens; raise BNBX_VERIFY_MAX_TOKENS to verify all`,
     );
-    if (rewardVault !== "0x0000000000000000000000000000000000000000") {
-      const mode = await readUint(rewardVault, "mode");
-      await verify(
-        rewardVault,
-        "src/BNBXRewardVault.sol:BNBXRewardVault",
-        encodeAbiParameters(
-          [{ type: "uint8" }, { type: "address" }],
-          [Number(mode), token],
-        ),
-      );
-    }
+  }
+  for (let index = 0n; index < count; index += 1n) {
+    const token = await readValue(
+      factory,
+      indexedAddressReadAbi("allTokens"),
+      "allTokens",
+      [index],
+    );
+    const curve = await readValue(
+      factory,
+      mappedAddressReadAbi("curveOf"),
+      "curveOf",
+      [token],
+    );
+    if (kind === "standard") await verifyStandardToken(token, factory);
+    else await verifyRewardsToken(token, factory);
     await verifyCurve(curve, token, factory);
   }
+  return count;
 }
 
-for (const factory of factories) {
-  const code = await client.getCode({ address: factory });
-  if (!code || code === "0x") {
-    throw new Error(`No contract deployed at factory ${factory}`);
-  }
-  console.log(`\nVerifying factory ${factory}`);
-  if (await hasFunction(factory, "tokenDeployer")) {
-    await verifyAdvancedFactory(factory);
-  } else {
-    await verifyStandardFactory(factory);
-  }
+await verify(
+  standardAddress,
+  "src/BNBXFactory.sol:BNBXFactory",
+  encodeAbiParameters(
+    [{ type: "address" }, { type: "address" }],
+    [standardFee, standardRouter],
+  ),
+);
+await verify(
+  tokenDeployer,
+  "src/BNBXAdvancedTokenDeployer.sol:BNBXAdvancedTokenDeployer",
+  encodeAbiParameters([{ type: "address" }], [bootstrapOwner]),
+);
+await verify(
+  rewardsAddress,
+  "src/BNBXRewardsFactoryV3.sol:BNBXRewardsFactoryV3",
+  encodeAbiParameters(
+    [{ type: "address" }, { type: "address" }, { type: "address" }],
+    [rewardsFee, rewardsRouter, tokenDeployer],
+  ),
+);
+
+let standardTokensVerified = 0n;
+let rewardsTokensVerified = 0n;
+if (verifyLaunchedTokens) {
+  standardTokensVerified = await verifyLaunched(standardAddress, "standard");
+  rewardsTokensVerified = await verifyLaunched(rewardsAddress, "rewards");
 }
 
-console.log("\nAll BNBX mainnet contracts are verified or already verified.");
+console.log(
+  JSON.stringify(
+    {
+      status: dryRun ? "verified-config-dry-run" : "verified",
+      standardFactory: standardAddress,
+      rewardsFactory: rewardsAddress,
+      tokenDeployer,
+      authorizedDeployer: bootstrapOwner,
+      feeRecipient: standardFee,
+      router: standardRouter,
+      launchedTokens: verifyLaunchedTokens
+        ? {
+            standard: standardTokensVerified.toString(),
+            rewards: rewardsTokensVerified.toString(),
+          }
+        : "skipped (set VERIFY_LAUNCHED_TOKENS=1)",
+    },
+    null,
+    2,
+  ),
+);

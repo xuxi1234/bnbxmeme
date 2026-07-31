@@ -48,3 +48,50 @@ Non-layout Preview observations: the disabled Vercel Web Analytics script return
 - Confirmed no document-level horizontal overflow.
 
 final result: passed
+
+# BNBX V3 design QA
+
+- Preview: `https://bnbx-git-agent-token-template-v3-e12dc2-xuxis-projects-7df64997.vercel.app`
+- Reviewed commit: `a844eb4e63e0c690bd195bf68ad48d13c7634b83`
+- Browser viewport: 1363 × 936; the template comparison used a centered
+  1110 × 775 crop to match the supplied 1110 × 775 reference.
+- Supplied references:
+  - `upload/0b660cfc-ce4c-4d5a-a25e-a6547bd30b04.png`
+  - `upload/e82741c4-4bb9-45c2-9853-9cce54bb532c.png`
+  - the supplied mobile market and token-page screenshots.
+- Local comparison artifacts:
+  - `artifacts/create-reference-vs-preview.jpg`
+  - `artifacts/tax-reference-vs-preview.jpg`
+
+## Browser checks
+
+- The creation page exposes exactly Standard 0-tax, Holder rewards, and LP
+  rewards. The standalone Auto Liquidity template is absent.
+- A locked V3 template can be selected for inspection, while the creation
+  action stays disabled until a distinct V3 Factory address is configured.
+- Holder and LP templates each render eight numeric tax inputs: burn,
+  automatic liquidity, marketing, and rewards for both buys and sells.
+- The tax section contains no range input. Its only remaining range input is
+  the separate graduation-target control.
+- Numeric tax inputs preserve `0`, `0.5`, `1`, and `2.25` exactly.
+- A 10.01% side total renders the explicit over-limit error. An exact 10.00%
+  total is accepted and shown as `10.00% / 10%`.
+- Switching Holder → LP → Standard preserves the correct selected state and
+  hides advanced tax fields for Standard.
+- The inspected graduated token renders the price unit as `cz / USDT`.
+- Its two PancakeSwap trade actions are ordinary in-flow links; the page has
+  no fixed-position element and no mobile/floating trade dock.
+- Automated mobile-layout regression checks confirm the compact navigation,
+  inline trade flow, and absence of the removed floating trade bar.
+
+## Visual comparison
+
+- The template reference requested removal of Auto Liquidity. The Preview has
+  three equal cards in one row and retains the existing BNBX visual system.
+- The tax reference used sliders. The Preview replaces all eight sliders with
+  direct-entry percentage controls, keeps the live side totals, and adds the
+  reward-token, marketing-wallet, and minimum-share fields immediately below.
+- No cropped field labels, overlapping cards, or horizontal page overflow were
+  observed in the inspected states.
+
+final result: passed

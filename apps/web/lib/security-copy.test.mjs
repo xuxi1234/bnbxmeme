@@ -36,12 +36,9 @@ test("removes return promises and first-choice claims from the announcement", ()
 test("keeps security disclosures complete in all four languages", () => {
   const expected = shape(securityCopy.zh);
   for (const language of languages) {
-    const copy = resolveSecurityCopy(
-      language,
-      MAX_TEMPLATE_SIDE_TAX_PERCENT,
-    );
+    const copy = resolveSecurityCopy(language, MAX_TEMPLATE_SIDE_TAX_PERCENT);
     assert.deepEqual(shape(copy), expected);
-    assert.equal(copy.templateItems.length, 4);
+    assert.equal(copy.templateItems.length, 3);
     assert.equal(copy.dataItems.length, 3);
     assert.equal(copy.dataItems[0][0], "0");
     assert.match(
@@ -55,14 +52,12 @@ test("keeps security disclosures complete in all four languages", () => {
 test("keeps the published tax cap aligned with contract enforcement", async () => {
   const source = await readFile(
     new URL(
-      "../../../packages/contracts/src/libraries/TemplateConfig.sol",
+      "../../../packages/contracts/src/libraries/TemplateConfigV3.sol",
       import.meta.url,
     ),
     "utf8",
   );
-  const rawBasisPoints = source.match(
-    /MAX_SIDE_TAX_BPS\s*=\s*([\d_]+);/,
-  )?.[1];
+  const rawBasisPoints = source.match(/MAX_SIDE_TAX_BPS\s*=\s*([\d_]+);/)?.[1];
   assert.ok(rawBasisPoints, "contract tax cap is missing");
   const basisPoints = Number(rawBasisPoints.replaceAll("_", ""));
   assert.equal(basisPoints / 100, MAX_TEMPLATE_SIDE_TAX_PERCENT);

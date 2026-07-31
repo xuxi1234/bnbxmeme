@@ -12,8 +12,10 @@ type SecurityCopy = {
   feeItems: readonly DisclosureRow[];
   factoryLabels: {
     standard: string;
+    legacyStandard: string;
     autoLiquidity: string;
     rewards: string;
+    legacyRewards: string;
     router: string;
     burnAddress: string;
   };
@@ -44,8 +46,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
   zh: {
     eyebrow: "BNBX TRUST CENTER",
     title: "安全、费用与正式合约",
-    lead:
-      "本页公开 BNBX 正式域名、合约、费用和钱包交互规则。市场指标中的 0 表示数据已成功读取且数值确实为零；“—”或“暂不可用”表示尚未取得或无法验证。交易前请同时核对钱包预览与 BscScan。",
+    lead: "本页公开 BNBX 正式域名、合约、费用和钱包交互规则。市场指标中的 0 表示数据已成功读取且数值确实为零；“—”或“暂不可用”表示尚未取得或无法验证。交易前请同时核对钱包预览与 BscScan。",
     domain: "唯一正式域名",
     contracts: "BNB Chain Mainnet 正式地址",
     fees: "平台固定费用",
@@ -57,8 +58,10 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "标准 0 税 Factory",
-      autoLiquidity: "自动回流 Factory",
+      legacyStandard: "历史标准 0 税 Factory（只读）",
+      autoLiquidity: "历史自动回流 Factory（只读）",
       rewards: "持币 / LP 分红 Factory",
+      legacyRewards: "历史持币 / LP 分红 Factory（只读）",
       router: "PancakeSwap V2 Router",
       burnAddress: "LP 销毁地址",
     },
@@ -67,12 +70,12 @@ export const securityCopy: Record<Language, SecurityCopy> = {
       "标准模板由合约强制永久 0 税。高级模板的买入侧和卖出侧各自最多 {cap}%；上限按销毁、加池、营销与分红之和计算，不是每一项各 {cap}%。",
     templateItems: [
       ["标准模板", "买入 0% · 卖出 0%"],
-      ["自动回流", "买入合计 ≤ {cap}% · 卖出合计 ≤ {cap}%"],
       ["持币分红", "买入合计 ≤ {cap}% · 卖出合计 ≤ {cap}%"],
       ["LP 分红", "买入合计 ≤ {cap}% · 卖出合计 ≤ {cap}%"],
     ],
     dataStatus: "数据状态定义",
-    dataStatusHelp: "这些状态只说明数据是否成功读取，不代表项目安全性或投资结果。",
+    dataStatusHelp:
+      "这些状态只说明数据是否成功读取，不代表项目安全性或投资结果。",
     dataItems: [
       ["0", "完整查询成功，精确结果为零，例如确实没有符合条件的持有人。"],
       ["—", "该指标尚未产生或不适用于当前阶段。"],
@@ -98,8 +101,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
   en: {
     eyebrow: "BNBX TRUST CENTER",
     title: "Safety, fees and official contracts",
-    lead:
-      "This page publishes BNBX official domains, contracts, fees, and wallet interaction rules. A market metric of 0 means the data was read successfully and is exactly zero; “—” or “temporarily unavailable” means the value is not yet available or could not be verified. Check wallet previews and BscScan before trading.",
+    lead: "This page publishes BNBX official domains, contracts, fees, and wallet interaction rules. A market metric of 0 means the data was read successfully and is exactly zero; “—” or “temporarily unavailable” means the value is not yet available or could not be verified. Check wallet previews and BscScan before trading.",
     domain: "Only official domains",
     contracts: "Official BNB Chain Mainnet addresses",
     fees: "Fixed platform fees",
@@ -111,8 +113,10 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "Standard zero-tax Factory",
-      autoLiquidity: "Auto-liquidity Factory",
+      legacyStandard: "Legacy standard zero-tax Factory (read only)",
+      autoLiquidity: "Legacy auto-liquidity Factory (read only)",
       rewards: "Holder / LP rewards Factory",
+      legacyRewards: "Legacy holder / LP rewards Factory (read only)",
       router: "PancakeSwap V2 Router",
       burnAddress: "LP burn address",
     },
@@ -121,7 +125,6 @@ export const securityCopy: Record<Language, SecurityCopy> = {
       "The Standard template is permanently zero-tax at contract level. Advanced templates cap the combined buy side and combined sell side independently at {cap}%; the cap is shared across burn, liquidity, marketing, and rewards, not {cap}% per component.",
     templateItems: [
       ["Standard", "0% buy · 0% sell"],
-      ["Auto Liquidity", "≤ {cap}% total buy · ≤ {cap}% total sell"],
       ["Holder Rewards", "≤ {cap}% total buy · ≤ {cap}% total sell"],
       ["LP Rewards", "≤ {cap}% total buy · ≤ {cap}% total sell"],
     ],
@@ -129,9 +132,18 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     dataStatusHelp:
       "These states describe data availability only; they are not safety or investment conclusions.",
     dataItems: [
-      ["0", "The complete query succeeded and the exact result is zero, such as no eligible holders."],
-      ["—", "The metric has not been produced yet or does not apply at this stage."],
-      ["Temporarily unavailable", "RPC, indexing, or on-chain verification failed; retry instead of inferring zero."],
+      [
+        "0",
+        "The complete query succeeded and the exact result is zero, such as no eligible holders.",
+      ],
+      [
+        "—",
+        "The metric has not been produced yet or does not apply at this stage.",
+      ],
+      [
+        "Temporarily unavailable",
+        "RPC, indexing, or on-chain verification failed; retry instead of inferring zero.",
+      ],
     ],
     wallet: "Wallet interaction rules",
     walletItems: [
@@ -153,8 +165,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
   ko: {
     eyebrow: "BNBX TRUST CENTER",
     title: "보안, 수수료 및 공식 컨트랙트",
-    lead:
-      "BNBX 공식 도메인, 컨트랙트, 수수료와 지갑 상호작용 원칙을 공개합니다. 시장 지표의 0은 조회가 정상 완료되어 실제 값이 0이라는 뜻이며, “—” 또는 “일시적으로 이용 불가”는 아직 값이 없거나 검증할 수 없다는 뜻입니다. 거래 전 지갑 미리보기와 BscScan을 확인하세요.",
+    lead: "BNBX 공식 도메인, 컨트랙트, 수수료와 지갑 상호작용 원칙을 공개합니다. 시장 지표의 0은 조회가 정상 완료되어 실제 값이 0이라는 뜻이며, “—” 또는 “일시적으로 이용 불가”는 아직 값이 없거나 검증할 수 없다는 뜻입니다. 거래 전 지갑 미리보기와 BscScan을 확인하세요.",
     domain: "유일한 공식 도메인",
     contracts: "BNB Chain Mainnet 공식 주소",
     fees: "플랫폼 고정 수수료",
@@ -166,8 +177,10 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "표준 0% 세금 Factory",
-      autoLiquidity: "자동 유동성 Factory",
+      legacyStandard: "레거시 표준 0% 세금 Factory (읽기 전용)",
+      autoLiquidity: "레거시 자동 유동성 Factory (읽기 전용)",
       rewards: "홀더 / LP 보상 Factory",
+      legacyRewards: "레거시 홀더 / LP 보상 Factory (읽기 전용)",
       router: "PancakeSwap V2 Router",
       burnAddress: "LP 소각 주소",
     },
@@ -176,7 +189,6 @@ export const securityCopy: Record<Language, SecurityCopy> = {
       "표준 템플릿은 컨트랙트에서 영구 0% 세금으로 강제됩니다. 고급 템플릿은 구매 측과 판매 측 합계를 각각 최대 {cap}%로 제한하며, 소각·유동성·마케팅·보상의 합산 한도이지 항목별 {cap}%가 아닙니다.",
     templateItems: [
       ["표준", "구매 0% · 판매 0%"],
-      ["자동 유동성", "구매 합계 ≤ {cap}% · 판매 합계 ≤ {cap}%"],
       ["홀더 보상", "구매 합계 ≤ {cap}% · 판매 합계 ≤ {cap}%"],
       ["LP 보상", "구매 합계 ≤ {cap}% · 판매 합계 ≤ {cap}%"],
     ],
@@ -184,9 +196,15 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     dataStatusHelp:
       "이 상태는 데이터 조회 여부만 설명하며 프로젝트 안전성이나 투자 결과를 뜻하지 않습니다.",
     dataItems: [
-      ["0", "전체 조회가 성공했고 적격 홀더가 없는 경우처럼 정확한 결과가 0입니다."],
+      [
+        "0",
+        "전체 조회가 성공했고 적격 홀더가 없는 경우처럼 정확한 결과가 0입니다.",
+      ],
       ["—", "아직 생성되지 않았거나 현재 단계에 적용되지 않는 지표입니다."],
-      ["일시적으로 이용 불가", "RPC, 인덱싱 또는 온체인 검증에 실패했습니다. 0으로 추정하지 말고 다시 시도하세요."],
+      [
+        "일시적으로 이용 불가",
+        "RPC, 인덱싱 또는 온체인 검증에 실패했습니다. 0으로 추정하지 말고 다시 시도하세요.",
+      ],
     ],
     wallet: "지갑 상호작용 원칙",
     walletItems: [
@@ -208,8 +226,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
   ja: {
     eyebrow: "BNBX TRUST CENTER",
     title: "安全性・手数料・公式コントラクト",
-    lead:
-      "BNBXの公式ドメイン、コントラクト、手数料、ウォレット連携ルールを公開します。市場指標の0は取得に成功し実値が0であることを示し、「—」または「一時的に利用不可」は未取得または検証不能を示します。取引前にウォレットのプレビューとBscScanを確認してください。",
+    lead: "BNBXの公式ドメイン、コントラクト、手数料、ウォレット連携ルールを公開します。市場指標の0は取得に成功し実値が0であることを示し、「—」または「一時的に利用不可」は未取得または検証不能を示します。取引前にウォレットのプレビューとBscScanを確認してください。",
     domain: "唯一の公式ドメイン",
     contracts: "BNB Chain Mainnet公式アドレス",
     fees: "プラットフォーム固定手数料",
@@ -221,8 +238,10 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "標準0%税Factory",
-      autoLiquidity: "自動流動性Factory",
+      legacyStandard: "旧標準0%税Factory（読み取り専用）",
+      autoLiquidity: "旧自動流動性Factory（読み取り専用）",
       rewards: "ホルダー / LP報酬Factory",
+      legacyRewards: "旧ホルダー / LP報酬Factory（読み取り専用）",
       router: "PancakeSwap V2 Router",
       burnAddress: "LPバーンアドレス",
     },
@@ -231,7 +250,6 @@ export const securityCopy: Record<Language, SecurityCopy> = {
       "標準テンプレートはコントラクトで永久0%税に固定されます。高機能テンプレートは購入側と売却側の合計をそれぞれ最大{cap}%に制限し、バーン・流動性・マーケティング・報酬の合算上限であって各項目{cap}%ではありません。",
     templateItems: [
       ["標準", "購入 0% · 売却 0%"],
-      ["自動流動性", "購入合計 ≤ {cap}% · 売却合計 ≤ {cap}%"],
       ["ホルダー報酬", "購入合計 ≤ {cap}% · 売却合計 ≤ {cap}%"],
       ["LP報酬", "購入合計 ≤ {cap}% · 売却合計 ≤ {cap}%"],
     ],
@@ -239,9 +257,15 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     dataStatusHelp:
       "これらの状態はデータ取得状況のみを示し、プロジェクトの安全性や投資結果を示すものではありません。",
     dataItems: [
-      ["0", "完全な取得に成功し、対象ホルダーがいない場合など正確な結果が0です。"],
+      [
+        "0",
+        "完全な取得に成功し、対象ホルダーがいない場合など正確な結果が0です。",
+      ],
       ["—", "まだ生成されていない、または現在の段階に適用されない指標です。"],
-      ["一時的に利用不可", "RPC、インデックス、オンチェーン検証に失敗しました。0と推定せず再試行してください。"],
+      [
+        "一時的に利用不可",
+        "RPC、インデックス、オンチェーン検証に失敗しました。0と推定せず再試行してください。",
+      ],
     ],
     wallet: "ウォレット連携ルール",
     walletItems: [
