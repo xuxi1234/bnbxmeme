@@ -11,6 +11,7 @@ import {
   interpolate,
   localeByLanguage,
 } from "@/lib/localization-copy";
+import { tokenProjectPath } from "@/lib/project-paths";
 
 type AdminComment = {
   id: string;
@@ -347,7 +348,7 @@ export default function CommentModerationPage() {
                     >
                       <div className="moderation-comment-meta">
                         <span>{shortAddress(comment.wallet)}</span>
-                        <Link href={`/token/${comment.token}`}>
+                        <Link href={tokenProjectPath(comment.token)}>
                           {shortAddress(comment.token)} ↗
                         </Link>
                         <time dateTime={comment.createdAt}>

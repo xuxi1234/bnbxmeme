@@ -1,4 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import {
+  isCanonicalProjectAddress,
+  tokenProjectPath,
+} from "@/lib/project-paths";
 import { buildTokenStructuredData, serializeJsonLd } from "@/lib/seo";
 import { readTokenIdentity } from "@/lib/token-identity-server";
 import { validateTokenProject } from "@/lib/token-project-server";
@@ -17,6 +21,9 @@ export default async function TokenProjectPage({
 
   if (project.status === "not_found") {
     notFound();
+  }
+  if (project.token && !isCanonicalProjectAddress(address, project.token)) {
+    permanentRedirect(tokenProjectPath(project.token));
   }
   if (project.status === "unavailable") {
     return <ProjectState state="unavailable" />;

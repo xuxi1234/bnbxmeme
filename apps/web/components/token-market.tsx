@@ -18,6 +18,7 @@ import {
   type MarketFilter,
 } from "@/lib/market-ranking-core";
 import { resolveMarketNoResults } from "@/lib/market-empty-state-core";
+import { tokenProjectPath } from "@/lib/project-paths";
 import { useLanguage } from "./language-provider";
 import {
   accessibilityCopy,
@@ -90,7 +91,7 @@ function TokenCard({
   );
 
   return (
-    <Link className="token-card" href={`/token/${entry.token}`}>
+    <Link className="token-card" href={tokenProjectPath(entry.token)}>
       <div className="token-avatar">
         {metadata?.image && !imageFailed ? (
           // eslint-disable-next-line @next/next/no-img-element

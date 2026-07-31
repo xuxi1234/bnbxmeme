@@ -50,6 +50,7 @@ import {
   interpolate,
   localeByLanguage,
 } from "@/lib/localization-copy";
+import { creatorProjectPath } from "@/lib/project-paths";
 import { startVisiblePolling } from "@/lib/visible-polling";
 import { buildTokenSeoTitle } from "@/lib/seo";
 import { ProjectState } from "./project-state";
@@ -869,7 +870,7 @@ export function TokenTradingPage({
               {creatorAddress && (
                 <Link
                   className="creator-link"
-                  href={`/creator/${creatorAddress}`}
+                  href={creatorProjectPath(creatorAddress)}
                 >
                   {t("creator")} {creatorAddress.slice(0, 6)}…{creatorAddress.slice(-4)} →
                 </Link>
