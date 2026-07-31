@@ -4,6 +4,7 @@ import { getAddress, isAddress, zeroAddress } from "viem";
 import {
   classifyCreatorValidation,
   type CreatorValidationResult,
+  uniqueCreatorAddresses,
 } from "@/lib/creator-validation-core";
 import { officialFactoryAddresses } from "@/lib/deployments";
 import { buildFactorySlots, chunkItems } from "@/lib/market-data-core";
@@ -12,6 +13,7 @@ import { serverPublicClient } from "@/lib/server-chain";
 const TOKEN_READ_BATCH_SIZE = 100;
 const CREATOR_CATALOG_CACHE_MS = 60_000;
 const PARTIAL_CREATOR_CATALOG_CACHE_MS = 10_000;
+const CREATOR_DISCOVERY_TIMEOUT_MS = 10_000;
 
 const factoryCatalogAbi = [
   {
@@ -239,6 +241,26 @@ export function readOfficialCreatorCatalog() {
       });
   }
   return creatorCatalogRequest;
+}
+
+export async function readOfficialCreatorAddresses() {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const catalog = await Promise.race([
+      readOfficialCreatorCatalog(),
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => resolve(null), CREATOR_DISCOVERY_TIMEOUT_MS);
+      }),
+    ]);
+    if (!catalog) return [];
+    return uniqueCreatorAddresses(
+      catalog.records.map((record) => record.creator),
+    );
+  } catch {
+    return [];
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 export async function validateCreatorProject(

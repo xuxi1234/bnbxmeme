@@ -1,10 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyCreatorValidation } from "./creator-validation-core.ts";
+import {
+  classifyCreatorValidation,
+  uniqueCreatorAddresses,
+} from "./creator-validation-core.ts";
 
 const creator = "0x1111111111111111111111111111111111111111";
 const otherCreator = "0x2222222222222222222222222222222222222222";
 const zero = "0x0000000000000000000000000000000000000000";
+
+test("deduplicates creator addresses case-insensitively for discovery", () => {
+  const uppercaseCreator = creator.toUpperCase().replace("0X", "0x");
+
+  assert.deepEqual(
+    uniqueCreatorAddresses([creator, uppercaseCreator, otherCreator]),
+    [creator, otherCreator],
+  );
+});
 
 test("rejects malformed and zero creator addresses", () => {
   assert.deepEqual(

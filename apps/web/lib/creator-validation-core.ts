@@ -23,6 +23,10 @@ export type CreatorValidationResult =
       address: `0x${string}`;
     };
 
+export function uniqueCreatorAddresses(creators: readonly `0x${string}`[]) {
+  return [...new Set(creators.map((creator) => creator.toLowerCase()))];
+}
+
 export function classifyCreatorValidation(
   input: CreatorValidationInput,
 ): CreatorValidationResult {
