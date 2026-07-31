@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { buildTokenStructuredData, serializeJsonLd } from "@/lib/seo";
+import { readTokenIdentity } from "@/lib/token-identity-server";
 import { validateTokenProject } from "@/lib/token-project-server";
 import { ProjectState } from "./project-state";
 import { TokenTradingPage } from "./token-trading-page";
@@ -20,5 +22,25 @@ export default async function TokenProjectPage({
     return <ProjectState state="unavailable" />;
   }
 
-  return <TokenTradingPage tokenAddress={project.token} />;
+  const identity = await readTokenIdentity(project.token);
+  const structuredData = buildTokenStructuredData(
+    project.token,
+    identity?.name,
+    identity?.symbol,
+  );
+
+  return (
+    <>
+      {structuredData ? (
+        <script
+          id="token-structured-data"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(structuredData),
+          }}
+        />
+      ) : null}
+      <TokenTradingPage tokenAddress={project.token} />
+    </>
+  );
 }

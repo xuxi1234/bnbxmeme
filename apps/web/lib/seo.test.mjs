@@ -5,7 +5,9 @@ import {
   buildPageMetadata,
   buildSiteMetadata,
   buildTokenPageMetadata,
+  buildTokenStructuredData,
   seoCopy,
+  serializeJsonLd,
   SHARE_IMAGE_PATH,
   SITE_URL,
 } from "./seo.ts";
@@ -56,13 +58,46 @@ test("publishes a bounded token identity in detail-page metadata", () => {
   assert.ok(String(controlled.title).length < 100);
 });
 
+test("publishes safe token-specific FinancialProduct structured data", () => {
+  const token = "0x1111111111111111111111111111111111111111";
+  const structuredData = buildTokenStructuredData(
+    token,
+    `BNBX</script><script>alert("xss")</script>`,
+    "LIFE",
+  );
+
+  assert.equal(structuredData["@context"], "https://schema.org");
+  assert.equal(structuredData["@type"], "FinancialProduct");
+  assert.equal(structuredData.url, `${SITE_URL}/token/${token}`);
+  assert.equal(structuredData.mainEntityOfPage, structuredData.url);
+  assert.equal(structuredData.sameAs, `https://bscscan.com/token/${token}`);
+  assert.deepEqual(
+    structuredData.identifier.map(({ propertyID, value }) => ({
+      propertyID,
+      value,
+    })),
+    [
+      { propertyID: "contractAddress", value: token },
+      { propertyID: "blockchain", value: "BNB Chain" },
+    ],
+  );
+  assert.equal(structuredData.provider.name, "BNBX");
+
+  const serialized = serializeJsonLd(structuredData);
+  assert.doesNotMatch(serialized, /<\/script/i);
+  assert.match(serialized, /\\u003c\/script/);
+  assert.deepEqual(JSON.parse(serialized), structuredData);
+  assert.equal(buildTokenStructuredData(token, "", ""), null);
+});
+
 test("wires canonical, localized metadata, share image, and token alt text", async () => {
   const [
     layout,
     home,
     languageMetadata,
     tokenMarket,
-    tokenPage,
+    tokenTradingPage,
+    tokenRoute,
     tokenLayout,
     openGraphImage,
   ] = await Promise.all([
@@ -81,6 +116,10 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
       "utf8",
     ),
     readFile(
+      new URL("../app/token/[address]/page.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
       new URL("../app/token/[address]/layout.tsx", import.meta.url),
       "utf8",
     ),
@@ -94,12 +133,15 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
   assert.match(openGraphImage, /width:\s*1200/);
   assert.match(openGraphImage, /height:\s*630/);
   assert.doesNotMatch(tokenMarket, /alt=""/);
-  assert.doesNotMatch(tokenPage, /alt=""/);
+  assert.doesNotMatch(tokenTradingPage, /alt=""/);
   assert.match(tokenMarket, /a11y\.tokenLogo/);
-  assert.match(tokenPage, /a11y\.tokenLogo/);
+  assert.match(tokenTradingPage, /a11y\.tokenLogo/);
   assert.match(tokenLayout, /validateTokenProject/);
   assert.match(tokenLayout, /readTokenIdentity/);
   assert.match(tokenLayout, /buildTokenPageMetadata/);
-  assert.match(tokenPage, /buildTokenSeoTitle/);
+  assert.match(tokenTradingPage, /buildTokenSeoTitle/);
+  assert.match(tokenRoute, /application\/ld\+json/);
+  assert.match(tokenRoute, /buildTokenStructuredData/);
+  assert.match(tokenRoute, /serializeJsonLd/);
   assert.match(languageMetadata, /pathname\.startsWith\("\/token\/"\)/);
 });
