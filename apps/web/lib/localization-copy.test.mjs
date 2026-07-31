@@ -57,6 +57,27 @@ test("keeps every localized field non-empty", () => {
   ].forEach(visit);
 });
 
+test("describes the liquidity tax as reinjection instead of a separate template", () => {
+  assert.deepEqual(
+    Object.fromEntries(
+      languages.map((language) => [
+        language,
+        createCopy[language].taxLabels.liquidity,
+      ]),
+    ),
+    {
+      zh: "回流加池",
+      en: "Liquidity reinjection",
+      ko: "유동성 재투입",
+      ja: "流動性への再投入",
+    },
+  );
+  assert.doesNotMatch(createCopy.zh.taxLabels.liquidity, /自动加池|自动回流/);
+  for (const language of languages) {
+    assert.match(createCopy[language].taxHelp, /LP/i);
+  }
+});
+
 test("keeps empty, unavailable, and 404 states present in all four languages", async () => {
   const source = await readFile(
     new URL("../components/language-provider.tsx", import.meta.url),
@@ -144,16 +165,22 @@ test("interpolates localized dynamic labels", () => {
 
 test("removes Chinese-only copy from admin, deployment, and advanced-token surfaces", async () => {
   const sources = await Promise.all([
-    readFile(new URL("../app/admin/moderation/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/deploy-testnet/page.tsx", import.meta.url), "utf8"),
     readFile(
-      new URL(
-        "../app/token/[address]/token-trading-page.tsx",
-        import.meta.url,
-      ),
+      new URL("../app/admin/moderation/page.tsx", import.meta.url),
       "utf8",
     ),
-    readFile(new URL("../components/bonding-curve-chart.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/deploy-testnet/page.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/token/[address]/token-trading-page.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../components/bonding-curve-chart.tsx", import.meta.url),
+      "utf8",
+    ),
   ]);
   for (const source of sources) {
     assert.doesNotMatch(source, /[\u3400-\u9fff]/u);

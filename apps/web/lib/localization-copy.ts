@@ -158,12 +158,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       "内盘交易和毕业加池期间不收代币税；进入 PancakeSwap V2 后，才按下方公开配置启用买入税和卖出税。请确认税率、营销钱包和分红门槛后再创建。",
     taxTitle: "毕业后的代币税配置",
     taxHelp:
-      "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 10%。",
+      "代币税在内盘和创建流动性时保持关闭，只在毕业进入 Pancake V2 后启用。买入和卖出分别最多 10%；“回流加池”会自动补充 PancakeSwap V2 流动性，所得 LP 永久销毁。",
     buyTax: "买入税",
     sellTax: "卖出税",
     taxLabels: {
       burn: "销毁",
-      liquidity: "自动加池",
+      liquidity: "回流加池",
       marketing: "营销",
       rewards: "分红",
     },
@@ -242,12 +242,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       "Token tax remains off during the bonding curve and migration. The disclosed buy and sell taxes activate only after the PancakeSwap V2 launch. Confirm every tax, the marketing wallet, and any reward threshold before creating.",
     taxTitle: "Post-graduation taxes",
     taxHelp:
-      "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 10% after Pancake V2 migration.",
+      "Token taxes stay disabled during the bonding curve and graduation. Each side is capped at 10% after Pancake V2 migration; liquidity reinjection automatically adds PancakeSwap V2 liquidity and permanently burns the resulting LP.",
     buyTax: "Buy tax",
     sellTax: "Sell tax",
     taxLabels: {
       burn: "Burn",
-      liquidity: "Liquidity",
+      liquidity: "Liquidity reinjection",
       marketing: "Marketing",
       rewards: "Rewards",
     },
@@ -334,12 +334,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       "본딩 커브와 유동성 이전 중에는 토큰 세금이 없습니다. 아래 공개된 매수·매도 세금은 PancakeSwap V2 출시 후에만 적용됩니다. 생성 전에 세율, 마케팅 지갑, 보상 기준을 확인하세요.",
     taxTitle: "졸업 후 토큰 세금",
     taxHelp:
-      "본딩 커브와 졸업 중에는 토큰 세금이 비활성화됩니다. PancakeSwap V2 이전 후 매수와 매도 각각 최대 10%입니다.",
+      "본딩 커브와 졸업 중에는 토큰 세금이 비활성화됩니다. PancakeSwap V2 이전 후 매수와 매도 각각 최대 10%이며, 유동성 재투입 세금은 유동성을 자동 추가하고 생성된 LP를 영구 소각합니다.",
     buyTax: "매수 세금",
     sellTax: "매도 세금",
     taxLabels: {
       burn: "소각",
-      liquidity: "유동성",
+      liquidity: "유동성 재투입",
       marketing: "마케팅",
       rewards: "보상",
     },
@@ -423,12 +423,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       "ボンディングカーブと流動性移行中はトークン税がかかりません。下記の公開された売買税はPancakeSwap V2移行後のみ有効です。作成前に税率、マーケティングウォレット、報酬条件を確認してください。",
     taxTitle: "卒業後のトークン税",
     taxHelp:
-      "ボンディングカーブと卒業処理中はトークン税が無効です。PancakeSwap V2移行後、売買それぞれ最大10%です。",
+      "ボンディングカーブと卒業処理中はトークン税が無効です。PancakeSwap V2移行後、売買それぞれ最大10%です。流動性への再投入分は流動性を自動追加し、生成されたLPを永久バーンします。",
     buyTax: "買い税",
     sellTax: "売り税",
     taxLabels: {
       burn: "バーン",
-      liquidity: "流動性",
+      liquidity: "流動性への再投入",
       marketing: "マーケティング",
       rewards: "報酬",
     },
