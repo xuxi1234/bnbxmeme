@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  buildCreatorIdentityLabel,
+  buildCreatorPageMetadata,
+  buildCreatorSeoDescription,
   buildPageMetadata,
   buildSiteMetadata,
   buildTokenIdentityLabel,
@@ -148,11 +151,43 @@ test("publishes safe token-specific FinancialProduct structured data", () => {
   assert.equal(buildTokenStructuredData(token, "", ""), null);
 });
 
+test("publishes localized creator-specific metadata without exposing unsafe input", () => {
+  const address = "0x1111111111111111111111111111111111111111";
+  const metadata = buildCreatorPageMetadata(`/creator/${address}`, address);
+
+  assert.equal(buildCreatorIdentityLabel(address), "0x1111…1111");
+  assert.equal(metadata.title, "创建者 0x1111…1111 — BNBX");
+  assert.equal(metadata.openGraph.title, metadata.title);
+  assert.equal(metadata.twitter.title, metadata.title);
+  assert.match(metadata.description, new RegExp(address));
+  assert.equal(metadata.openGraph.description, metadata.description);
+  assert.equal(metadata.twitter.description, metadata.description);
+  assert.notEqual(metadata.description, seoCopy.zh.description);
+  assert.notEqual(
+    buildCreatorPageMetadata(
+      "/creator/0x2222222222222222222222222222222222222222",
+      "0x2222222222222222222222222222222222222222",
+    ).title,
+    metadata.title,
+  );
+
+  for (const language of ["zh", "en", "ko", "ja"]) {
+    const description = buildCreatorSeoDescription(address, language);
+    assert.match(description, new RegExp(address));
+    assert.ok([...description].length <= 160);
+    assert.notEqual(description, seoCopy[language].description);
+  }
+
+  assert.equal(buildCreatorIdentityLabel("not-an-address"), null);
+  assert.equal(buildCreatorSeoDescription("<script>alert(1)</script>"), null);
+});
+
 test("wires canonical, localized metadata, share image, and token alt text", async () => {
   const [
     layout,
     home,
     languageMetadata,
+    creatorLayout,
     tokenMarket,
     tokenTradingPage,
     tokenRoute,
@@ -166,6 +201,10 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(
       new URL("../components/language-metadata.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/creator/[address]/layout.tsx", import.meta.url),
       "utf8",
     ),
     readFile(
@@ -201,6 +240,9 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
   assert.match(layout, /buildSiteMetadata/);
   assert.match(layout, /<LanguageMetadata \/>/);
   assert.match(home, /buildPageMetadata\(\"\/\"\)/);
+  assert.match(creatorLayout, /buildCreatorPageMetadata/);
+  assert.match(languageMetadata, /buildCreatorSeoTitle/);
+  assert.match(languageMetadata, /buildCreatorSeoDescription/);
   assert.match(languageMetadata, /meta\[name="description"\]/);
   assert.match(languageMetadata, /meta\[property="og:description"\]/);
   assert.match(openGraphImage, /width:\s*1200/);
