@@ -36,6 +36,7 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
     Record<string, CommentReportReason>
   >({});
   const [error, setError] = useState("");
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   const loadComments = useCallback(
     async (signal?: AbortSignal) => {
@@ -178,13 +179,26 @@ export function ProjectDiscussion({ token }: { token: `0x${string}` }) {
   if (!isLoading && !enabled) return null;
 
   return (
-    <section className="project-discussion">
+    <section
+      className={`project-discussion${mobileExpanded ? " mobile-expanded" : ""}`}
+    >
       <div className="activity-heading">
         <div>
           <p className="eyebrow">SIGNED COMMUNITY</p>
           <h2>{t("discussion")}</h2>
         </div>
-        <span>{t("signatureNoGas")}</span>
+        <div className="discussion-heading-actions">
+          <span>{t("signatureNoGas")}</span>
+          <button
+            className="mobile-section-toggle"
+            type="button"
+            aria-expanded={mobileExpanded}
+            onClick={() => setMobileExpanded((expanded) => !expanded)}
+          >
+            <span>{mobileExpanded ? t("hideLinks") : t("moreLinks")}</span>
+            <strong aria-hidden="true">{mobileExpanded ? "−" : "+"}</strong>
+          </button>
+        </div>
       </div>
       <form onSubmit={submit}>
         <textarea

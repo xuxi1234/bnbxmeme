@@ -23,7 +23,7 @@ test("builds direction-specific PancakeSwap links on BNB Chain", () => {
   });
 });
 
-test("replaces the graduated Curve form and mobile dock with PancakeSwap", async () => {
+test("uses one inline trade surface for every lifecycle state", async () => {
   const source = await readFile(
     new URL("../app/token/[address]/token-trading-page.tsx", import.meta.url),
     "utf8",
@@ -33,4 +33,5 @@ test("replaces the graduated Curve form and mobile dock with PancakeSwap", async
   assert.match(source, /pancakeTradeLinks\.sell/);
   assert.match(source, /tradeDestination === "migrating"/);
   assert.match(source, /tradeDestination === "curve"/);
+  assert.doesNotMatch(source, /mobile-trade-dock/);
 });
