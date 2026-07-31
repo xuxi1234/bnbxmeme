@@ -29,7 +29,7 @@ export function CreatorProfilePage({
           </a>
         </div>
         <TokenMarket creator={address} />
-        <Link className="button secondary" href="/?market=hot#market">
+        <Link className="button secondary" href="/?market=hotInternal#market">
           ← {t("market")}
         </Link>
       </section>

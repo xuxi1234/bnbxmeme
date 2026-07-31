@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const MARKET_HREF = "/?market=hot#market";
+const MARKET_HREF = "/?market=hotInternal#market";
 
 test("renders a localized global 404 with an explicit market destination", async () => {
   const source = await readFile(

@@ -151,6 +151,7 @@ function responseHeaders(status: "fresh" | "partial") {
 
 type FactorySlot = {
   factory: `0x${string}`;
+  factoryOrder: number;
   index: bigint;
   creationIndex: number;
 };
@@ -166,6 +167,7 @@ type CurveRecord = TokenRecord & {
 type MarketEntry = {
   token: `0x${string}`;
   factory: `0x${string}`;
+  factoryOrder: number;
   curve: `0x${string}` | null;
   creationIndex: number;
   name: string | null;
@@ -346,6 +348,7 @@ async function readEntries(records: CurveRecord[], initialPartial: boolean) {
       entries.push({
         token: record.token,
         factory: record.factory,
+        factoryOrder: record.factoryOrder,
         curve: record.curve,
         creationIndex: record.creationIndex,
         name: name ?? null,
@@ -385,9 +388,14 @@ async function readCreatorMarket(creator: `0x${string}`) {
   const catalog = await readOfficialCreatorCatalog();
   const normalizedCreator = creator.toLowerCase();
   return readEntries(
-    catalog.records.filter(
-      (record) => record.creator.toLowerCase() === normalizedCreator,
-    ),
+    catalog.records
+      .filter((record) => record.creator.toLowerCase() === normalizedCreator)
+      .map((record) => ({
+        ...record,
+        factoryOrder: officialFactoryAddresses.findIndex(
+          (factory) => factory.toLowerCase() === record.factory.toLowerCase(),
+        ),
+      })),
     catalog.partial,
   );
 }

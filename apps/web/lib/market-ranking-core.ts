@@ -1,17 +1,29 @@
 import { formatEther } from "viem";
 
-export type MarketFilter = "hot" | "latest" | "graduating" | "graduated";
+export const marketFilters = [
+  "hotInternal",
+  "newInternal",
+  "graduating",
+  "newExternal",
+  "hotExternal",
+] as const;
+
+export type MarketFilter = (typeof marketFilters)[number];
 
 export type RankingEntry = {
   token: string;
   factory: string;
+  factoryOrder?: number;
   creationIndex: number;
   principal: string | null;
   target: string | null;
+  state?: number | null;
 };
 
 export type RankingScore = {
   hotScore?: number;
+  volume24hBnb?: number;
+  createdAt?: number;
   graduatedAt?: number;
 };
 
@@ -36,6 +48,13 @@ type MarketActivity = {
 const MINIMUM_RANKED_TRADE_WEI = 10_000_000_000_000n;
 
 function compareCreationFallback(left: RankingEntry, right: RankingEntry) {
+  if (
+    left.factoryOrder !== undefined &&
+    right.factoryOrder !== undefined &&
+    left.factoryOrder !== right.factoryOrder
+  ) {
+    return left.factoryOrder - right.factoryOrder;
+  }
   if (left.creationIndex !== right.creationIndex) {
     return right.creationIndex - left.creationIndex;
   }
@@ -45,6 +64,38 @@ function compareCreationFallback(left: RankingEntry, right: RankingEntry) {
   return (
     factoryOrder ||
     left.token.toLowerCase().localeCompare(right.token.toLowerCase())
+  );
+}
+
+export function parseMarketFilter(value: string | null): MarketFilter | null {
+  if (marketFilters.includes(value as MarketFilter)) {
+    return value as MarketFilter;
+  }
+  if (value === "hot") return "hotInternal";
+  if (value === "latest") return "newInternal";
+  if (value === "graduated") return "newExternal";
+  return null;
+}
+
+export function marketEntryMatchesFilter(
+  filter: MarketFilter,
+  entry: Pick<RankingEntry, "principal" | "target" | "state">,
+) {
+  if (entry.state === null || entry.state === undefined) return false;
+  const isExternal = entry.state === 2;
+  if (filter === "newExternal" || filter === "hotExternal") {
+    return isExternal;
+  }
+  if (isExternal) return false;
+  if (filter !== "graduating") return true;
+
+  const principal = entry.principal === null ? null : BigInt(entry.principal);
+  const target = entry.target === null ? null : BigInt(entry.target);
+  return (
+    principal !== null &&
+    target !== null &&
+    target > 0n &&
+    principal * 100n >= target * 75n
   );
 }
 
@@ -74,7 +125,13 @@ export function compareMarketEntries(
   right: RankingEntry,
 ) {
   const fallback = compareCreationFallback(left, right);
-  if (filter === "latest") return fallback;
+  if (filter === "newInternal") {
+    return compareKnownDescending(
+      scores[left.token]?.createdAt,
+      scores[right.token]?.createdAt,
+      fallback,
+    );
+  }
   if (filter === "graduating") {
     const leftProgress = progress(left);
     const rightProgress = progress(right);
@@ -84,7 +141,7 @@ export function compareMarketEntries(
         ? -1
         : 1;
   }
-  if (filter === "graduated") {
+  if (filter === "newExternal") {
     return compareKnownDescending(
       scores[left.token]?.graduatedAt,
       scores[right.token]?.graduatedAt,
@@ -92,8 +149,8 @@ export function compareMarketEntries(
     );
   }
   return compareKnownDescending(
-    scores[left.token]?.hotScore,
-    scores[right.token]?.hotScore,
+    scores[left.token]?.volume24hBnb,
+    scores[right.token]?.volume24hBnb,
     fallback,
   );
 }

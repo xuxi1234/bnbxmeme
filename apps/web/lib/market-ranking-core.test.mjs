@@ -3,37 +3,56 @@ import test from "node:test";
 import {
   calculateHotRanking,
   compareMarketEntries,
+  marketEntryMatchesFilter,
+  marketFilters,
+  parseMarketFilter,
   summarizeCompleteMarketActivity,
 } from "./market-ranking-core.ts";
 
 const factory = "0x1111111111111111111111111111111111111111";
 
+test("publishes exactly the five internal and external market categories", () => {
+  assert.deepEqual(marketFilters, [
+    "hotInternal",
+    "newInternal",
+    "graduating",
+    "newExternal",
+    "hotExternal",
+  ]);
+});
+
 function entry(token, creationIndex, overrides = {}) {
   return {
     token,
     factory,
+    factoryOrder: 0,
     creationIndex,
     principal: "0",
     target: "100",
+    state: 0,
     ...overrides,
   };
 }
 
-test("keeps scored Hot cards ahead of unavailable scores without comparator cycles", () => {
+test("orders both Hot markets by 24h volume and keeps unavailable scores last", () => {
   const high = entry("high", 1);
   const unavailable = entry("unavailable", 2);
   const low = entry("low", 3);
   const scores = {
-    high: { hotScore: 100 },
-    low: { hotScore: 1 },
+    high: { volume24hBnb: 100, hotScore: 1 },
+    low: { volume24hBnb: 1, hotScore: 100 },
   };
 
-  assert.deepEqual(
-    [high, unavailable, low]
-      .sort((left, right) => compareMarketEntries("hot", scores, left, right))
-      .map(({ token }) => token),
-    ["high", "low", "unavailable"],
-  );
+  for (const filter of ["hotInternal", "hotExternal"]) {
+    assert.deepEqual(
+      [high, unavailable, low]
+        .sort((left, right) =>
+          compareMarketEntries(filter, scores, left, right),
+        )
+        .map(({ token }) => token),
+      ["high", "low", "unavailable"],
+    );
+  }
 });
 
 test("keeps known graduation timestamps ahead of unknown history", () => {
@@ -48,11 +67,88 @@ test("keeps known graduation timestamps ahead of unknown history", () => {
   assert.deepEqual(
     [older, unknown, newer]
       .sort((left, right) =>
-        compareMarketEntries("graduated", scores, left, right),
+        compareMarketEntries("newExternal", scores, left, right),
       )
       .map(({ token }) => token),
     ["newer", "older", "unknown"],
   );
+});
+
+test("orders new internal cards by deployment time with an onchain-order fallback", () => {
+  const newestFactory = entry("newest-factory", 0, { factoryOrder: 0 });
+  const olderFactory = entry("older-factory", 99, { factoryOrder: 1 });
+  const latestSameFactory = entry("latest-same-factory", 2, {
+    factoryOrder: 0,
+  });
+
+  const scores = {
+    "newest-factory": { createdAt: 300 },
+    "older-factory": { createdAt: 200 },
+    "latest-same-factory": { createdAt: 100 },
+  };
+
+  assert.deepEqual(
+    [olderFactory, newestFactory, latestSameFactory]
+      .sort((left, right) =>
+        compareMarketEntries("newInternal", scores, left, right),
+      )
+      .map(({ token }) => token),
+    ["newest-factory", "older-factory", "latest-same-factory"],
+  );
+  assert.deepEqual(
+    [olderFactory, newestFactory, latestSameFactory]
+      .sort((left, right) =>
+        compareMarketEntries("newInternal", {}, left, right),
+      )
+      .map(({ token }) => token),
+    ["latest-same-factory", "newest-factory", "older-factory"],
+  );
+});
+
+test("keeps internal and external lifecycle categories strictly separated", () => {
+  const internal = entry("internal", 1, { state: 0, principal: "90" });
+  const migrating = entry("migrating", 2, { state: 1, principal: "80" });
+  const external = entry("external", 3, { state: 2, principal: "100" });
+  const unknown = entry("unknown", 4, { state: null });
+
+  for (const filter of ["hotInternal", "newInternal"]) {
+    assert.equal(marketEntryMatchesFilter(filter, internal), true);
+    assert.equal(marketEntryMatchesFilter(filter, migrating), true);
+    assert.equal(marketEntryMatchesFilter(filter, external), false);
+    assert.equal(marketEntryMatchesFilter(filter, unknown), false);
+  }
+  assert.equal(marketEntryMatchesFilter("graduating", internal), true);
+  assert.equal(marketEntryMatchesFilter("graduating", external), false);
+  for (const filter of ["newExternal", "hotExternal"]) {
+    assert.equal(marketEntryMatchesFilter(filter, internal), false);
+    assert.equal(marketEntryMatchesFilter(filter, external), true);
+    assert.equal(marketEntryMatchesFilter(filter, unknown), false);
+  }
+});
+
+test("keeps near-graduation limited to internal projects at least 75% full", () => {
+  assert.equal(
+    marketEntryMatchesFilter(
+      "graduating",
+      entry("eligible", 1, { principal: "75", target: "100" }),
+    ),
+    true,
+  );
+  assert.equal(
+    marketEntryMatchesFilter(
+      "graduating",
+      entry("too-early", 1, { principal: "74", target: "100" }),
+    ),
+    false,
+  );
+});
+
+test("maps legacy market links to the five current categories", () => {
+  assert.equal(parseMarketFilter("hot"), "hotInternal");
+  assert.equal(parseMarketFilter("latest"), "newInternal");
+  assert.equal(parseMarketFilter("graduated"), "newExternal");
+  assert.equal(parseMarketFilter("hotExternal"), "hotExternal");
+  assert.equal(parseMarketFilter("unknown"), null);
 });
 
 test("orders graduating cards by progress and then creation index", () => {

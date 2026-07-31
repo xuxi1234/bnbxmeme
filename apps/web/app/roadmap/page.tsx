@@ -69,7 +69,7 @@ export default function NetworkRoadmapPage() {
         <p className="trust-warning">{copy.noTimeline}</p>
       </section>
 
-      <Link className="button secondary" href="/?market=hot#market">
+      <Link className="button secondary" href="/?market=hotInternal#market">
         ← {copy.backMarket}
       </Link>
     </main>
