@@ -56,7 +56,7 @@ function normalizeTokenIdentity(
   return [...normalized].slice(0, limit).join("");
 }
 
-export function buildTokenSeoTitle(
+function buildTokenIdentityLabel(
   name: string | null | undefined,
   symbol: string | null | undefined,
 ) {
@@ -72,7 +72,59 @@ export function buildTokenSeoTitle(
       ? `${safeName} (${safeSymbol})`
       : (safeName ?? safeSymbol);
 
-  return `${identity} — BNBX`;
+  return identity;
+}
+
+export function buildTokenSeoTitle(
+  name: string | null | undefined,
+  symbol: string | null | undefined,
+) {
+  const identity = buildTokenIdentityLabel(name, symbol);
+  return identity ? `${identity} — BNBX` : null;
+}
+
+export function buildTokenStructuredData(
+  token: `0x${string}`,
+  name: string | null | undefined,
+  symbol: string | null | undefined,
+) {
+  const identity = buildTokenIdentityLabel(name, symbol);
+  if (!identity) return null;
+
+  const contractAddress = token.toLowerCase();
+  const url = `${SITE_URL}/token/${contractAddress}`;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "FinancialProduct",
+    name: identity,
+    description: `${identity} 的 BNB Chain 代币项目页面与链上合约信息。`,
+    url,
+    mainEntityOfPage: url,
+    sameAs: `https://bscscan.com/token/${contractAddress}`,
+    category: "Cryptocurrency",
+    identifier: [
+      {
+        "@type": "PropertyValue",
+        propertyID: "contractAddress",
+        value: contractAddress,
+      },
+      {
+        "@type": "PropertyValue",
+        propertyID: "blockchain",
+        value: "BNB Chain",
+      },
+    ],
+    provider: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+  };
+}
+
+export function serializeJsonLd(value: unknown) {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
 function socialMetadata(language: Language, path?: string): Metadata {
