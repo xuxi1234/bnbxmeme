@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildPageMetadata,
   buildSiteMetadata,
+  buildTokenPageMetadata,
   seoCopy,
   SHARE_IMAGE_PATH,
   SITE_URL,
@@ -33,6 +34,28 @@ test("keeps SEO title and description localized in all four languages", () => {
   assert.doesNotMatch(seoCopy.ko.description, /模块化|代币|联合曲线/);
 });
 
+test("publishes a bounded token identity in detail-page metadata", () => {
+  const metadata = buildTokenPageMetadata(
+    "/token/0x1111111111111111111111111111111111111111",
+    "BNBX 人生",
+    "LIFE",
+  );
+  assert.equal(metadata.title, "BNBX 人生 (LIFE) — BNBX");
+  assert.equal(metadata.openGraph.title, metadata.title);
+  assert.equal(metadata.twitter.title, metadata.title);
+
+  const duplicate = buildTokenPageMetadata("/token/example", "BNBX", "bnbx");
+  assert.equal(duplicate.title, "BNBX — BNBX");
+
+  const controlled = buildTokenPageMetadata(
+    "/token/example",
+    `A\u200bB\u202eC`,
+    "ABC",
+  );
+  assert.equal(controlled.title, "A B C (ABC) — BNBX");
+  assert.ok(String(controlled.title).length < 100);
+});
+
 test("wires canonical, localized metadata, share image, and token alt text", async () => {
   const [
     layout,
@@ -40,6 +63,7 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
     languageMetadata,
     tokenMarket,
     tokenPage,
+    tokenLayout,
     openGraphImage,
   ] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
@@ -53,10 +77,11 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
       "utf8",
     ),
     readFile(
-      new URL(
-        "../app/token/[address]/token-trading-page.tsx",
-        import.meta.url,
-      ),
+      new URL("../app/token/[address]/token-trading-page.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/token/[address]/layout.tsx", import.meta.url),
       "utf8",
     ),
     readFile(new URL("../app/opengraph-image.tsx", import.meta.url), "utf8"),
@@ -72,4 +97,9 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
   assert.doesNotMatch(tokenPage, /alt=""/);
   assert.match(tokenMarket, /a11y\.tokenLogo/);
   assert.match(tokenPage, /a11y\.tokenLogo/);
+  assert.match(tokenLayout, /validateTokenProject/);
+  assert.match(tokenLayout, /readTokenIdentity/);
+  assert.match(tokenLayout, /buildTokenPageMetadata/);
+  assert.match(tokenPage, /buildTokenSeoTitle/);
+  assert.match(languageMetadata, /pathname\.startsWith\("\/token\/"\)/);
 });

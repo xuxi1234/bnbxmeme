@@ -17,12 +17,15 @@ export function LanguageMetadata() {
 
   useEffect(() => {
     const copy = seoCopy[language];
-    document.title = copy.title;
+    const tokenPage = pathname.startsWith("/token/");
+    if (!tokenPage) {
+      document.title = copy.title;
+      updateMeta('meta[property="og:title"]', copy.title);
+      updateMeta('meta[name="twitter:title"]', copy.title);
+    }
     updateMeta('meta[name="description"]', copy.description);
-    updateMeta('meta[property="og:title"]', copy.title);
     updateMeta('meta[property="og:description"]', copy.description);
     updateMeta('meta[property="og:locale"]', copy.locale);
-    updateMeta('meta[name="twitter:title"]', copy.title);
     updateMeta('meta[name="twitter:description"]', copy.description);
   }, [language, pathname]);
 

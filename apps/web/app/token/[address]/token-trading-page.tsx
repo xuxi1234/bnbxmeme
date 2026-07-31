@@ -51,6 +51,7 @@ import {
   localeByLanguage,
 } from "@/lib/localization-copy";
 import { startVisiblePolling } from "@/lib/visible-polling";
+import { buildTokenSeoTitle } from "@/lib/seo";
 import { ProjectState } from "./project-state";
 
 const SLIPPAGE_BPS = 100n;
@@ -654,6 +655,18 @@ export function TokenTradingPage({
     }
     executeSell();
   }
+
+  useEffect(() => {
+    const title = buildTokenSeoTitle(tokenName, tokenSymbol);
+    if (!title) return;
+    document.title = title;
+    document.head
+      .querySelector<HTMLMetaElement>('meta[property="og:title"]')
+      ?.setAttribute("content", title);
+    document.head
+      .querySelector<HTMLMetaElement>('meta[name="twitter:title"]')
+      ?.setAttribute("content", title);
+  }, [tokenName, tokenSymbol]);
 
   useEffect(() => {
     if (
