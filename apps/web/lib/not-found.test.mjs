@@ -35,8 +35,8 @@ test("routes invalid token projects back to the market section", async () => {
   assert.doesNotMatch(source, /<Link href="\/">/);
 });
 
-test("returns the global 404 for an invalid creator address", async () => {
-  const [page, profile] = await Promise.all([
+test("returns the global 404 when a creator has no official projects", async () => {
+  const [page, profile, validator] = await Promise.all([
     readFile(
       new URL("../app/creator/[address]/page.tsx", import.meta.url),
       "utf8",
@@ -48,14 +48,22 @@ test("returns the global 404 for an invalid creator address", async () => {
       ),
       "utf8",
     ),
+    readFile(new URL("./creator-project-server.ts", import.meta.url), "utf8"),
   ]);
 
   assert.doesNotMatch(page, /"use client"/);
   assert.match(page, /params:\s*Promise<\{ address: string \}>/);
   assert.match(page, /const \{ address \} = await params/);
-  assert.match(page, /if \(!isAddress\(address\)\)/);
+  assert.match(page, /validateCreatorProject\(address\)/);
+  assert.match(page, /creator\.status === "not_found"/);
   assert.match(page, /notFound\(\)/);
-  assert.match(page, /<CreatorProfilePage address=\{address\} \/>/);
+  assert.match(page, /<CreatorProfilePage address=\{creator\.address\} \/>/);
   assert.match(profile, /"use client"/);
   assert.match(profile, /<TokenMarket creator=\{address\} \/>/);
+  assert.match(validator, /officialFactoryAddresses/);
+  assert.match(validator, /functionName:\s*"tokenCount"/);
+  assert.match(validator, /functionName:\s*"allTokens"/);
+  assert.match(validator, /functionName:\s*"curveOf"/);
+  assert.match(validator, /functionName:\s*"creator"/);
+  assert.match(validator, /catalog\.partial\s*\?\s*"partial"\s*:\s*"complete"/);
 });

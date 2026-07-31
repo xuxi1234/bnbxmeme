@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { isAddress } from "viem";
+import { validateCreatorProject } from "@/lib/creator-project-server";
 import { CreatorProfilePage } from "./creator-profile-page";
 
 export default async function CreatorPage({
@@ -8,9 +8,11 @@ export default async function CreatorPage({
   params: Promise<{ address: string }>;
 }>) {
   const { address } = await params;
-  if (!isAddress(address)) {
+  const creator = await validateCreatorProject(address);
+
+  if (creator.status === "not_found") {
     notFound();
   }
 
-  return <CreatorProfilePage address={address} />;
+  return <CreatorProfilePage address={creator.address} />;
 }
