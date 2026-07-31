@@ -6,6 +6,7 @@ export const SITE_NAME = "BNBX";
 export const SHARE_IMAGE_PATH = "/opengraph-image";
 const MAX_TOKEN_NAME_LENGTH = 48;
 const MAX_TOKEN_SYMBOL_LENGTH = 20;
+const MAX_META_DESCRIPTION_LENGTH = 160;
 
 type SeoCopy = {
   title: string;
@@ -41,6 +42,17 @@ export const seoCopy: Record<Language, SeoCopy> = {
 };
 
 const alternateLocales = Object.values(seoCopy).map(({ locale }) => locale);
+
+const tokenDescriptionCopy: Record<Language, (identity: string) => string> = {
+  zh: (identity) =>
+    `在 BNBX 查看 ${identity} 的 BNB Chain 合约信息、链上交易、持仓分布与 PancakeSwap V2 状态。`,
+  en: (identity) =>
+    `View ${identity} on BNBX: BNB Chain contract details, on-chain trades, holders, and PancakeSwap V2 status.`,
+  ko: (identity) =>
+    `BNBX에서 ${identity}의 BNB Chain 컨트랙트 정보, 온체인 거래, 보유자 분포 및 PancakeSwap V2 상태를 확인하세요.`,
+  ja: (identity) =>
+    `BNBXで${identity}のBNB Chainコントラクト情報、オンチェーン取引、保有者分布、PancakeSwap V2の状態を確認できます。`,
+};
 
 function normalizeTokenIdentity(
   value: string | null | undefined,
@@ -81,6 +93,21 @@ export function buildTokenSeoTitle(
 ) {
   const identity = buildTokenIdentityLabel(name, symbol);
   return identity ? `${identity} — BNBX` : null;
+}
+
+export function buildTokenSeoDescription(
+  name: string | null | undefined,
+  symbol: string | null | undefined,
+  language: Language = "zh",
+) {
+  const identity = buildTokenIdentityLabel(name, symbol);
+  if (!identity) return null;
+
+  const description = tokenDescriptionCopy[language](identity);
+  const characters = [...description];
+  return characters.length > MAX_META_DESCRIPTION_LENGTH
+    ? `${characters.slice(0, MAX_META_DESCRIPTION_LENGTH - 1).join("")}…`
+    : description;
 }
 
 export function buildTokenStructuredData(
@@ -188,18 +215,22 @@ export function buildTokenPageMetadata(
 ): Metadata {
   const metadata = buildPageMetadata(path, language);
   const title = buildTokenSeoTitle(name, symbol);
-  if (!title) return metadata;
+  const description = buildTokenSeoDescription(name, symbol, language);
+  if (!title || !description) return metadata;
 
   return {
     ...metadata,
     title,
+    description,
     openGraph: {
       ...metadata.openGraph,
       title,
+      description,
     },
     twitter: {
       ...metadata.twitter,
       title,
+      description,
     },
   };
 }

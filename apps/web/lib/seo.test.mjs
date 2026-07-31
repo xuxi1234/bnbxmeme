@@ -6,6 +6,7 @@ import {
   buildSiteMetadata,
   buildTokenIdentityLabel,
   buildTokenPageMetadata,
+  buildTokenSeoDescription,
   buildTokenStructuredData,
   seoCopy,
   serializeJsonLd,
@@ -46,6 +47,10 @@ test("publishes a bounded token identity in detail-page metadata", () => {
   assert.equal(metadata.title, "BNBX 人生 (LIFE) — BNBX");
   assert.equal(metadata.openGraph.title, metadata.title);
   assert.equal(metadata.twitter.title, metadata.title);
+  assert.match(metadata.description, /BNBX 人生 \(LIFE\)/);
+  assert.equal(metadata.openGraph.description, metadata.description);
+  assert.equal(metadata.twitter.description, metadata.description);
+  assert.notEqual(metadata.description, seoCopy.zh.description);
 
   const duplicate = buildTokenPageMetadata("/token/example", "BNBX", "bnbx");
   assert.equal(duplicate.title, "BNBX — BNBX");
@@ -57,6 +62,24 @@ test("publishes a bounded token identity in detail-page metadata", () => {
   );
   assert.equal(controlled.title, "A B C (ABC) — BNBX");
   assert.ok(String(controlled.title).length < 100);
+});
+
+test("publishes bounded token-specific descriptions in all four languages", () => {
+  for (const language of ["zh", "en", "ko", "ja"]) {
+    const description = buildTokenSeoDescription("BNBX 人生", "LIFE", language);
+    assert.match(description, /BNBX 人生 \(LIFE\)/);
+    assert.ok([...description].length <= 160);
+    assert.notEqual(description, seoCopy[language].description);
+  }
+
+  const bounded = buildTokenSeoDescription(
+    "A".repeat(80),
+    "B".repeat(40),
+    "en",
+  );
+  assert.equal([...bounded].length, 160);
+  assert.match(bounded, /…$/);
+  assert.equal(buildTokenSeoDescription("", ""), null);
 });
 
 test("reuses the bounded token identity for safe share images", () => {
@@ -177,6 +200,7 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
   assert.match(tokenRoute, /buildTokenStructuredData/);
   assert.match(tokenRoute, /serializeJsonLd/);
   assert.match(languageMetadata, /pathname\.startsWith\("\/token\/"\)/);
+  assert.match(languageMetadata, /if \(tokenPage\) return;/);
   assert.match(tokenOpenGraphImage, /renderTokenShareImage/);
   assert.match(tokenTwitterImage, /renderTokenShareImage/);
   assert.match(tokenShareImage, /validateTokenProject/);

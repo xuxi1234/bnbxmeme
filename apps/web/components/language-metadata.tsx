@@ -18,11 +18,11 @@ export function LanguageMetadata() {
   useEffect(() => {
     const copy = seoCopy[language];
     const tokenPage = pathname.startsWith("/token/");
-    if (!tokenPage) {
-      document.title = copy.title;
-      updateMeta('meta[property="og:title"]', copy.title);
-      updateMeta('meta[name="twitter:title"]', copy.title);
-    }
+    if (tokenPage) return;
+
+    document.title = copy.title;
+    updateMeta('meta[property="og:title"]', copy.title);
+    updateMeta('meta[name="twitter:title"]', copy.title);
     updateMeta('meta[name="description"]', copy.description);
     updateMeta('meta[property="og:description"]', copy.description);
     updateMeta('meta[property="og:locale"]', copy.locale);
