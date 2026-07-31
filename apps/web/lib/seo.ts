@@ -4,6 +4,8 @@ import type { Language } from "@/components/language-provider";
 export const SITE_URL = "https://www.bnbx.meme";
 export const SITE_NAME = "BNBX";
 export const SHARE_IMAGE_PATH = "/opengraph-image";
+const MAX_TOKEN_NAME_LENGTH = 48;
+const MAX_TOKEN_SYMBOL_LENGTH = 20;
 
 type SeoCopy = {
   title: string;
@@ -39,6 +41,39 @@ export const seoCopy: Record<Language, SeoCopy> = {
 };
 
 const alternateLocales = Object.values(seoCopy).map(({ locale }) => locale);
+
+function normalizeTokenIdentity(
+  value: string | null | undefined,
+  limit: number,
+) {
+  if (!value) return null;
+  const normalized = value
+    .normalize("NFKC")
+    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return null;
+  return [...normalized].slice(0, limit).join("");
+}
+
+export function buildTokenSeoTitle(
+  name: string | null | undefined,
+  symbol: string | null | undefined,
+) {
+  const safeName = normalizeTokenIdentity(name, MAX_TOKEN_NAME_LENGTH);
+  const safeSymbol = normalizeTokenIdentity(symbol, MAX_TOKEN_SYMBOL_LENGTH);
+  if (!safeName && !safeSymbol) return null;
+
+  const identity =
+    safeName &&
+    safeSymbol &&
+    safeName.toLocaleLowerCase("en-US") !==
+      safeSymbol.toLocaleLowerCase("en-US")
+      ? `${safeName} (${safeSymbol})`
+      : (safeName ?? safeSymbol);
+
+  return `${identity} — BNBX`;
+}
 
 function socialMetadata(language: Language, path?: string): Metadata {
   const copy = seoCopy[language];
@@ -89,6 +124,30 @@ export function buildPageMetadata(
     ...socialMetadata(language, path),
     alternates: {
       canonical: path,
+    },
+  };
+}
+
+export function buildTokenPageMetadata(
+  path: string,
+  name: string | null | undefined,
+  symbol: string | null | undefined,
+  language: Language = "zh",
+): Metadata {
+  const metadata = buildPageMetadata(path, language);
+  const title = buildTokenSeoTitle(name, symbol);
+  if (!title) return metadata;
+
+  return {
+    ...metadata,
+    title,
+    openGraph: {
+      ...metadata.openGraph,
+      title,
+    },
+    twitter: {
+      ...metadata.twitter,
+      title,
     },
   };
 }

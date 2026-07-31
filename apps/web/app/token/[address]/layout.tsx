@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { isAddress } from "viem";
-import { buildPageMetadata } from "@/lib/seo";
+import { buildPageMetadata, buildTokenPageMetadata } from "@/lib/seo";
+import { readTokenIdentity } from "@/lib/token-identity-server";
+import { validateTokenProject } from "@/lib/token-project-server";
 
 export async function generateMetadata({
   params,
@@ -11,7 +13,20 @@ export async function generateMetadata({
   if (!isAddress(address)) {
     return { robots: { index: false, follow: false } };
   }
-  return buildPageMetadata(`/token/${address.toLowerCase()}`);
+  const path = `/token/${address.toLowerCase()}`;
+  const project = await validateTokenProject(address);
+  if (project.status === "not_found") {
+    return {
+      ...buildPageMetadata(path),
+      robots: { index: false, follow: false },
+    };
+  }
+  if (project.status === "unavailable") {
+    return buildPageMetadata(path);
+  }
+
+  const identity = await readTokenIdentity(project.token);
+  return buildTokenPageMetadata(path, identity?.name, identity?.symbol);
 }
 
 export default function TokenProjectLayout({
