@@ -93,6 +93,13 @@ test("uses immutable mainnet Factory origins before any environment fallback", (
     ),
     113_231_587n,
   );
+  assert.equal(
+    resolveFactoryDeploymentBlock(
+      "0xc5f6d2b221dfd950f919b82c77d82fc427f31b3d",
+      "999",
+    ),
+    113_235_314n,
+  );
 });
 
 test("uses an explicit deployment block only for an unknown/test Factory", () => {

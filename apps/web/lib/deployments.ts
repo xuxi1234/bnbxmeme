@@ -13,16 +13,20 @@ export const legacyRewardsFactoryAddress =
 export const v3RewardsFactoryAddress =
   "0xef95ead95292408090e61112580f62e4d556c550" as const;
 
+// V3 Standard 0-tax Factory deployed by the authorized platform wallet. Its
+// constructor values are immutable chain facts, so this fallback also protects
+// production from an empty or stale V1 environment variable.
+const deployedV3StandardFactoryAddress =
+  "0xc5f6d2b221dfd950f919b82c77d82fc427f31b3d" as const;
+
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
 
-// The legacy standard Factory remains readable, but new V3 creation is locked
-// until production is explicitly configured with a distinct V3 address.
 export const v3StandardFactoryAddress =
   configuredStandardFactoryAddress?.toLowerCase() ===
   legacyStandardFactoryAddress.toLowerCase()
-    ? undefined
-    : configuredStandardFactoryAddress;
+    ? deployedV3StandardFactoryAddress
+    : (configuredStandardFactoryAddress ?? deployedV3StandardFactoryAddress);
 
 export const standardFactoryAddress =
   v3StandardFactoryAddress ?? legacyStandardFactoryAddress;
