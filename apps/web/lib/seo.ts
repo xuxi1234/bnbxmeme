@@ -15,6 +15,11 @@ type SeoCopy = {
   locale: string;
 };
 
+type CreatorSeoCopy = {
+  title: (identity: string) => string;
+  description: (address: string) => string;
+};
+
 export const seoCopy: Record<Language, SeoCopy> = {
   zh: {
     title: "BNBX — BNB Chain Meme 代币发射平台",
@@ -39,6 +44,29 @@ export const seoCopy: Record<Language, SeoCopy> = {
     description:
       "BNB Chainで固定供給のMemeトークンを作成・取引。テンプレート税、ボンディングカーブ、PancakeSwap V2移行、LPバーン証明を公開します。",
     locale: "ja_JP",
+  },
+};
+
+const creatorSeoCopy: Record<Language, CreatorSeoCopy> = {
+  zh: {
+    title: (identity) => `创建者 ${identity} — BNBX`,
+    description: (address) =>
+      `查看 BNB Chain 地址 ${address} 在 BNBX 创建的代币项目及其链上状态。`,
+  },
+  en: {
+    title: (identity) => `Creator ${identity} — BNBX`,
+    description: (address) =>
+      `View token projects created by BNB Chain address ${address} on BNBX and their on-chain status.`,
+  },
+  ko: {
+    title: (identity) => `크리에이터 ${identity} — BNBX`,
+    description: (address) =>
+      `BNBX에서 BNB Chain 주소 ${address}가 생성한 토큰 프로젝트와 온체인 상태를 확인하세요.`,
+  },
+  ja: {
+    title: (identity) => `作成者 ${identity} — BNBX`,
+    description: (address) =>
+      `BNBXでBNB Chainアドレス${address}が作成したトークンプロジェクトとオンチェーン状態を確認できます。`,
   },
 };
 
@@ -119,6 +147,34 @@ export function buildTokenSeoDescription(
   return characters.length > MAX_META_DESCRIPTION_LENGTH
     ? `${characters.slice(0, MAX_META_DESCRIPTION_LENGTH - 1).join("")}…`
     : description;
+}
+
+function normalizeCreatorAddress(address: string) {
+  const normalized = address.trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(normalized) ? normalized : null;
+}
+
+export function buildCreatorIdentityLabel(address: string) {
+  const normalized = normalizeCreatorAddress(address);
+  return normalized
+    ? `${normalized.slice(0, 6)}…${normalized.slice(-4)}`
+    : null;
+}
+
+export function buildCreatorSeoTitle(
+  address: string,
+  language: Language = "zh",
+) {
+  const identity = buildCreatorIdentityLabel(address);
+  return identity ? creatorSeoCopy[language].title(identity) : null;
+}
+
+export function buildCreatorSeoDescription(
+  address: string,
+  language: Language = "zh",
+) {
+  const normalized = normalizeCreatorAddress(address);
+  return normalized ? creatorSeoCopy[language].description(normalized) : null;
 }
 
 export function buildTokenStructuredData(
@@ -219,6 +275,33 @@ export function buildPageMetadata(
     ...socialMetadata(language, path),
     alternates: {
       canonical: path,
+    },
+  };
+}
+
+export function buildCreatorPageMetadata(
+  path: string,
+  address: string,
+  language: Language = "zh",
+): Metadata {
+  const metadata = buildPageMetadata(path, language);
+  const title = buildCreatorSeoTitle(address, language);
+  const description = buildCreatorSeoDescription(address, language);
+  if (!title || !description) return metadata;
+
+  return {
+    ...metadata,
+    title,
+    description,
+    openGraph: {
+      ...metadata.openGraph,
+      title,
+      description,
+    },
+    twitter: {
+      ...metadata.twitter,
+      title,
+      description,
     },
   };
 }

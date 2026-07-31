@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { isAddress } from "viem";
-import { buildPageMetadata } from "@/lib/seo";
+import { buildCreatorPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
   params,
@@ -11,7 +11,11 @@ export async function generateMetadata({
   if (!isAddress(address)) {
     return { robots: { index: false, follow: false } };
   }
-  return buildPageMetadata(`/creator/${address.toLowerCase()}`);
+  const normalizedAddress = address.toLowerCase();
+  return buildCreatorPageMetadata(
+    `/creator/${normalizedAddress}`,
+    normalizedAddress,
+  );
 }
 
 export default function CreatorLayout({
