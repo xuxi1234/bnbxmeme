@@ -5,6 +5,7 @@ import { encodeFunctionData, parseEther } from "viem";
 import { advancedFactoryAbi } from "./advanced-factory-abi.ts";
 import {
   ADVANCED_CREATE_GAS_LIMIT,
+  advancedCreateGasLimit,
   advancedTemplateValue,
   emptyTaxSide,
   normalizeTaxesForTemplate,
@@ -98,6 +99,9 @@ test("keeps template taxes deployable when switching templates", () => {
 
 test("reserves enough gas for advanced create-and-buy", () => {
   assert.ok(ADVANCED_CREATE_GAS_LIMIT > 8_002_720n);
+  assert.equal(advancedCreateGasLimit(7_980_245n), 8_977_776n);
+  assert.ok(advancedCreateGasLimit(7_980_245n) < ADVANCED_CREATE_GAS_LIMIT);
+  assert.throws(() => advancedCreateGasLimit(11_000_000n), /safety limit/);
 });
 
 test("wires the canonical ABI and advanced gas policy into creation", async () => {
@@ -106,7 +110,9 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
     readFile(new URL("./web3.ts", import.meta.url), "utf8"),
   ]);
   assert.match(page, /advancedTemplateValue\(template\)/);
-  assert.match(page, /gas: ADVANCED_CREATE_GAS_LIMIT/);
+  assert.match(page, /estimateContractGas/);
+  assert.match(page, /advancedCreateGasLimit/);
+  assert.match(page, /writeContractAsync/);
   assert.match(page, /normalizeTaxesForTemplate/);
   assert.match(web3, /advancedFactoryAbi/);
   assert.match(web3, /autoLiquidityFactoryAbi = advancedFactoryAbi/);

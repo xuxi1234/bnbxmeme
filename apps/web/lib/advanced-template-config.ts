@@ -6,6 +6,22 @@ export const STANDARD_CREATE_GAS_LIMIT = 8_000_000n;
 export const ADVANCED_CREATE_GAS_LIMIT = 12_000_000n;
 export const DEFAULT_REWARDS_TAX_PERCENT = 1;
 
+function ceilDiv(value: bigint, divisor: bigint) {
+  if (value === 0n) return 0n;
+  return (value - 1n) / divisor + 1n;
+}
+
+export function advancedCreateGasLimit(estimatedGas: bigint) {
+  if (estimatedGas <= 0n) {
+    throw new Error("Advanced template gas estimate must be positive");
+  }
+  const withMargin = estimatedGas + ceilDiv(estimatedGas, 8n);
+  if (withMargin > ADVANCED_CREATE_GAS_LIMIT) {
+    throw new Error("Advanced template gas estimate exceeds the safety limit");
+  }
+  return withMargin;
+}
+
 export const emptyTaxSide = (): TaxSide => ({
   burn: 0,
   liquidity: 0,

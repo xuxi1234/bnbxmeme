@@ -31,8 +31,8 @@ import {
 import { resolveCreateSubmitBlocker } from "@/lib/create-validation-core";
 import { tokenProjectPath } from "@/lib/project-paths";
 import {
-  ADVANCED_CREATE_GAS_LIMIT,
   STANDARD_CREATE_GAS_LIMIT,
+  advancedCreateGasLimit,
   advancedTemplateValue,
   emptyTaxSide,
   normalizeTaxesForTemplate,
@@ -97,10 +97,7 @@ function quoteFreshCurveBuy(targetStep: number, offeredGross: bigint) {
   const netBNB = acceptedGross - feeOn(acceptedGross);
   const virtualBNBReserve = graduationTarget / 3n;
   const invariant = virtualBNBReserve * INITIAL_VIRTUAL_TOKEN_RESERVE;
-  const newVirtualToken = ceilDiv(
-    invariant,
-    virtualBNBReserve + netBNB,
-  );
+  const newVirtualToken = ceilDiv(invariant, virtualBNBReserve + netBNB);
   const tokensOut =
     netBNB === graduationTarget
       ? CURVE_TOKEN_SUPPLY
@@ -115,27 +112,46 @@ function formatPreviewTokens(value: bigint) {
   }).format(Number(formatEther(value)));
 }
 
-function readableWalletError(error: unknown, language: "zh" | "en" | "ko" | "ja") {
+function readableWalletError(
+  error: unknown,
+  language: "zh" | "en" | "ko" | "ja",
+) {
   const localized = {
     zh: {
-      fallback: "钱包交易发送失败", gas: "钱包生成的 Gas 限额为 0。请刷新后重新提交。",
-      rejected: "你已在钱包中取消操作，没有发送交易。", timeout: "RPC 节点响应超时。请先检查链上记录，不要连续重复点击。",
+      fallback: "钱包交易发送失败",
+      gas: "钱包生成的 Gas 限额为 0。请刷新后重新提交。",
+      rejected: "你已在钱包中取消操作，没有发送交易。",
+      timeout: "RPC 节点响应超时。请先检查链上记录，不要连续重复点击。",
       reverted: "合约模拟或链上执行回滚。请保存参数和交易哈希以便诊断。",
     },
     en: {
-      fallback: "Wallet transaction failed", gas: "The wallet generated an invalid gas limit. Refresh and submit again.",
-      rejected: "You cancelled this action in your wallet. No transaction was sent.", timeout: "The RPC timed out. Check for an existing on-chain transaction before retrying.",
-      reverted: "Contract simulation or execution reverted. Save the parameters and transaction hash for diagnosis.",
+      fallback: "Wallet transaction failed",
+      gas: "The wallet generated an invalid gas limit. Refresh and submit again.",
+      rejected:
+        "You cancelled this action in your wallet. No transaction was sent.",
+      timeout:
+        "The RPC timed out. Check for an existing on-chain transaction before retrying.",
+      reverted:
+        "Contract simulation or execution reverted. Save the parameters and transaction hash for diagnosis.",
     },
     ko: {
-      fallback: "지갑 거래 전송 실패", gas: "지갑이 잘못된 Gas 한도를 생성했습니다. 새로고침 후 다시 제출하세요.",
-      rejected: "지갑에서 작업을 취소했습니다. 거래는 전송되지 않았습니다.", timeout: "RPC 응답 시간이 초과되었습니다. 재시도 전 온체인 거래 기록을 확인하세요.",
-      reverted: "컨트랙트 시뮬레이션 또는 실행이 되돌려졌습니다. 진단을 위해 설정과 거래 해시를 저장하세요.",
+      fallback: "지갑 거래 전송 실패",
+      gas: "지갑이 잘못된 Gas 한도를 생성했습니다. 새로고침 후 다시 제출하세요.",
+      rejected: "지갑에서 작업을 취소했습니다. 거래는 전송되지 않았습니다.",
+      timeout:
+        "RPC 응답 시간이 초과되었습니다. 재시도 전 온체인 거래 기록을 확인하세요.",
+      reverted:
+        "컨트랙트 시뮬레이션 또는 실행이 되돌려졌습니다. 진단을 위해 설정과 거래 해시를 저장하세요.",
     },
     ja: {
-      fallback: "ウォレット取引の送信に失敗しました", gas: "ウォレットが無効なGas上限を生成しました。更新して再送信してください。",
-      rejected: "ウォレットで操作をキャンセルしました。取引は送信されていません。", timeout: "RPCがタイムアウトしました。再試行前にオンチェーン履歴を確認してください。",
-      reverted: "コントラクトのシミュレーションまたは実行がリバートしました。診断用に設定と取引ハッシュを保存してください。",
+      fallback: "ウォレット取引の送信に失敗しました",
+      gas: "ウォレットが無効なGas上限を生成しました。更新して再送信してください。",
+      rejected:
+        "ウォレットで操作をキャンセルしました。取引は送信されていません。",
+      timeout:
+        "RPCがタイムアウトしました。再試行前にオンチェーン履歴を確認してください。",
+      reverted:
+        "コントラクトのシミュレーションまたは実行がリバートしました。診断用に設定と取引ハッシュを保存してください。",
     },
   }[language];
   const message =
@@ -175,6 +191,15 @@ function readableWalletError(error: unknown, language: "zh" | "en" | "ko" | "ja"
   return localized.fallback;
 }
 
+function walletErrorDiagnostic(error: unknown) {
+  if (!(error instanceof Error)) return "";
+  const coded = error as Error & { code?: number | string };
+  const code = coded.code === undefined ? "" : ` [${String(coded.code)}]`;
+  const summary =
+    error.message.split("\n").find((line) => line.trim() !== "") ?? error.name;
+  return `${error.name}${code}: ${summary}`.slice(0, 360);
+}
+
 export default function CreateTokenPage() {
   const router = useRouter();
   const { language, t } = useLanguage();
@@ -199,11 +224,19 @@ export default function CreateTokenPage() {
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isFindingVanity, setIsFindingVanity] = useState(false);
+  const [isPreflighting, setIsPreflighting] = useState(false);
   const [vanityProgress, setVanityProgress] = useState(0);
+  const [walletDiagnostic, setWalletDiagnostic] = useState("");
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const { data: hash, error, isPending, writeContract } = useWriteContract();
+  const {
+    data: hash,
+    error,
+    isPending,
+    writeContract,
+    writeContractAsync,
+  } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const factoryAddress =
     template === "liquidity"
@@ -257,7 +290,15 @@ export default function CreateTokenPage() {
   }
 
   async function uploadMetadata() {
-    if (!description && !image && !website && !telegram && !twitter && !debox && !qqGroupNumber) {
+    if (
+      !description &&
+      !image &&
+      !website &&
+      !telegram &&
+      !twitter &&
+      !debox &&
+      !qqGroupNumber
+    ) {
       return "";
     }
     const community = validateCommunityLinks({
@@ -279,7 +320,10 @@ export default function CreateTokenPage() {
     form.set("qqGroupNumber", community.qqGroupNumber);
     if (image) form.set("image", image);
 
-    const response = await fetch("/api/metadata", { method: "POST", body: form });
+    const response = await fetch("/api/metadata", {
+      method: "POST",
+      body: form,
+    });
     const result = (await response.json()) as {
       metadataURI?: string;
       error?: string;
@@ -411,6 +455,7 @@ export default function CreateTokenPage() {
     if (!address || !factoryAddress) return;
 
     setUploadError("");
+    setWalletDiagnostic("");
     setIsUploading(true);
     try {
       const metadataURI = await uploadMetadata();
@@ -423,7 +468,11 @@ export default function CreateTokenPage() {
       const initialBuyWei = parseEther(initialBuy || "0");
       const minimumInitialTokens = quoteFreshCurveBuy(target, initialBuyWei);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
-      if (template === "liquidity" || template === "holders" || template === "lp") {
+      if (
+        template === "liquidity" ||
+        template === "holders" ||
+        template === "lp"
+      ) {
         const isRewardsTemplate = template === "holders" || template === "lp";
         const selectedFactory = isRewardsTemplate
           ? rewardsFactoryAddress
@@ -453,31 +502,51 @@ export default function CreateTokenPage() {
             : 0n,
         };
         if (initialBuyWei === 0n) {
-          writeContract({
+          setIsPreflighting(true);
+          const estimatedGas = await testnetPublicClient.estimateContractGas({
+            account: address,
             address: selectedFactory,
             abi: selectedAbi,
             functionName: "createVanityToken",
             args: [request],
             value: CREATION_FEE_WEI,
-            gas: ADVANCED_CREATE_GAS_LIMIT,
+          });
+          const gas = advancedCreateGasLimit(estimatedGas);
+          setIsPreflighting(false);
+          await writeContractAsync({
+            address: selectedFactory,
+            abi: selectedAbi,
+            functionName: "createVanityToken",
+            args: [request],
+            value: CREATION_FEE_WEI,
+            gas,
             chain: bsc,
             account: address,
           });
         } else {
-          writeContract({
+          const buyRequest = {
+            minTokensOut: minimumInitialTokens,
+            deadline,
+            refundRecipient: address,
+          };
+          setIsPreflighting(true);
+          const estimatedGas = await testnetPublicClient.estimateContractGas({
+            account: address,
             address: selectedFactory,
             abi: selectedAbi,
             functionName: "createVanityTokenAndBuy",
-            args: [
-              request,
-              {
-                minTokensOut: minimumInitialTokens,
-                deadline,
-                refundRecipient: address,
-              },
-            ],
+            args: [request, buyRequest],
             value: CREATION_FEE_WEI + initialBuyWei,
-            gas: ADVANCED_CREATE_GAS_LIMIT,
+          });
+          const gas = advancedCreateGasLimit(estimatedGas);
+          setIsPreflighting(false);
+          await writeContractAsync({
+            address: selectedFactory,
+            abi: selectedAbi,
+            functionName: "createVanityTokenAndBuy",
+            args: [request, buyRequest],
+            value: CREATION_FEE_WEI + initialBuyWei,
+            gas,
             chain: bsc,
             account: address,
           });
@@ -489,13 +558,15 @@ export default function CreateTokenPage() {
           address: factoryAddress,
           abi: factoryAbi,
           functionName: "createVanityToken",
-          args: [{
-            name: name.trim(),
-            symbol: symbol.trim(),
-            graduationTargetBNB: target,
-            metadataURI,
-            vanitySalt,
-          }],
+          args: [
+            {
+              name: name.trim(),
+              symbol: symbol.trim(),
+              graduationTargetBNB: target,
+              metadataURI,
+              vanitySalt,
+            },
+          ],
           value: CREATION_FEE_WEI,
           gas: STANDARD_CREATE_GAS_LIMIT,
           chain: bsc,
@@ -508,29 +579,32 @@ export default function CreateTokenPage() {
         address: factoryAddress,
         abi: factoryAbi,
         functionName: "createVanityTokenAndBuy",
-        args: [{
-          name: name.trim(),
-          symbol: symbol.trim(),
-          graduationTargetBNB: target,
-          metadataURI,
-          vanitySalt,
-        }, {
-          minTokensOut: minimumInitialTokens,
-          deadline,
-          refundRecipient: address,
-        }],
+        args: [
+          {
+            name: name.trim(),
+            symbol: symbol.trim(),
+            graduationTargetBNB: target,
+            metadataURI,
+            vanitySalt,
+          },
+          {
+            minTokensOut: minimumInitialTokens,
+            deadline,
+            refundRecipient: address,
+          },
+        ],
         value: CREATION_FEE_WEI + initialBuyWei,
         gas: STANDARD_CREATE_GAS_LIMIT,
         chain: bsc,
         account: address,
       });
     } catch (metadataError) {
-      setUploadError(
-        readableWalletError(metadataError, language),
-      );
+      setUploadError(readableWalletError(metadataError, language));
+      setWalletDiagnostic(walletErrorDiagnostic(metadataError));
     } finally {
       setIsUploading(false);
       setIsFindingVanity(false);
+      setIsPreflighting(false);
       setVanityProgress(0);
     }
   }
@@ -540,10 +614,15 @@ export default function CreateTokenPage() {
   const unavailableTemplate =
     ((template === "holders" || template === "lp") && !rewardsFactoryAddress) ||
     (template === "liquidity" && !autoLiquidityFactoryAddress);
-  const buyTaxTotal = Object.values(buyTaxes).reduce((sum, value) => sum + value, 0);
-  const sellTaxTotal = Object.values(sellTaxes).reduce((sum, value) => sum + value, 0);
-  const taxInvalid =
-    buyTaxTotal > MAX_SIDE_TAX || sellTaxTotal > MAX_SIDE_TAX;
+  const buyTaxTotal = Object.values(buyTaxes).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const sellTaxTotal = Object.values(sellTaxes).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const taxInvalid = buyTaxTotal > MAX_SIDE_TAX || sellTaxTotal > MAX_SIDE_TAX;
   const rawCommunityLinkErrors = getCommunityLinkErrors({
     website,
     telegram,
@@ -562,10 +641,7 @@ export default function CreateTokenPage() {
   const previewInitialBuyWei = safeInitialBuy(initialBuy)
     ? parseEther(initialBuy || "0")
     : 0n;
-  const previewMinimumTokens = quoteFreshCurveBuy(
-    target,
-    previewInitialBuyWei,
-  );
+  const previewMinimumTokens = quoteFreshCurveBuy(target, previewInitialBuyWei);
   const previewTotalValue = CREATION_FEE_WEI + previewInitialBuyWei;
   const rewardsValid =
     !(template === "holders" || template === "lp") ||
@@ -599,9 +675,7 @@ export default function CreateTokenPage() {
       <section className="form-shell">
         <p className="eyebrow">01 / CONFIGURE · BNB MAINNET</p>
         <h1 className="form-title">{t("createTitle")}</h1>
-        <p className="lead">
-          {copy.lead}
-        </p>
+        <p className="lead">{copy.lead}</p>
 
         <form className="launch-form" onSubmit={submit}>
           <fieldset className="template-picker">
@@ -611,8 +685,10 @@ export default function CreateTokenPage() {
                 const content = copy.templates[id];
                 const enabled =
                   id === "standard" ||
-                  (id === "liquidity" && Boolean(autoLiquidityFactoryAddress)) ||
-                  ((id === "holders" || id === "lp") && Boolean(rewardsFactoryAddress));
+                  (id === "liquidity" &&
+                    Boolean(autoLiquidityFactoryAddress)) ||
+                  ((id === "holders" || id === "lp") &&
+                    Boolean(rewardsFactoryAddress));
                 return (
                   <button
                     aria-pressed={template === id}
@@ -691,9 +767,11 @@ export default function CreateTokenPage() {
                               step="0.01"
                               type="range"
                               value={Math.min(values[key], maximum)}
-                              style={{
-                                "--range-progress": `${maximum === 0 ? 0 : (values[key] / maximum) * 100}%`,
-                              } as CSSProperties}
+                              style={
+                                {
+                                  "--range-progress": `${maximum === 0 ? 0 : (values[key] / maximum) * 100}%`,
+                                } as CSSProperties
+                              }
                               onChange={(event) =>
                                 update({
                                   ...values,
@@ -713,9 +791,7 @@ export default function CreateTokenPage() {
                 <input
                   value={marketingWallet}
                   placeholder={
-                    address
-                      ? `${address} (${copy.creatorDefault})`
-                      : "0x..."
+                    address ? `${address} (${copy.creatorDefault})` : "0x..."
                   }
                   onChange={(event) => setMarketingWallet(event.target.value)}
                 />
@@ -735,15 +811,11 @@ export default function CreateTokenPage() {
                       setMinimumRewardBalance(event.target.value)
                     }
                   />
-                  <span className="field-help">
-                    {copy.rewardsHelp}
-                  </span>
+                  <span className="field-help">{copy.rewardsHelp}</span>
                 </label>
               )}
               {unavailableTemplate && (
-                <p className="preview-lock">
-                  {copy.factorySafetyLock}
-                </p>
+                <p className="preview-lock">{copy.factorySafetyLock}</p>
               )}
             </fieldset>
           )}
@@ -936,14 +1008,20 @@ export default function CreateTokenPage() {
                 aria-label={t("graduationTarget")}
                 aria-valuetext={`${(target / 100).toFixed(2)} BNB`}
                 value={target}
-                style={{ "--range-progress": `${((target - 1) / 17) * 100}%` } as CSSProperties}
+                style={
+                  {
+                    "--range-progress": `${((target - 1) / 17) * 100}%`,
+                  } as CSSProperties
+                }
                 onChange={(event) => setTarget(Number(event.target.value))}
               />
               <button
                 type="button"
                 aria-label={t("increaseTarget")}
                 disabled={target >= 18}
-                onClick={() => setTarget((current) => Math.min(18, current + 1))}
+                onClick={() =>
+                  setTarget((current) => Math.min(18, current + 1))
+                }
               >
                 +
               </button>
@@ -966,28 +1044,25 @@ export default function CreateTokenPage() {
               onChange={(event) => setInitialBuy(event.target.value)}
             />
             <small>
-              {{
-                zh: "留空或填写 0 表示只创建、不首购。部署费 0.001 BNB。首购与创建在同一笔交易完成；达到额度时自动毕业并销毁 LP，超额 BNB 自动退回。",
-                en: "Leave blank or enter 0 to create without buying. The creation fee is 0.001 BNB. Creation and the initial buy are atomic; graduation burns LP and refunds excess BNB.",
-                ko: "비워두거나 0을 입력하면 구매 없이 생성합니다. 생성 수수료는 0.001 BNB입니다. 생성과 최초 구매는 한 거래로 처리되며, 졸업 시 LP 소각 및 초과 BNB 환불이 자동 실행됩니다.",
-                ja: "空欄または0で購入せず作成します。作成手数料は0.001 BNBです。作成と初回購入は同一取引で行われ、卒業時にLPをバーンし超過BNBを返金します。",
-              }[language]}
+              {
+                {
+                  zh: "留空或填写 0 表示只创建、不首购。部署费 0.001 BNB。首购与创建在同一笔交易完成；达到额度时自动毕业并销毁 LP，超额 BNB 自动退回。",
+                  en: "Leave blank or enter 0 to create without buying. The creation fee is 0.001 BNB. Creation and the initial buy are atomic; graduation burns LP and refunds excess BNB.",
+                  ko: "비워두거나 0을 입력하면 구매 없이 생성합니다. 생성 수수료는 0.001 BNB입니다. 생성과 최초 구매는 한 거래로 처리되며, 졸업 시 LP 소각 및 초과 BNB 환불이 자동 실행됩니다.",
+                  ja: "空欄または0で購入せず作成します。作成手数料は0.001 BNBです。作成と初回購入は同一取引で行われ、卒業時にLPをバーンし超過BNBを返金します。",
+                }[language]
+              }
             </small>
           </label>
 
-          {!factoryAddress && (
-            <p className="notice">
-              {t("factoryMissing")}
-            </p>
-          )}
+          {!factoryAddress && <p className="notice">{t("factoryMissing")}</p>}
 
-          {taxInvalid && (
-            <p className="error">
-              {copy.taxInvalid}
-            </p>
-          )}
+          {taxInvalid && <p className="error">{copy.taxInvalid}</p>}
 
-          <section className="transaction-preview" aria-label={t("transactionPreview")}>
+          <section
+            className="transaction-preview"
+            aria-label={t("transactionPreview")}
+          >
             <div className="transaction-preview-heading">
               <strong>{t("transactionPreview")}</strong>
               <span>{t("slippageProtected")}</span>
@@ -1039,18 +1114,27 @@ export default function CreateTokenPage() {
               aria-describedby={
                 submitBlocker ? "create-submit-blocker" : undefined
               }
-              disabled={!canSubmit || isPending || receipt.isLoading || isUploading || isFindingVanity}
+              disabled={
+                !canSubmit ||
+                isPending ||
+                receipt.isLoading ||
+                isUploading ||
+                isFindingVanity ||
+                isPreflighting
+              }
               title={submitBlockerText || undefined}
             >
               {isUploading
                 ? t("uploading")
                 : isFindingVanity
-                ? `${t("preparingAddress")} ${vanityProgress}%`
-                : isPending
-                ? t("walletConfirm")
-                : receipt.isLoading
-                ? t("confirming")
-                : t("createToken")}
+                  ? `${t("preparingAddress")} ${vanityProgress}%`
+                  : isPreflighting
+                    ? t("walletConfirm")
+                    : isPending
+                      ? t("walletConfirm")
+                      : receipt.isLoading
+                        ? t("confirming")
+                        : t("createToken")}
             </button>
           )}
           {!wrongChain && submitBlockerText && (
@@ -1064,29 +1148,52 @@ export default function CreateTokenPage() {
           )}
 
           {hash && (
-            <a className="trade-tx-link" href={`https://bscscan.com/tx/${hash}`} target="_blank" rel="noreferrer">
-              <span>{t("txHash")}</span><strong>{hash.slice(0, 12)}…{hash.slice(-8)} ↗</strong>
+            <a
+              className="trade-tx-link"
+              href={`https://bscscan.com/tx/${hash}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span>{t("txHash")}</span>
+              <strong>
+                {hash.slice(0, 12)}…{hash.slice(-8)} ↗
+              </strong>
             </a>
           )}
           {(isPending || hash || receipt.isLoading || receipt.isSuccess) && (
-            <div className="transaction-status" role="status" aria-live="polite">
+            <div
+              className="transaction-status"
+              role="status"
+              aria-live="polite"
+            >
               <strong>{t("txStatus")}</strong>
               <ol>
                 <li className={hash ? "done" : "active"}>{t("walletStep")}</li>
                 <li className={hash ? "done" : ""}>{t("broadcastStep")}</li>
-                <li className={receipt.isSuccess ? "done" : hash ? "active" : ""}>{t("confirmStep")}</li>
-                <li className={receipt.isSuccess ? "done" : ""}>{t("syncStep")}</li>
+                <li
+                  className={receipt.isSuccess ? "done" : hash ? "active" : ""}
+                >
+                  {t("confirmStep")}
+                </li>
+                <li className={receipt.isSuccess ? "done" : ""}>
+                  {t("syncStep")}
+                </li>
               </ol>
             </div>
           )}
           {receipt.isSuccess && (
             <p className="success">{t("creationSuccess")}</p>
           )}
-          {receipt.isError && (
-            <p className="error">{t("creationFailed")}</p>
-          )}
+          {receipt.isError && <p className="error">{t("creationFailed")}</p>}
           {uploadError && <p className="error">{uploadError}</p>}
-          {error && <p className="error">{readableWalletError(error, language)}</p>}
+          {walletDiagnostic && (
+            <p className="error">
+              <code>{walletDiagnostic}</code>
+            </p>
+          )}
+          {error && !uploadError && (
+            <p className="error">{readableWalletError(error, language)}</p>
+          )}
         </form>
       </section>
     </main>
