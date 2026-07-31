@@ -35,15 +35,20 @@ test("marks internal application pages as noindex and nofollow", async () => {
   }
 });
 
-test("publishes public pages and official Factory tokens in the sitemap", async () => {
+test("publishes public pages, official tokens, and real creators in the sitemap", async () => {
   const source = await readFile(
     new URL("../app/sitemap.ts", import.meta.url),
     "utf8",
   );
 
   assert.match(source, /readOfficialTokenCatalog/);
+  assert.match(source, /readOfficialCreatorAddresses/);
+  assert.match(source, /Promise\.all/);
   assert.match(source, /revalidate\s*=\s*300/);
+  assert.match(source, /MAX_SITEMAP_URLS\s*=\s*50_000/);
   assert.match(source, /`\$\{SITE_URL\}\/token\/\$\{token\}`/);
+  assert.match(source, /`\$\{SITE_URL\}\/creator\/\$\{creator\}`/);
+  assert.match(source, /creators\.slice\(0,\s*creatorLimit\)/);
   for (const path of [
     'path: ""',
     'path: "/create"',
@@ -72,4 +77,26 @@ test("builds the token catalog only from bounded official Factory reads", async 
   assert.match(source, /new Set\(tokens\)/);
   assert.match(source, /revalidate:\s*300/);
   assert.match(source, /catch\s*\{\s*return \[\];/s);
+});
+
+test("deduplicates verified creator addresses and keeps sitemap reads resilient", async () => {
+  const source = await readFile(
+    new URL("./creator-project-server.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /readOfficialCreatorAddresses/);
+  assert.match(source, /readOfficialCreatorCatalog\(\)/);
+  assert.match(source, /CREATOR_DISCOVERY_TIMEOUT_MS\s*=\s*10_000/);
+  assert.match(source, /Promise\.race/);
+  assert.match(source, /uniqueCreatorAddresses/);
+  assert.match(
+    source,
+    /catalog\.records\.map\(\(record\) => record\.creator\)/,
+  );
+  assert.match(source, /catch\s*\{\s*return \[\];/s);
+  assert.match(
+    source,
+    /finally\s*\{\s*if \(timeout\) clearTimeout\(timeout\)/s,
+  );
 });
