@@ -35,7 +35,7 @@ export function buildFactorySlots<Factory extends string>(
   ) {
     throw new Error("Factory slot limit must be a positive safe integer");
   }
-  return factories.flatMap(({ factory, count }) => {
+  return factories.flatMap(({ factory, count }, factoryOrder) => {
     if (count < 0n || count > BigInt(Number.MAX_SAFE_INTEGER)) {
       throw new Error("Factory token count is outside the supported range");
     }
@@ -44,6 +44,7 @@ export function buildFactorySlots<Factory extends string>(
       maxPerFactory === undefined ? total : Math.min(total, maxPerFactory);
     return Array.from({ length: visible }, (_, position) => ({
       factory,
+      factoryOrder,
       index: BigInt(total - position - 1),
       creationIndex: total - position - 1,
     }));

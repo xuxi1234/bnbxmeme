@@ -34,7 +34,7 @@ export function ProjectState({
               {t("retryNow")}
             </button>
           )}
-          <Link href="/?market=hot#market">{t("returnMarket")}</Link>
+          <Link href="/?market=hotInternal#market">{t("returnMarket")}</Link>
         </div>
       </section>
     </main>

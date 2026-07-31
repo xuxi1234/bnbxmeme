@@ -4,10 +4,10 @@ import test from "node:test";
 import { resolveMarketNoResults } from "./market-empty-state-core.ts";
 
 test("distinguishes a trimmed search miss from an empty category", () => {
-  assert.deepEqual(resolveMarketNoResults("  CZ  ", "graduated"), {
+  assert.deepEqual(resolveMarketNoResults("  CZ  ", "newExternal"), {
     kind: "search",
     query: "CZ",
-    filter: "graduated",
+    filter: "newExternal",
     showHotAction: true,
   });
   assert.deepEqual(resolveMarketNoResults("   ", "graduating"), {
@@ -17,11 +17,11 @@ test("distinguishes a trimmed search miss from an empty category", () => {
   });
 });
 
-test("does not offer a redundant Hot reset while already in Hot", () => {
-  assert.deepEqual(resolveMarketNoResults("missing", "hot"), {
+test("does not offer a redundant Hot reset while already in Hot Internal", () => {
+  assert.deepEqual(resolveMarketNoResults("missing", "hotInternal"), {
     kind: "search",
     query: "missing",
-    filter: "hot",
+    filter: "hotInternal",
     showHotAction: false,
   });
 });
@@ -44,19 +44,19 @@ test("wires explanatory copy and both recovery actions into the market", async (
   assert.match(source, /t\("filterNoResultsTitle"\)/);
   assert.match(source, /t\("filterNoResultsHelp"\)/);
   assert.match(source, /setQuery\(""\)/);
-  assert.match(source, /chooseFilter\("hot"\)/);
+  assert.match(source, /chooseFilter\("hotInternal"\)/);
   assert.match(source, /role="status"/);
   assert.match(source, /aria-live="polite"/);
   assert.equal(
-    messages.match(/searchNoResultsTitle:[^\n]*\{query\}/g)?.length,
+    messages.match(/searchNoResultsTitle:\s*"[^"\n]*\{query\}/g)?.length,
     4,
   );
   assert.equal(
-    messages.match(/searchNoResultsHelp:[^\n]*\{filter\}/g)?.length,
+    messages.match(/searchNoResultsHelp:\s*"[^"\n]*\{filter\}/g)?.length,
     4,
   );
   assert.equal(
-    messages.match(/filterNoResultsTitle:[^\n]*\{filter\}/g)?.length,
+    messages.match(/filterNoResultsTitle:\s*"[^"\n]*\{filter\}/g)?.length,
     4,
   );
 });

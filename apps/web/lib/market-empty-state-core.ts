@@ -18,7 +18,7 @@ export function resolveMarketNoResults(
   filter: MarketFilter,
 ): MarketNoResultsContext {
   const normalizedQuery = query.trim();
-  const showHotAction = filter !== "hot";
+  const showHotAction = filter !== "hotInternal";
 
   if (normalizedQuery) {
     return {

@@ -22,11 +22,11 @@ test("enumerates every Factory slot for complete creator history", () => {
       { factory: "rewards", count: 2n },
     ]),
     [
-      { factory: "standard", index: 2n, creationIndex: 2 },
-      { factory: "standard", index: 1n, creationIndex: 1 },
-      { factory: "standard", index: 0n, creationIndex: 0 },
-      { factory: "rewards", index: 1n, creationIndex: 1 },
-      { factory: "rewards", index: 0n, creationIndex: 0 },
+      { factory: "standard", factoryOrder: 0, index: 2n, creationIndex: 2 },
+      { factory: "standard", factoryOrder: 0, index: 1n, creationIndex: 1 },
+      { factory: "standard", factoryOrder: 0, index: 0n, creationIndex: 0 },
+      { factory: "rewards", factoryOrder: 1, index: 1n, creationIndex: 1 },
+      { factory: "rewards", factoryOrder: 1, index: 0n, creationIndex: 0 },
     ],
   );
 });

@@ -20,7 +20,7 @@ export default function NotFound() {
         <h1 id="page-not-found-title">{t("pageNotFoundTitle")}</h1>
         <p>{t("pageNotFoundHelp")}</p>
         <div className="project-state-actions">
-          <Link href="/?market=hot#market">{t("returnMarket")}</Link>
+          <Link href="/?market=hotInternal#market">{t("returnMarket")}</Link>
         </div>
       </section>
     </main>

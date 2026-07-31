@@ -23,10 +23,10 @@ export function SiteHeader() {
   const mobileMenu = useRef<HTMLDivElement>(null);
   const a11y = accessibilityCopy[language];
   const navigation = [
-    [t("market"), "/?market=hot#market"],
+    [t("market"), "/?market=hotInternal#market"],
     [t("today"), "/?market=graduating#market"],
     [t("create"), "/create"],
-    [t("history"), "/?market=graduated#market"],
+    [t("history"), "/?market=newExternal#market"],
     [t("securityCenter"), "/security"],
   ];
 

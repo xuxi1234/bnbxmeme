@@ -14,6 +14,9 @@ import {
 import {
   calculateHotRanking,
   compareMarketEntries,
+  marketEntryMatchesFilter,
+  marketFilters,
+  parseMarketFilter,
   summarizeCompleteMarketActivity,
   type MarketFilter,
 } from "@/lib/market-ranking-core";
@@ -33,6 +36,7 @@ type MarketEntry = {
   symbol: string | null;
   totalSupply: string | null;
   factory: `0x${string}`;
+  factoryOrder: number;
   curve: `0x${string}` | null;
   metadataURI: string | null;
   creationIndex: number;
@@ -56,6 +60,7 @@ type MarketScore = {
   liquidityBnb?: number;
   bnbUsd?: number;
   holderCount?: number;
+  createdAt?: number;
   graduatedAt?: number;
   hotScore?: number;
 };
@@ -71,24 +76,26 @@ function asBigInt(value: string | null) {
 function TokenCard({
   entry,
   score,
+  onCreationTime,
 }: {
   entry: MarketEntry;
   score?: MarketScore;
+  onCreationTime: (token: string, createdAt: string) => void;
 }) {
   const { language, t } = useLanguage();
   const a11y = accessibilityCopy[language];
   const [imageFailed, setImageFailed] = useState(false);
   const { metadata } = useTokenMetadata(entry.metadataURI ?? undefined);
+  useEffect(() => {
+    if (metadata?.createdAt) onCreationTime(entry.token, metadata.createdAt);
+  }, [entry.token, metadata?.createdAt, onCreationTime]);
   const principal = asBigInt(entry.principal);
   const target = asBigInt(entry.target);
   const progress =
     principal !== undefined && target !== undefined && target > 0n
       ? Math.min(100, Number((principal * 10_000n) / target) / 100)
       : null;
-  const priceUsdt = tokenPriceUsdt(
-    score?.pricePerMillion,
-    score?.bnbUsd,
-  );
+  const priceUsdt = tokenPriceUsdt(score?.pricePerMillion, score?.bnbUsd);
 
   return (
     <Link className="token-card" href={tokenProjectPath(entry.token)}>
@@ -183,7 +190,7 @@ function TokenCard({
 }
 
 export function TokenMarket({ creator }: { creator?: string } = {}) {
-  const [filter, setFilter] = useState<MarketFilter>("hot");
+  const [filter, setFilter] = useState<MarketFilter>("hotInternal");
   const [query, setQuery] = useState("");
   const [payload, setPayload] = useState<MarketPayload | null>(null);
   const [scores, setScores] = useState<Record<string, MarketScore>>({});
@@ -199,14 +206,8 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("market");
-    if (
-      requested === "hot" ||
-      requested === "latest" ||
-      requested === "graduating" ||
-      requested === "graduated"
-    ) {
-      setFilter(requested);
-    }
+    const parsed = parseMarketFilter(requested);
+    if (parsed) setFilter(parsed);
   }, []);
 
   const chooseFilter = useCallback((next: MarketFilter) => {
@@ -216,6 +217,22 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     url.hash = "market";
     window.history.replaceState(null, "", url);
   }, []);
+
+  const rememberCreationTime = useCallback(
+    (token: string, createdAt: string) => {
+      const timestamp = Date.parse(createdAt);
+      if (!Number.isFinite(timestamp)) return;
+      setScores((current) =>
+        current[token]?.createdAt === timestamp
+          ? current
+          : {
+              ...current,
+              [token]: { ...current[token], createdAt: timestamp },
+            },
+      );
+    },
+    [],
+  );
 
   const loadMarket = useCallback(
     async (signal: AbortSignal) => {
@@ -261,8 +278,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     () =>
       (payload?.entries ?? []).filter(
         (entry) =>
-          !creator ||
-          entry.creator?.toLowerCase() === creator.toLowerCase(),
+          !creator || entry.creator?.toLowerCase() === creator.toLowerCase(),
       ),
     [creator, payload?.entries],
   );
@@ -406,8 +422,13 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       needsIndexRetry = false;
       const result = await loadScores();
       if (controller.signal.aborted) return;
-      setScores(
-        Object.fromEntries(result.map(([token, score]) => [token, score])),
+      setScores((current) =>
+        Object.fromEntries(
+          result.map(([token, score]) => [
+            token,
+            { ...score, createdAt: current[token]?.createdAt },
+          ]),
+        ),
       );
       setScoreLoadPartial(result.some(([, , complete]) => !complete));
       if (needsIndexRetry) {
@@ -440,26 +461,9 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       ) {
         return false;
       }
-      const principal = asBigInt(entry.principal);
-      const target = asBigInt(entry.target);
-      const progress =
-        principal !== undefined && target !== undefined && target > 0n
-          ? Number((principal * 10_000n) / target) / 100
-          : null;
-      if (filter === "graduating") {
-        return (
-          entry.state !== null &&
-          entry.state < 2 &&
-          progress !== null &&
-          progress >= 75
-        );
-      }
-      if (filter === "graduated") return entry.state === 2;
-      return true;
+      return marketEntryMatchesFilter(filter, entry);
     });
-    return visible.sort((a, b) =>
-      compareMarketEntries(filter, scores, a, b),
-    );
+    return visible.sort((a, b) => compareMarketEntries(filter, scores, a, b));
   }, [entries, filter, query, scores]);
   const noResults = useMemo(
     () => resolveMarketNoResults(query, filter),
@@ -481,18 +485,13 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   }
   if (entries.length === 0) {
     return (
-      <MarketNotice
-        title={t("noProjectsYet")}
-        message={t("noProjectsHelp")}
-      />
+      <MarketNotice title={t("noProjectsYet")} message={t("noProjectsHelp")} />
     );
   }
 
   const knownEntries = entries.filter(
     (entry) =>
-      entry.principal !== null &&
-      entry.target !== null &&
-      entry.state !== null,
+      entry.principal !== null && entry.target !== null && entry.state !== null,
   );
   const activitySummary =
     payload?.dataStatus === "fresh"
@@ -573,9 +572,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
           />
         </label>
         <div className="market-tabs" role="tablist">
-          {(
-            ["hot", "latest", "graduating", "graduated"] as MarketFilter[]
-          ).map((item) => (
+          {marketFilters.map((item) => (
             <button
               className={filter === item ? "active" : ""}
               key={item}
@@ -589,11 +586,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         </div>
       </div>
       {ranked.length === 0 ? (
-        <section
-          className="market-no-results"
-          role="status"
-          aria-live="polite"
-        >
+        <section className="market-no-results" role="status" aria-live="polite">
           <strong>
             {noResults.kind === "search"
               ? interpolate(t("searchNoResultsTitle"), {
@@ -624,7 +617,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
               <button
                 className="button secondary"
                 type="button"
-                onClick={() => chooseFilter("hot")}
+                onClick={() => chooseFilter("hotInternal")}
               >
                 {t("showHotProjects")}
               </button>
@@ -634,7 +627,12 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       ) : (
         <div className="token-grid">
           {ranked.map((entry) => (
-            <TokenCard key={entry.token} entry={entry} score={scores[entry.token]} />
+            <TokenCard
+              key={entry.token}
+              entry={entry}
+              score={scores[entry.token]}
+              onCreationTime={rememberCreationTime}
+            />
           ))}
         </div>
       )}
