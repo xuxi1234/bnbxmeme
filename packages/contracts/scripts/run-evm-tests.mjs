@@ -7,7 +7,12 @@ import {
   createWalletClient,
   custom,
   defineChain,
+  encodeDeployData,
+  getContractAddress,
+  keccak256,
+  padHex,
   parseEther,
+  toHex,
 } from "viem";
 
 const projectRoot = resolve(import.meta.dirname, "..");
@@ -17,7 +22,9 @@ const entrypoints = [
   "test/FactoryIntegration.t.sol",
   "test/TemplateConfig.t.sol",
   "test/BNBXAutoLiquidityToken.t.sol",
-  "test/AutoLiquidityFactoryIntegration.t.sol",
+  "test/DividendFactoryIntegration.t.sol",
+  "test/DividendTaxProcessing.t.sol",
+  "test/BNBXRewardVaultV3.t.sol",
   "test/BNBXRewardVault.t.sol",
 ];
 
@@ -60,8 +67,12 @@ const input = {
   },
 };
 
-const output = JSON.parse(solc.compile(JSON.stringify(input), { import: findImports }));
-const errors = (output.errors ?? []).filter((error) => error.severity === "error");
+const output = JSON.parse(
+  solc.compile(JSON.stringify(input), { import: findImports }),
+);
+const errors = (output.errors ?? []).filter(
+  (error) => error.severity === "error",
+);
 if (errors.length > 0) {
   throw new Error(errors.map((error) => error.formattedMessage).join("\n"));
 }
@@ -69,7 +80,12 @@ if (errors.length > 0) {
 const provider = ganache.provider({
   logging: { quiet: true },
   wallet: { totalAccounts: 2, defaultBalance: 1000 },
-  chain: { chainId: 31_337 },
+  miner: { blockGasLimit: 120_000_000 },
+  chain: {
+    chainId: 31_337,
+    allowUnlimitedContractSize: true,
+    allowUnlimitedInitCodeSize: true,
+  },
 });
 const accounts = await provider.request({ method: "eth_accounts", params: [] });
 const account = accounts[0];
@@ -79,7 +95,10 @@ const localChain = defineChain({
   nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
   rpcUrls: { default: { http: ["http://127.0.0.1"] } },
 });
-const publicClient = createPublicClient({ chain: localChain, transport: custom(provider) });
+const publicClient = createPublicClient({
+  chain: localChain,
+  transport: custom(provider),
+});
 const walletClient = createWalletClient({
   account,
   chain: localChain,
@@ -91,7 +110,7 @@ async function deploy(artifact, args = []) {
     abi: artifact.abi,
     bytecode: `0x${artifact.evm.bytecode.object}`,
     args,
-    gas: 28_000_000n,
+    gas: 100_000_000n,
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (!receipt.contractAddress || receipt.status !== "success") {
@@ -117,6 +136,17 @@ function check(condition, message) {
 
 const suites = [
   {
+    source: "test/BNBXRewardVaultV3.t.sol",
+    contract: "BNBXRewardVaultV3Test",
+    tests: [
+      "testExternalRewardsFollowHolderSharesAndCanBeClaimed",
+      "testQueuedRewardsReleaseOnlyAfterFirstEligibleShare",
+      "testLPRewardsUseOnlyCustodiedLiquidityAndPreservePastRewards",
+      "testNewSharesCannotTakePreviouslyAccruedRewards",
+      "testExcludedAndSubminimumAccountsReceiveNoShares",
+    ],
+  },
+  {
     source: "test/BNBXRewardVault.t.sol",
     contract: "BNBXRewardVaultIntegrationTest",
     tests: [
@@ -130,7 +160,11 @@ const suites = [
   {
     source: "test/BNBXToken.t.sol",
     contract: "BNBXTokenTest",
-    tests: ["testFixedSupplyIsOneBillion", "testMetadata", "testTransferHasNoTax"],
+    tests: [
+      "testFixedSupplyIsOneBillion",
+      "testMetadata",
+      "testTransferHasNoTax",
+    ],
   },
   {
     source: "test/FeeMath.t.sol",
@@ -164,13 +198,27 @@ const suites = [
     ],
   },
   {
-    source: "test/AutoLiquidityFactoryIntegration.t.sol",
-    contract: "AutoLiquidityFactoryIntegrationTest",
+    source: "test/DividendFactoryIntegration.t.sol",
+    contract: "DividendFactoryIntegrationTest",
     tests: [
-      "testCreateWithoutBuyKeepsCurveTaxFree",
-      "testAtomicFillGraduatesAndActivatesTax",
-      "testCreatesHolderRewardsTemplateWithExcludedCurveAndPair",
-      "testCreatesLPRewardsTemplateAndConfiguresPairAsset",
+      "testHolderTemplateUsesExternalRewardTokenAndDeadRoles",
+      "testEveryTaxFieldMayBeZero",
+      "testGraduationActivatesTaxesAndBurnsLPAndRoles",
+      "testHolderRewardsUseBalanceDeltaAccounting",
+      "testLPTemplateConfiguresCustodyBackedPairShares",
+      "testContractRejectsMoreThanTenPercentPerSide",
+      "testContractAllowsExactlyTenPercentPerSide",
+      "testRejectsRewardTokenWithoutLiveWbnbPool",
+      "testRejectsWbnbAsRewardToken",
+      "testPathologicalRewardAccountingCannotFreezeTokenTransfers",
+    ],
+  },
+  {
+    source: "test/DividendTaxProcessing.t.sol",
+    contract: "DividendTaxProcessingTest",
+    tests: [
+      "testProcessesAllBucketsAndBurnsAutomaticLP",
+      "testFailedAutomaticProcessingCannotBlockSell",
     ],
   },
   {
@@ -209,15 +257,19 @@ for (const suite of selectedSuites) {
   const deploymentHash = await walletClient.deployContract({
     abi: artifact.abi,
     bytecode: `0x${artifact.evm.bytecode.object}`,
-    gas: 28_000_000n,
+    gas: 100_000_000n,
   });
   const deploymentReceipt = await publicClient.waitForTransactionReceipt({
     hash: deploymentHash,
   });
   const expectedAddress = deploymentReceipt.contractAddress;
-  if (!expectedAddress) throw new Error(`${suite.contract} deployment has no address`);
+  if (!expectedAddress)
+    throw new Error(`${suite.contract} deployment has no address`);
 
-  if (suite.contract.endsWith("IntegrationTest")) {
+  if (
+    suite.contract.endsWith("IntegrationTest") ||
+    suite.contract === "DividendTaxProcessingTest"
+  ) {
     const fundingHash = await walletClient.sendTransaction({
       to: expectedAddress,
       value: parseEther("10"),
@@ -233,15 +285,151 @@ for (const suite of selectedSuites) {
       address: expectedAddress,
       abi: artifact.abi,
       functionName: "setUp",
-      gas: 28_000_000n,
+      gas: 100_000_000n,
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") {
+      let setupDetail = "";
+      try {
+        await publicClient.simulateContract({
+          account,
+          address: expectedAddress,
+          abi: artifact.abi,
+          functionName: "setUp",
+        });
+      } catch (error) {
+        setupDetail = ` (${error.shortMessage ?? error.message})`;
+      }
       throw new Error(
-        `${suite.contract}.setUp failed: ${JSON.stringify(receipt, (_, value) =>
-          typeof value === "bigint" ? value.toString() : value,
+        `${suite.contract}.setUp failed${setupDetail}: ${JSON.stringify(
+          receipt,
+          (_, value) => (typeof value === "bigint" ? value.toString() : value),
         )}`,
       );
+    }
+  }
+
+  if (suite.contract === "DividendFactoryIntegrationTest") {
+    const salts = [];
+    for (let kind = 0; kind < 3; kind += 1) {
+      let foundSalt;
+      for (let start = 1; start < 500_000; start += 10_000) {
+        const result = await publicClient.readContract({
+          address: expectedAddress,
+          abi: artifact.abi,
+          functionName: "findTestSalt",
+          args: [kind, BigInt(start), 10_000n],
+        });
+        if (result[0]) {
+          foundSalt = result[1];
+          break;
+        }
+      }
+      if (!foundSalt)
+        throw new Error(`No test vanity salt found for kind ${kind}`);
+      salts.push(foundSalt);
+    }
+    const saltHash = await walletClient.writeContract({
+      address: expectedAddress,
+      abi: artifact.abi,
+      functionName: "setTestSalts",
+      args: salts,
+      gas: 1_000_000n,
+    });
+    const saltReceipt = await publicClient.waitForTransactionReceipt({
+      hash: saltHash,
+    });
+    if (saltReceipt.status !== "success") {
+      throw new Error("Failed to configure dividend test salts");
+    }
+  }
+
+  if (
+    suite.contract === "FactoryIntegrationTest" ||
+    suite.contract === "TradingIntegrationTest"
+  ) {
+    const requests =
+      suite.contract === "TradingIntegrationTest"
+        ? [[0, "Round Trip", "RT"]]
+        : [
+            [0, "Zhang San", "ZS"],
+            [0, "No First Buy", "NFB"],
+            [0, "One", "ONE"],
+            [0, "Eighteen", "EIGHTEEN"],
+            [0, "Below", "LOW"],
+            [0, "Above", "HIGH"],
+            [0, "Oversized", "BIG"],
+            [0, "Protected", "SAFE"],
+            [0, "Pair Safe", "PAIRSAFE"],
+            [0, "Refund Safe", "REFUND"],
+            [1, "Reject Fee", "NOFEE"],
+            [2, "Protected", "LOCKED"],
+            [0, "Finished", "DONE"],
+          ];
+
+    const tokenArtifact = output.contracts["src/BNBXTokenV3.sol"].BNBXTokenV3;
+    const factoryAddresses = new Map();
+
+    for (const [factoryKind, name, symbol] of requests) {
+      let factoryAddress = factoryAddresses.get(factoryKind);
+      if (!factoryAddress) {
+        factoryAddress = await publicClient.readContract({
+          address: expectedAddress,
+          abi: artifact.abi,
+          functionName: "testFactoryAddress",
+          args: [factoryKind],
+        });
+        factoryAddresses.set(factoryKind, factoryAddress);
+      }
+
+      const initCode = encodeDeployData({
+        abi: tokenArtifact.abi,
+        bytecode: `0x${tokenArtifact.evm.bytecode.object}`,
+        args: [name, symbol, factoryAddress],
+      });
+      const bytecodeHash = keccak256(initCode);
+      let foundSalt;
+      for (let candidate = 1n; candidate < 1_000_000n; candidate += 1n) {
+        const salt = padHex(toHex(candidate), { size: 32 });
+        const predicted = getContractAddress({
+          bytecodeHash,
+          from: factoryAddress,
+          opcode: "CREATE2",
+          salt,
+        });
+        if (predicted.toLowerCase().endsWith("1111")) {
+          foundSalt = salt;
+          break;
+        }
+      }
+      if (!foundSalt) {
+        throw new Error(`No test vanity salt found for ${name}/${symbol}`);
+      }
+      const validation = await publicClient.readContract({
+        address: expectedAddress,
+        abi: artifact.abi,
+        functionName: "findTestSalt",
+        args: [factoryKind, name, symbol, BigInt(foundSalt), 1n],
+      });
+      if (
+        !validation[0] ||
+        validation[1].toLowerCase() !== foundSalt.toLowerCase()
+      ) {
+        throw new Error(`Invalid offline vanity salt for ${name}/${symbol}`);
+      }
+      const saltHash = await walletClient.writeContract({
+        address: expectedAddress,
+        abi: artifact.abi,
+        functionName: "setTestSalt",
+        args: [name, symbol, foundSalt],
+        gas: 1_000_000n,
+      });
+      const saltReceipt = await publicClient.waitForTransactionReceipt({
+        hash: saltHash,
+      });
+      if (saltReceipt.status !== "success") {
+        throw new Error(`Failed to configure test salt for ${name}/${symbol}`);
+      }
     }
   }
 
@@ -255,13 +443,27 @@ for (const suite of selectedSuites) {
       address: expectedAddress,
       abi: artifact.abi,
       functionName: testName,
-      gas: 28_000_000n,
+      gas: 100_000_000n,
       value:
-        suite.contract === "FactoryIntegrationTest" ? parseEther("0") : undefined,
+        suite.contract === "FactoryIntegrationTest"
+          ? parseEther("0")
+          : undefined,
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") {
       let detail = "";
+      let traceDetail = "";
+      try {
+        const trace = await provider.request({
+          method: "debug_traceTransaction",
+          params: [hash, {}],
+        });
+        if (trace?.returnValue) {
+          traceDetail = ` revertData=0x${trace.returnValue}`;
+        }
+      } catch {
+        // Trace support varies by local EVM.
+      }
       try {
         await publicClient.simulateContract({
           account,
@@ -274,7 +476,7 @@ for (const suite of selectedSuites) {
       }
       const gasUsed = receipt.gasUsed?.toString() ?? "unknown";
       throw new Error(
-        `${suite.contract}.${testName} failed (gasUsed=${gasUsed})${detail}`,
+        `${suite.contract}.${testName} failed (gasUsed=${gasUsed})${detail}${traceDetail}`,
       );
     }
     console.log(`PASS ${suite.contract}.${testName}`);
@@ -290,7 +492,8 @@ const integrationArtifacts = output.contracts["test/FactoryIntegration.t.sol"];
 const pancakeFactoryArtifact = integrationArtifacts.MockPancakeFactory;
 const wbnbArtifact = integrationArtifacts.MockWBNB;
 const routerArtifact = integrationArtifacts.MockPancakeRouter;
-const launchFactoryArtifact = output.contracts["src/BNBXFactory.sol"].BNBXFactory;
+const launchFactoryArtifact =
+  output.contracts["src/BNBXFactory.sol"].BNBXFactory;
 const tokenArtifact = output.contracts["src/BNBXToken.sol"].BNBXToken;
 const curveArtifact = output.contracts["src/BondingCurve.sol"].BondingCurve;
 const pairArtifact = integrationArtifacts.MockPair;
@@ -335,19 +538,22 @@ for (let target = 1; target <= 18; target += 1) {
     address: launchFactoryAddress,
     abi: launchFactoryArtifact.abi,
     functionName: "createVanityTokenAndBuy",
-    args: [{
-      name: tokenName,
-      symbol: tokenSymbol,
-      graduationTargetBNB: target,
-      metadataURI: "",
-      vanitySalt,
-    }, {
-      minTokensOut: eightHundredMillion,
-      deadline: block.timestamp + 1_200n,
-      refundRecipient: account,
-    }],
+    args: [
+      {
+        name: tokenName,
+        symbol: tokenSymbol,
+        graduationTargetBNB: target,
+        metadataURI: "",
+        vanitySalt,
+      },
+      {
+        minTokensOut: eightHundredMillion,
+        deadline: block.timestamp + 1_200n,
+        refundRecipient: account,
+      },
+    ],
     value: parseEther("0.001") + grossBuy,
-    gas: 28_000_000n,
+    gas: 100_000_000n,
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") {
@@ -373,17 +579,20 @@ for (let target = 1; target <= 18; target += 1) {
         address: launchFactoryAddress,
         abi: launchFactoryArtifact.abi,
         functionName: "createVanityTokenAndBuy",
-        args: [{
-          name: tokenName,
-          symbol: tokenSymbol,
-          graduationTargetBNB: target,
-          metadataURI: "",
-          vanitySalt,
-        }, {
-          minTokensOut: eightHundredMillion,
-          deadline: block.timestamp + 1_200n,
-          refundRecipient: account,
-        }],
+        args: [
+          {
+            name: tokenName,
+            symbol: tokenSymbol,
+            graduationTargetBNB: target,
+            metadataURI: "",
+            vanitySalt,
+          },
+          {
+            minTokensOut: eightHundredMillion,
+            deadline: block.timestamp + 1_200n,
+            refundRecipient: account,
+          },
+        ],
         value: parseEther("0.001") + grossBuy,
       });
     } catch (error) {
@@ -412,41 +621,48 @@ for (let target = 1; target <= 18; target += 1) {
     functionName: "getPair",
     args: [token, wbnbAddress],
   });
-  const [state, principal, userTokens, pairTokens, burnedLP] = await Promise.all([
-    publicClient.readContract({
-      address: curve,
-      abi: curveArtifact.abi,
-      functionName: "state",
-    }),
-    publicClient.readContract({
-      address: curve,
-      abi: curveArtifact.abi,
-      functionName: "realBNBPrincipal",
-    }),
-    publicClient.readContract({
-      address: token,
-      abi: tokenArtifact.abi,
-      functionName: "balanceOf",
-      args: [account],
-    }),
-    publicClient.readContract({
-      address: token,
-      abi: tokenArtifact.abi,
-      functionName: "balanceOf",
-      args: [pair],
-    }),
-    publicClient.readContract({
-      address: pair,
-      abi: pairArtifact.abi,
-      functionName: "liquidityBalance",
-      args: [dead],
-    }),
-  ]);
+  const [state, principal, userTokens, pairTokens, burnedLP] =
+    await Promise.all([
+      publicClient.readContract({
+        address: curve,
+        abi: curveArtifact.abi,
+        functionName: "state",
+      }),
+      publicClient.readContract({
+        address: curve,
+        abi: curveArtifact.abi,
+        functionName: "realBNBPrincipal",
+      }),
+      publicClient.readContract({
+        address: token,
+        abi: tokenArtifact.abi,
+        functionName: "balanceOf",
+        args: [account],
+      }),
+      publicClient.readContract({
+        address: token,
+        abi: tokenArtifact.abi,
+        functionName: "balanceOf",
+        args: [pair],
+      }),
+      publicClient.readContract({
+        address: pair,
+        abi: pairArtifact.abi,
+        functionName: "liquidityBalance",
+        args: [dead],
+      }),
+    ]);
 
   check(Number(state) === 2, `Target ${target}: not graduated`);
   check(principal === targetWei, `Target ${target}: principal mismatch`);
-  check(userTokens === eightHundredMillion, `Target ${target}: curve allocation mismatch`);
-  check(pairTokens === twoHundredMillion, `Target ${target}: LP allocation mismatch`);
+  check(
+    userTokens === eightHundredMillion,
+    `Target ${target}: curve allocation mismatch`,
+  );
+  check(
+    pairTokens === twoHundredMillion,
+    `Target ${target}: LP allocation mismatch`,
+  );
   check(burnedLP > 0n, `Target ${target}: LP was not burned`);
   console.log(`PASS GraduationTarget.${(target / 100).toFixed(2)}BNB`);
 }

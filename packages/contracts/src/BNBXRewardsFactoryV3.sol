@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import { BNBXAutoLiquidityToken } from "./BNBXAutoLiquidityToken.sol";
+import { BNBXDividendTokenV3 } from "./BNBXDividendTokenV3.sol";
 import { BNBXAdvancedTokenDeployer } from "./BNBXAdvancedTokenDeployer.sol";
 import { BondingCurve } from "./BondingCurve.sol";
 import { IPancakeV2Factory, IPancakeV2Router } from "./interfaces/IPancakeV2.sol";
-import { TemplateConfig } from "./libraries/TemplateConfig.sol";
+import { TemplateConfigV3 } from "./libraries/TemplateConfigV3.sol";
 
-/// @title BNBX advanced launch factory
-/// @notice Isolated factory for automatic-liquidity, holder-reward and
-/// LP-reward templates. The separate token deployer keeps this factory below
+/// @title BNBX V3 dividend launch factory
+/// @notice Isolated factory for holder-reward and LP-reward templates. The
+/// separate token deployer keeps this factory below
 /// the EIP-170 runtime size limit.
-contract BNBXAutoLiquidityFactory {
+contract BNBXRewardsFactoryV3 {
+    address private constant DEAD =
+        0x000000000000000000000000000000000000dEaD;
     struct CreateRequest {
         string name;
         string symbol;
@@ -19,8 +21,9 @@ contract BNBXAutoLiquidityFactory {
         string metadataURI;
         bytes32 vanitySalt;
         address marketingWallet;
-        TemplateConfig.Taxes taxes;
-        TemplateConfig.Template template;
+        address rewardToken;
+        TemplateConfigV3.Taxes taxes;
+        TemplateConfigV3.Template template;
         uint256 minimumRewardShare;
     }
 
@@ -53,9 +56,8 @@ contract BNBXAutoLiquidityFactory {
         address indexed curve,
         address indexed creator,
         uint8 graduationTargetBNB,
-        address marketingWallet,
-        TemplateConfig.Template template,
-        address rewardVault
+        TemplateConfigV3.Template template,
+        address rewardToken
     );
     event CreationFeePaid(address indexed creator, uint256 amount);
 
@@ -72,9 +74,15 @@ contract BNBXAutoLiquidityFactory {
         address tokenDeployer_
     ) {
         if (
-            feeRecipient_ == address(0) || pancakeV2Router_ == address(0)
-                || tokenDeployer_ == address(0)
+            feeRecipient_ == address(0) || feeRecipient_ == DEAD
+                || pancakeV2Router_ == address(0) || pancakeV2Router_ == DEAD
+                || pancakeV2Router_.code.length == 0
+                || tokenDeployer_ == address(0) || tokenDeployer_ == DEAD
+                || tokenDeployer_.code.length == 0
         ) {
+            revert InvalidAddress();
+        }
+        if (BNBXAdvancedTokenDeployer(tokenDeployer_).manager() != address(0)) {
             revert InvalidAddress();
         }
         feeRecipient = feeRecipient_;
@@ -147,50 +155,30 @@ contract BNBXAutoLiquidityFactory {
     }
 
     function findVanitySalt(
-        string calldata name,
-        string calldata symbol,
-        address marketingWallet,
-        TemplateConfig.Taxes calldata taxes,
-        TemplateConfig.Template template,
-        uint256 minimumRewardShare,
+        CreateRequest calldata request,
         uint256 start,
         uint256 maxIterations
     ) external view returns (bool found, bytes32 salt, address predicted) {
+        bytes32 codeHash = tokenDeployer.initCodeHash(
+            _tokenInit(request, request.marketingWallet)
+        );
         for (uint256 i; i < maxIterations; ++i) {
             salt = bytes32(start + i);
-            predicted = predictTokenAddress(
-                name,
-                symbol,
-                salt,
-                marketingWallet,
-                taxes,
-                template,
-                minimumRewardShare
-            );
+            predicted = _create2Address(salt, codeHash);
             if (uint16(uint160(predicted)) == 0x1111 && predicted.code.length == 0) {
                 return (true, salt, predicted);
             }
         }
     }
 
-    function predictTokenAddress(
-        string memory name,
-        string memory symbol,
-        bytes32 salt,
-        address marketingWallet,
-        TemplateConfig.Taxes memory taxes,
-        TemplateConfig.Template template,
-        uint256 minimumRewardShare
-    ) public view returns (address) {
+    function predictTokenAddress(CreateRequest memory request)
+        public
+        view
+        returns (address)
+    {
         return tokenDeployer.predict(
-            name,
-            symbol,
-            salt,
-            pancakeV2Router,
-            marketingWallet,
-            taxes,
-            template,
-            minimumRewardShare
+            request.vanitySalt,
+            _tokenInit(request, request.marketingWallet)
         );
     }
 
@@ -201,7 +189,7 @@ contract BNBXAutoLiquidityFactory {
         if (bytes(request.metadataURI).length > 256) revert MetadataTooLong();
         address marketing =
             request.marketingWallet == address(0) ? creator : request.marketingWallet;
-        BNBXAutoLiquidityToken token =
+        BNBXDividendTokenV3 token =
             _deployToken(request, marketing);
         tokenAddress = address(token);
 
@@ -235,34 +223,38 @@ contract BNBXAutoLiquidityFactory {
             curveAddress,
             creator,
             request.graduationTargetBNB,
-            marketing,
             request.template,
-            address(token.rewardVault())
+            request.rewardToken
         );
     }
 
     function _deployToken(
         CreateRequest memory request,
         address marketing
-    ) internal returns (BNBXAutoLiquidityToken token) {
-        address predicted = predictTokenAddress(
-            request.name,
-            request.symbol,
-            request.vanitySalt,
-            marketing,
-            request.taxes,
-            request.template,
-            request.minimumRewardShare
-        );
+    ) internal returns (BNBXDividendTokenV3 token) {
+        request.marketingWallet = marketing;
+        address predicted = predictTokenAddress(request);
         if (uint16(uint160(predicted)) != 0x1111 || predicted.code.length != 0) {
             revert InvalidVanitySalt();
         }
         token = tokenDeployer.deploy(
+            request.vanitySalt,
+            _tokenInit(request, marketing)
+        );
+    }
+
+    function _tokenInit(CreateRequest memory request, address marketing)
+        internal
+        view
+        returns (BNBXDividendTokenV3.Init memory)
+    {
+        return BNBXDividendTokenV3.Init(
             request.name,
             request.symbol,
-            request.vanitySalt,
+            address(this),
             pancakeV2Router,
             marketing,
+            request.rewardToken,
             request.taxes,
             request.template,
             request.minimumRewardShare
@@ -272,6 +264,24 @@ contract BNBXAutoLiquidityFactory {
     function _curve(address token) internal view returns (address curve) {
         curve = curveOf[token];
         if (curve == address(0)) revert UnknownToken();
+    }
+
+    function _create2Address(bytes32 salt, bytes32 codeHash)
+        internal
+        view
+        returns (address)
+    {
+        return address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff), address(tokenDeployer), salt, codeHash
+                        )
+                    )
+                )
+            )
+        );
     }
 
     function _graduateIfReady(address curve, uint256 deadline) internal {

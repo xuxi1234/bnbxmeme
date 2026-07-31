@@ -13,7 +13,7 @@ any production address is changed.
 - Fixed token supply: 1,000,000,000 tokens
 - Bonding-curve allocation: 800,000,000 tokens
 - PancakeSwap V2 allocation: 200,000,000 tokens
-- Creator-selected canary graduation target: 0.01–0.18 BNB in 0.01 BNB steps
+- Creator-selected graduation target: 0.01–0.18 BNB in 0.01 BNB steps
 - Token creation fee: 0.001 BNB
 - Internal buy fee: 0.5%
 - Internal sell fee: 0.5%

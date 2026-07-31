@@ -17,8 +17,7 @@ const {
 const { bsc } = require("viem/chains");
 
 const factory = getAddress(
-  process.env.FACTORY_ADDRESS ??
-    "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8",
+  process.env.FACTORY_ADDRESS ?? "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8",
 );
 const rpcSecret = process.env.BSC_MAINNET_RPC_URL?.trim();
 if (!rpcSecret) throw new Error("BSC_MAINNET_RPC_URL is required");
@@ -87,7 +86,9 @@ function compile(ref) {
     ({ severity }) => severity === "error",
   );
   if (failures.length) {
-    throw new Error(failures.map(({ formattedMessage }) => formattedMessage).join("\n"));
+    throw new Error(
+      failures.map(({ formattedMessage }) => formattedMessage).join("\n"),
+    );
   }
   return output.contracts;
 }
@@ -109,7 +110,10 @@ function maskImmutables(bytecode, references) {
 }
 
 function describeRuntime(onchain, deployed) {
-  const normalizedOnchain = maskImmutables(onchain, deployed.immutableReferences);
+  const normalizedOnchain = maskImmutables(
+    onchain,
+    deployed.immutableReferences,
+  );
   const normalizedArtifact = maskImmutables(
     `0x${deployed.object}`,
     deployed.immutableReferences,
@@ -203,24 +207,32 @@ if (!deployerCode || deployerCode === "0x") {
   throw new Error(`No token deployer code at ${tokenDeployer}`);
 }
 
-const [current, main] = [compile(null), compile("origin/main")];
+// This script is preserved as evidence for the already-deployed V2 rewards
+// factory. Pin both audited artifacts so a future source rewrite cannot change
+// (or delete) the bytecode used by this historical comparison.
+const TEN_PERCENT_REF = "8954f63beea25ec52eeea691bbcf4b2f725d0a1b";
+const TWENTY_FIVE_PERCENT_REF = "be3732728128e860147224f553c065d47dda47a1";
+const [tenPercent, twentyFivePercent] = [
+  compile(TEN_PERCENT_REF),
+  compile(TWENTY_FIVE_PERCENT_REF),
+];
 const currentFactoryArtifact = artifact(
-  current,
+  tenPercent,
   "src/BNBXAutoLiquidityFactory.sol",
   "BNBXAutoLiquidityFactory",
 );
 const mainFactoryArtifact = artifact(
-  main,
+  twentyFivePercent,
   "src/BNBXAutoLiquidityFactory.sol",
   "BNBXAutoLiquidityFactory",
 );
 const currentDeployerArtifact = artifact(
-  current,
+  tenPercent,
   "src/BNBXAdvancedTokenDeployer.sol",
   "BNBXAdvancedTokenDeployer",
 );
 const mainDeployerArtifact = artifact(
-  main,
+  twentyFivePercent,
   "src/BNBXAdvancedTokenDeployer.sol",
   "BNBXAdvancedTokenDeployer",
 );
@@ -231,8 +243,10 @@ const deployerCurrent = describeRuntime(deployerCode, currentDeployerArtifact);
 const deployerMain = describeRuntime(deployerCode, mainDeployerArtifact);
 
 let classification = "UNKNOWN";
-if (deployerCurrent.matches && !deployerMain.matches) classification = "NEW_10_PERCENT";
-else if (deployerMain.matches && !deployerCurrent.matches) classification = "OLD_25_PERCENT";
+if (deployerCurrent.matches && !deployerMain.matches)
+  classification = "NEW_10_PERCENT";
+else if (deployerMain.matches && !deployerCurrent.matches)
+  classification = "OLD_25_PERCENT";
 else if (deployerCurrent.matches && deployerMain.matches) {
   classification = "CURRENT_AND_MAIN_ARTIFACTS_IDENTICAL";
 }
@@ -249,6 +263,10 @@ const [factoryCreation, deployerCreation] = await Promise.all([
 const report = {
   chainId: 56,
   checkedAtBlock: latest.toString(),
+  artifactRefs: {
+    tenPercent: TEN_PERCENT_REF,
+    twentyFivePercent: TWENTY_FIVE_PERCENT_REF,
+  },
   factory: {
     address: factory,
     feeRecipient,

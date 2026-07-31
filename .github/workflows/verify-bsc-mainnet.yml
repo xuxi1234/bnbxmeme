@@ -3,10 +3,23 @@ name: Verify BNBX contracts on BscScan
 on:
   workflow_dispatch:
     inputs:
-      factory_addresses:
-        description: "Comma-separated BNBX mainnet Factory addresses"
+      standard_factory_address:
+        description: "Deployed BNBX V3 standard Factory"
+        required: true
+        type: string
+      rewards_factory_address:
+        description: "Deployed BNBX V3 holder/LP rewards Factory"
+        required: true
+        type: string
+      token_deployer_address:
+        description: "Optional V3 advanced token deployer cross-check"
         required: false
-        default: "0xdb189396ae2a350c484ddd749a6af96baebc124b,0x9f572dc9d582ec8347d2a803f766652982220539,0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8"
+        type: string
+      verify_launched_tokens:
+        description: "Also verify every registered V3 token, Curve, and reward vault"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -24,7 +37,10 @@ jobs:
     env:
       BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
       BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
-      BNBX_MAINNET_FACTORY_ADDRESSES: ${{ inputs.factory_addresses }}
+      BNBX_V3_STANDARD_FACTORY_ADDRESS: ${{ inputs.standard_factory_address }}
+      BNBX_V3_REWARDS_FACTORY_ADDRESS: ${{ inputs.rewards_factory_address }}
+      BNBX_V3_TOKEN_DEPLOYER_ADDRESS: ${{ inputs.token_deployer_address }}
+      VERIFY_LAUNCHED_TOKENS: ${{ inputs.verify_launched_tokens && '1' || '0' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

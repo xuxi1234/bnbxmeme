@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
+import {
+  formatEther,
+  formatUnits,
+  maxUint256,
+  parseEther,
+  zeroAddress,
+} from "viem";
 import {
   useAccount,
   useChainId,
@@ -18,6 +24,7 @@ import {
   factoryAbi,
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  legacyRewardsFactoryAddress,
   lpBurnAddress,
   rewardVaultAbi,
   rewardsFactoryAddress,
@@ -112,7 +119,9 @@ function snapshotBigInt(value: string | null | undefined) {
 
 function useTokenSnapshot(token: `0x${string}`) {
   const [snapshot, setSnapshot] = useState<TokenSnapshot | null>(null);
-  const [dataStatus, setDataStatus] = useState<"fresh" | "partial" | null>(null);
+  const [dataStatus, setDataStatus] = useState<"fresh" | "partial" | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(token !== zeroAddress);
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -208,14 +217,20 @@ export function TokenTradingPage({
     top10ConcentrationPct: null,
   });
   const autoSellStarted = useRef(false);
-  const pendingSell = useRef<{ amount: bigint; minimumBNB: bigint } | null>(null);
+  const pendingSell = useRef<{ amount: bigint; minimumBNB: bigint } | null>(
+    null,
+  );
   const tradeWrite = useWriteContract();
   const approvalWrite = useWriteContract();
   const rewardWrite = useWriteContract();
   const lpApprovalWrite = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash: tradeWrite.data });
-  const approvalReceipt = useWaitForTransactionReceipt({ hash: approvalWrite.data });
-  const rewardReceipt = useWaitForTransactionReceipt({ hash: rewardWrite.data });
+  const approvalReceipt = useWaitForTransactionReceipt({
+    hash: approvalWrite.data,
+  });
+  const rewardReceipt = useWaitForTransactionReceipt({
+    hash: rewardWrite.data,
+  });
   const lpApprovalReceipt = useWaitForTransactionReceipt({
     hash: lpApprovalWrite.data,
   });
@@ -255,7 +270,8 @@ export function TokenTradingPage({
     args: [tokenAddress],
     query: {
       enabled:
-        configuredRewardsFactory !== zeroAddress && tokenAddress !== zeroAddress,
+        configuredRewardsFactory !== zeroAddress &&
+        tokenAddress !== zeroAddress,
     },
   });
   const snapshotFactory =
@@ -284,30 +300,40 @@ export function TokenTradingPage({
     snapshotFactory !== zeroAddress
       ? snapshotFactory
       : standardCurve !== zeroAddress
-      ? testnetFactoryAddress
-      : autoCurve !== zeroAddress
-        ? autoLiquidityFactoryAddress
-        : rewardsCurve !== zeroAddress
-          ? configuredRewardsFactory
-          : zeroAddress;
+        ? testnetFactoryAddress
+        : autoCurve !== zeroAddress
+          ? autoLiquidityFactoryAddress
+          : rewardsCurve !== zeroAddress
+            ? configuredRewardsFactory
+            : zeroAddress;
   const curveAddress =
     snapshotCurve !== zeroAddress
       ? snapshotCurve
       : standardCurve !== zeroAddress
-      ? standardCurve
-      : autoCurve !== zeroAddress
-        ? autoCurve
-        : rewardsCurve;
+        ? standardCurve
+        : autoCurve !== zeroAddress
+          ? autoCurve
+          : rewardsCurve;
   const isAdvancedTemplate =
     factoryAddress !== zeroAddress &&
-    (factoryAddress.toLowerCase() === autoLiquidityFactoryAddress.toLowerCase() ||
-      factoryAddress.toLowerCase() === configuredRewardsFactory.toLowerCase());
+    (factoryAddress.toLowerCase() ===
+      autoLiquidityFactoryAddress.toLowerCase() ||
+      factoryAddress.toLowerCase() === configuredRewardsFactory.toLowerCase() ||
+      factoryAddress.toLowerCase() ===
+        legacyRewardsFactoryAddress.toLowerCase());
+  const isLegacyAutoLiquidityFactory =
+    factoryAddress !== zeroAddress &&
+    factoryAddress.toLowerCase() === autoLiquidityFactoryAddress.toLowerCase();
+  const isRewardsTemplateFactory =
+    isAdvancedTemplate && !isLegacyAutoLiquidityFactory;
   const metadataURI = useReadContract({
     address: factoryAddress,
     abi: factoryAbi,
     functionName: "tokenMetadataURI",
     args: [tokenAddress],
-    query: { enabled: factoryAddress !== zeroAddress && tokenAddress !== zeroAddress },
+    query: {
+      enabled: factoryAddress !== zeroAddress && tokenAddress !== zeroAddress,
+    },
   });
   const resolvedMetadataURI =
     metadataURI.data ?? tokenSnapshot.snapshot?.metadataURI ?? undefined;
@@ -342,7 +368,9 @@ export function TokenTradingPage({
     abi: tokenAbi,
     functionName: "balanceOf",
     args: [curveAddress],
-    query: { enabled: curveAddress !== zeroAddress && tokenAddress !== zeroAddress },
+    query: {
+      enabled: curveAddress !== zeroAddress && tokenAddress !== zeroAddress,
+    },
   });
   const totalSupply = useReadContract({
     address: tokenAddress,
@@ -421,23 +449,54 @@ export function TokenTradingPage({
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "template",
-    query: { enabled: tokenAddress !== zeroAddress && rewardsCurve !== zeroAddress },
+    query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
   const rewardVault = useReadContract({
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "rewardVault",
-    query: { enabled: tokenAddress !== zeroAddress && rewardsCurve !== zeroAddress },
+    query: {
+      enabled: tokenAddress !== zeroAddress && isRewardsTemplateFactory,
+    },
+  });
+  const rewardToken = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "rewardToken",
+    query: {
+      enabled: tokenAddress !== zeroAddress && isRewardsTemplateFactory,
+    },
+  });
+  const rewardTokenSymbol = useReadContract({
+    address: rewardToken.data ?? zeroAddress,
+    abi: tokenAbi,
+    functionName: "symbol",
+    query: { enabled: Boolean(rewardToken.data) },
+  });
+  const rewardTokenDecimals = useReadContract({
+    address: rewardToken.data ?? zeroAddress,
+    abi: tokenAbi,
+    functionName: "decimals",
+    query: { enabled: Boolean(rewardToken.data) },
   });
   const minimumRewardShare = useReadContract({
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "minimumRewardShare",
-    query: { enabled: tokenAddress !== zeroAddress && rewardsCurve !== zeroAddress },
+    query: {
+      enabled: tokenAddress !== zeroAddress && isRewardsTemplateFactory,
+    },
   });
   const rewardVaultAddress = rewardVault.data ?? zeroAddress;
-  const isHolderRewards = Number(template.data ?? 0) === 2;
-  const isLPRewards = Number(template.data ?? 0) === 3;
+  const isV3Rewards = Boolean(rewardToken.data);
+  const templateValue = Number(template.data ?? -1);
+  const isHolderRewards = isV3Rewards
+    ? templateValue === 0
+    : templateValue === 2;
+  const isLPRewards = isV3Rewards ? templateValue === 1 : templateValue === 3;
+  const rewardUnit = isV3Rewards
+    ? (rewardTokenSymbol.data ?? advancedCopy.rewards)
+    : "BNB";
   const claimableRewards = useReadContract({
     address: rewardVaultAddress,
     abi: rewardVaultAbi,
@@ -445,6 +504,10 @@ export function TokenTradingPage({
     args: [user ?? zeroAddress],
     query: { enabled: Boolean(user) && rewardVaultAddress !== zeroAddress },
   });
+  const formattedClaimableRewards = formatUnits(
+    claimableRewards.data ?? 0n,
+    isV3Rewards ? Number(rewardTokenDecimals.data ?? 18) : 18,
+  );
   const rewardShares = useReadContract({
     address: rewardVaultAddress,
     abi: rewardVaultAbi,
@@ -509,9 +572,7 @@ export function TokenTradingPage({
     tokenSnapshot.snapshot?.graduationAuthority ??
     undefined;
   const liquidityPairAddress =
-    liquidityPair.data ??
-    tokenSnapshot.snapshot?.liquidityPair ??
-    undefined;
+    liquidityPair.data ?? tokenSnapshot.snapshot?.liquidityPair ?? undefined;
   const pairUnlockedValue =
     pairUnlocked.data ?? tokenSnapshot.snapshot?.pairUnlocked ?? undefined;
   const lpBurnBalance = useReadContract({
@@ -577,10 +638,7 @@ export function TokenTradingPage({
     targetValue !== undefined &&
     principalValue !== undefined &&
     targetValue > 0n
-      ? Math.min(
-          100,
-          Number((principalValue * 10_000n) / targetValue) / 100,
-        )
+      ? Math.min(100, Number((principalValue * 10_000n) / targetValue) / 100)
       : null;
   const remainingBNB =
     targetValue !== undefined && principalValue !== undefined
@@ -595,8 +653,7 @@ export function TokenTradingPage({
     activitySummary.bnbUsd,
   );
   const marketCapUsd =
-    (currentTokenPriceUsdt ?? 0) *
-    Number(formatEther(totalSupplyValue ?? 0n));
+    (currentTokenPriceUsdt ?? 0) * Number(formatEther(totalSupplyValue ?? 0n));
   const volume24hUsd =
     activitySummary.volume24hBnb === null
       ? null
@@ -624,21 +681,30 @@ export function TokenTradingPage({
       address: factoryAddress,
       abi: factoryAbi,
       functionName: "buy",
-      args: [tokenAddress, minimumAfterSlippage(quotedTokens), deadline(), user],
+      args: [
+        tokenAddress,
+        minimumAfterSlippage(quotedTokens),
+        deadline(),
+        user,
+      ],
       value: buyWei,
     });
   }
 
-  const executeSell = useCallback((order?: { amount: bigint; minimumBNB: bigint }) => {
-    const amount = order?.amount ?? sellWei;
-    const minimumBNB = order?.minimumBNB ?? minimumAfterSlippage(quotedSellBNB);
-    tradeWrite.writeContract({
-      address: factoryAddress,
-      abi: factoryAbi,
-      functionName: "sell",
-      args: [tokenAddress, amount, minimumBNB, deadline()],
-    });
-  }, [factoryAddress, quotedSellBNB, sellWei, tokenAddress, tradeWrite]);
+  const executeSell = useCallback(
+    (order?: { amount: bigint; minimumBNB: bigint }) => {
+      const amount = order?.amount ?? sellWei;
+      const minimumBNB =
+        order?.minimumBNB ?? minimumAfterSlippage(quotedSellBNB);
+      tradeWrite.writeContract({
+        address: factoryAddress,
+        abi: factoryAbi,
+        functionName: "sell",
+        args: [tokenAddress, amount, minimumBNB, deadline()],
+      });
+    },
+    [factoryAddress, quotedSellBNB, sellWei, tokenAddress, tradeWrite],
+  );
 
   function sell() {
     if (needsApproval) {
@@ -685,7 +751,12 @@ export function TokenTradingPage({
       void allowance.refetch();
       executeSell(order);
     }
-  }, [allowance, approvalReceipt.isSuccess, continueAfterApproval, executeSell]);
+  }, [
+    allowance,
+    approvalReceipt.isSuccess,
+    continueAfterApproval,
+    executeSell,
+  ]);
 
   useEffect(() => {
     if (!approvalReceipt.isError && !approvalWrite.error) return;
@@ -802,17 +873,15 @@ export function TokenTradingPage({
   return (
     <main>
       <header className="topbar">
-        <Link className="brand" href="/">BNBX</Link>
+        <Link className="brand" href="/">
+          BNBX
+        </Link>
         <WalletButton />
       </header>
 
       <section className="token-heading">
-        {(tokenSnapshot.error ||
-          tokenSnapshot.dataStatus === "partial") && (
-          <div
-            className="data-reliability-banner"
-            role="status"
-          >
+        {(tokenSnapshot.error || tokenSnapshot.dataStatus === "partial") && (
+          <div className="data-reliability-banner" role="status">
             <span>
               {tokenSnapshot.error
                 ? t("staleDataNotice")
@@ -826,9 +895,8 @@ export function TokenTradingPage({
         <p className="eyebrow">
           {stateValue === undefined
             ? t("loading")
-            : ([t("curveTrading"), t("preparing"), t("pancake")][
-                stateValue
-              ] ?? t("dataUnknown"))}
+            : ([t("curveTrading"), t("preparing"), t("pancake")][stateValue] ??
+              t("dataUnknown"))}
         </p>
         <div className="token-terminal-summary">
           <div className="token-identity">
@@ -865,7 +933,8 @@ export function TokenTradingPage({
                   className="creator-link"
                   href={creatorProjectPath(creatorAddress)}
                 >
-                  {t("creator")} {creatorAddress.slice(0, 6)}…{creatorAddress.slice(-4)} →
+                  {t("creator")} {creatorAddress.slice(0, 6)}…
+                  {creatorAddress.slice(-4)} →
                 </Link>
               )}
               {metadata?.createdAt && (
@@ -907,7 +976,9 @@ export function TokenTradingPage({
             <div>
               <span>{t("volume24h")}</span>
               <strong>{formatMarketMetric(volume24hUsd, true)}</strong>
-              <small>{formatMarketMetric(activitySummary.volume24hBnb)} BNB</small>
+              <small>
+                {formatMarketMetric(activitySummary.volume24hBnb)} BNB
+              </small>
             </div>
             <div>
               <span>{t("liquidity")}</span>
@@ -924,19 +995,24 @@ export function TokenTradingPage({
             </div>
             <div>
               <span>{t("holders")}</span>
-              <strong>
-                {formatExactCount(activitySummary.holderCount)}
-              </strong>
+              <strong>{formatExactCount(activitySummary.holderCount)}</strong>
             </div>
             <div>
               <span>{t("progress")}</span>
-              <strong>{progress === null ? "—" : `${progress.toFixed(2)}%`}</strong>
+              <strong>
+                {progress === null ? "—" : `${progress.toFixed(2)}%`}
+              </strong>
             </div>
           </div>
         </div>
-        <section className="token-description-card" aria-labelledby="token-description-title">
+        <section
+          className="token-description-card"
+          aria-labelledby="token-description-title"
+        >
           <strong id="token-description-title">{t("tokenDescription")}</strong>
-          <p className={`token-description${descriptionExpanded ? " expanded" : ""}`}>
+          <p
+            className={`token-description${descriptionExpanded ? " expanded" : ""}`}
+          >
             {metadataLoading
               ? t("loading")
               : metadataError
@@ -953,7 +1029,9 @@ export function TokenTradingPage({
               type="button"
               onClick={() => setDescriptionExpanded((expanded) => !expanded)}
             >
-              {descriptionExpanded ? t("collapseDescription") : t("expandDescription")}
+              {descriptionExpanded
+                ? t("collapseDescription")
+                : t("expandDescription")}
             </button>
           )}
         </section>
@@ -989,7 +1067,9 @@ export function TokenTradingPage({
               aria-expanded={tokenomicsExpanded}
               onClick={() => setTokenomicsExpanded((expanded) => !expanded)}
             >
-              <span>{tokenomicsExpanded ? t("hideLinks") : t("moreLinks")}</span>
+              <span>
+                {tokenomicsExpanded ? t("hideLinks") : t("moreLinks")}
+              </span>
               <strong aria-hidden="true">
                 {tokenomicsExpanded ? "−" : "+"}
               </strong>
@@ -1026,7 +1106,11 @@ export function TokenTradingPage({
           >
             <div className="tax-template-heading">
               <div>
-                <span className="eyebrow">BNB REWARD VAULT</span>
+                <span className="eyebrow">
+                  {isV3Rewards
+                    ? "EXTERNAL TOKEN REWARD VAULT"
+                    : "BNB REWARD VAULT"}
+                </span>
                 <strong>
                   {isHolderRewards
                     ? advancedCopy.holderVault
@@ -1034,8 +1118,8 @@ export function TokenTradingPage({
                 </strong>
               </div>
               <span>
-                {advancedCopy.claimable}{" "}
-                {formatEther(claimableRewards.data ?? 0n)} BNB
+                {advancedCopy.claimable} {formattedClaimableRewards}{" "}
+                {rewardUnit}
               </span>
             </div>
             <button
@@ -1045,15 +1129,27 @@ export function TokenTradingPage({
               onClick={() => setRewardsExpanded((expanded) => !expanded)}
             >
               <span>{rewardsExpanded ? t("hideLinks") : t("moreLinks")}</span>
-              <strong aria-hidden="true">
-                {rewardsExpanded ? "−" : "+"}
-              </strong>
+              <strong aria-hidden="true">{rewardsExpanded ? "−" : "+"}</strong>
             </button>
             <div className="tax-breakdown">
               <div>
                 <span>{advancedCopy.myRewardWeight}</span>
                 <strong>{formatEther(rewardShares.data ?? 0n)}</strong>
               </div>
+              {isV3Rewards && rewardToken.data && (
+                <div>
+                  <span>{advancedCopy.rewards}</span>
+                  <strong>
+                    <a
+                      href={`${blockExplorerUrl}/token/${rewardToken.data}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {rewardUnit} ↗
+                    </a>
+                  </strong>
+                </div>
+              )}
               {isHolderRewards && (
                 <div>
                   <span>{advancedCopy.minimumHolderBalance}</span>
@@ -1149,17 +1245,27 @@ export function TokenTradingPage({
                 {advancedCopy.claimRewards}
               </button>
               {(rewardWrite.error || lpApprovalWrite.error) && (
-                <p className="error">
-                  {advancedCopy.rewardTransactionFailed}
-                </p>
+                <p className="error">{advancedCopy.rewardTransactionFailed}</p>
               )}
             </div>
           </section>
         )}
         <div className="project-links">
-          {metadata?.website && <a href={metadata.website} target="_blank" rel="noreferrer">{t("officialSite")} ↗</a>}
-          {metadata?.telegram && <a href={metadata.telegram} target="_blank" rel="noreferrer">Telegram ↗</a>}
-          {metadata?.twitter && <a href={metadata.twitter} target="_blank" rel="noreferrer">X / Twitter ↗</a>}
+          {metadata?.website && (
+            <a href={metadata.website} target="_blank" rel="noreferrer">
+              {t("officialSite")} ↗
+            </a>
+          )}
+          {metadata?.telegram && (
+            <a href={metadata.telegram} target="_blank" rel="noreferrer">
+              Telegram ↗
+            </a>
+          )}
+          {metadata?.twitter && (
+            <a href={metadata.twitter} target="_blank" rel="noreferrer">
+              X / Twitter ↗
+            </a>
+          )}
           <a
             href={`${blockExplorerUrl}/token/${tokenAddress}`}
             target="_blank"
@@ -1173,9 +1279,19 @@ export function TokenTradingPage({
             aria-expanded={linksExpanded}
             onClick={() => setLinksExpanded((expanded) => !expanded)}
           >
-            {linksExpanded ? t("hideLinks") : t("moreLinks")} {linksExpanded ? "−" : "+"}
+            {linksExpanded ? t("hideLinks") : t("moreLinks")}{" "}
+            {linksExpanded ? "−" : "+"}
           </button>
-          {metadata?.debox && <a className={`project-link-secondary${linksExpanded ? " expanded" : ""}`} href={metadata.debox} target="_blank" rel="noreferrer">DeBox ↗</a>}
+          {metadata?.debox && (
+            <a
+              className={`project-link-secondary${linksExpanded ? " expanded" : ""}`}
+              href={metadata.debox}
+              target="_blank"
+              rel="noreferrer"
+            >
+              DeBox ↗
+            </a>
+          )}
           {metadata?.qqGroupNumber && (
             <button
               className={`qq-group-copy project-link-secondary${linksExpanded ? " expanded" : ""}`}
@@ -1183,7 +1299,9 @@ export function TokenTradingPage({
               onClick={copyQQGroupNumber}
               title={t("copy")}
             >
-              <span>{t("qqGroupNumber")}：{metadata.qqGroupNumber}</span>
+              <span>
+                {t("qqGroupNumber")}：{metadata.qqGroupNumber}
+              </span>
               <strong aria-hidden="true">⧉</strong>
             </button>
           )}
@@ -1246,12 +1364,16 @@ export function TokenTradingPage({
                   className={tradeMode === "buy" ? "active buy" : ""}
                   type="button"
                   onClick={() => setTradeMode("buy")}
-                >{t("buy")}</button>
+                >
+                  {t("buy")}
+                </button>
                 <button
                   className={tradeMode === "sell" ? "active sell" : ""}
                   type="button"
                   onClick={() => setTradeMode("sell")}
-                >{t("sell")}</button>
+                >
+                  {t("sell")}
+                </button>
               </div>
             )}
 
@@ -1301,7 +1423,11 @@ export function TokenTradingPage({
                 </label>
                 <div className="amount-presets">
                   {["0.1", "0.5", "1"].map((amount) => (
-                    <button key={amount} type="button" onClick={() => setBuyAmount(amount)}>
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setBuyAmount(amount)}
+                    >
                       {amount} BNB
                     </button>
                   ))}
@@ -1319,16 +1445,30 @@ export function TokenTradingPage({
                     connectLabel={`${t("buy")} · ${t("connectWallet")}`}
                   />
                 ) : chainId !== bsc.id ? (
-                  <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
+                  <button
+                    className="button wide"
+                    type="button"
+                    onClick={() => switchChain({ chainId: bsc.id })}
+                  >
                     {t("switchNetwork")}
                   </button>
                 ) : (
                   <button
                     className="button wide trade-submit buy"
                     type="button"
-                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || buyWei === 0n || quotedTokens === 0n || tradeWrite.isPending || stateValue !== 0}
+                    disabled={
+                      !user ||
+                      factoryAddress === zeroAddress ||
+                      curveAddress === zeroAddress ||
+                      buyWei === 0n ||
+                      quotedTokens === 0n ||
+                      tradeWrite.isPending ||
+                      stateValue !== 0
+                    }
                     onClick={buy}
-                  >{t("buy")}</button>
+                  >
+                    {t("buy")}
+                  </button>
                 )}
               </>
             ) : (
@@ -1344,18 +1484,25 @@ export function TokenTradingPage({
                 </label>
                 <div className="amount-presets">
                   {[25n, 50n, 75n, 100n].map((percent) => (
-                    <button key={percent.toString()} type="button" onClick={() => setSellPercent(percent)}>
+                    <button
+                      key={percent.toString()}
+                      type="button"
+                      onClick={() => setSellPercent(percent)}
+                    >
                       {percent.toString()}%
                     </button>
                   ))}
                 </div>
                 <div className="trade-balance">
-                  {t("balance")}: {balance.data === undefined ? "—" : formatEther(balance.data)}{" "}
+                  {t("balance")}:{" "}
+                  {balance.data === undefined ? "—" : formatEther(balance.data)}{" "}
                   {tokenSymbol ?? "—"}
                 </div>
                 <div className="quote-row">
                   <span>{t("expectedReceive")}</span>
-                  <strong>{sellQuote.data ? formatEther(quotedSellBNB) : "—"} BNB</strong>
+                  <strong>
+                    {sellQuote.data ? formatEther(quotedSellBNB) : "—"} BNB
+                  </strong>
                 </div>
                 {!user ? (
                   <WalletButton
@@ -1363,14 +1510,28 @@ export function TokenTradingPage({
                     connectLabel={`${t("sell")} · ${t("connectWallet")}`}
                   />
                 ) : chainId !== bsc.id ? (
-                  <button className="button wide" type="button" onClick={() => switchChain({ chainId: bsc.id })}>
+                  <button
+                    className="button wide"
+                    type="button"
+                    onClick={() => switchChain({ chainId: bsc.id })}
+                  >
                     {t("switchNetwork")}
                   </button>
                 ) : (
                   <button
                     className="button wide trade-submit sell"
                     type="button"
-                    disabled={!user || factoryAddress === zeroAddress || curveAddress === zeroAddress || sellWei === 0n || quotedSellBNB === 0n || tradeWrite.isPending || approvalWrite.isPending || approvalReceipt.isLoading || stateValue !== 0}
+                    disabled={
+                      !user ||
+                      factoryAddress === zeroAddress ||
+                      curveAddress === zeroAddress ||
+                      sellWei === 0n ||
+                      quotedSellBNB === 0n ||
+                      tradeWrite.isPending ||
+                      approvalWrite.isPending ||
+                      approvalReceipt.isLoading ||
+                      stateValue !== 0
+                    }
                     onClick={sell}
                   >
                     {approvalWrite.isPending || approvalReceipt.isLoading
@@ -1393,7 +1554,9 @@ export function TokenTradingPage({
                 rel="noreferrer"
               >
                 <span>{t("txHash")}</span>
-                <strong>{tradeWrite.data.slice(0, 10)}…{tradeWrite.data.slice(-8)} ↗</strong>
+                <strong>
+                  {tradeWrite.data.slice(0, 10)}…{tradeWrite.data.slice(-8)} ↗
+                </strong>
               </a>
             )}
             {!tradeWrite.data && approvalWrite.data && (
@@ -1404,172 +1567,244 @@ export function TokenTradingPage({
                 rel="noreferrer"
               >
                 <span>{t("approving")}</span>
-                <strong>{approvalWrite.data.slice(0, 10)}…{approvalWrite.data.slice(-8)} ↗</strong>
+                <strong>
+                  {approvalWrite.data.slice(0, 10)}…
+                  {approvalWrite.data.slice(-8)} ↗
+                </strong>
               </a>
             )}
-            {(approvalWrite.isPending || approvalWrite.data || tradeWrite.isPending || tradeWrite.data || receipt.isLoading || receipt.isSuccess) && (
-              <div className="transaction-status" role="status" aria-live="polite">
+            {(approvalWrite.isPending ||
+              approvalWrite.data ||
+              tradeWrite.isPending ||
+              tradeWrite.data ||
+              receipt.isLoading ||
+              receipt.isSuccess) && (
+              <div
+                className="transaction-status"
+                role="status"
+                aria-live="polite"
+              >
                 <strong>{t("txStatus")}</strong>
                 <ol>
-                  <li className={tradeWrite.data || approvalWrite.data ? "done" : "active"}>{t("walletStep")}</li>
-                  <li className={tradeWrite.data ? "done" : approvalWrite.data || tradeWrite.isPending ? "active" : ""}>{t("broadcastStep")}</li>
-                  <li className={receipt.isSuccess ? "done" : tradeWrite.data ? "active" : ""}>{t("confirmStep")}</li>
-                  <li className={receipt.isSuccess ? "done" : ""}>{t("syncStep")}</li>
+                  <li
+                    className={
+                      tradeWrite.data || approvalWrite.data ? "done" : "active"
+                    }
+                  >
+                    {t("walletStep")}
+                  </li>
+                  <li
+                    className={
+                      tradeWrite.data
+                        ? "done"
+                        : approvalWrite.data || tradeWrite.isPending
+                          ? "active"
+                          : ""
+                    }
+                  >
+                    {t("broadcastStep")}
+                  </li>
+                  <li
+                    className={
+                      receipt.isSuccess
+                        ? "done"
+                        : tradeWrite.data
+                          ? "active"
+                          : ""
+                    }
+                  >
+                    {t("confirmStep")}
+                  </li>
+                  <li className={receipt.isSuccess ? "done" : ""}>
+                    {t("syncStep")}
+                  </li>
                 </ol>
               </div>
             )}
             {receipt.isSuccess && <p className="success">{t("confirmed")}</p>}
-            {(tradeWrite.error || approvalWrite.error || approvalReceipt.error) && (
-              <p className="error">
-                {t("tradeFailed")}
-              </p>
+            {(tradeWrite.error ||
+              approvalWrite.error ||
+              approvalReceipt.error) && (
+              <p className="error">{t("tradeFailed")}</p>
             )}
           </article>
 
           <article className="card progress-card">
-          <h2 className="section-title">{t("safetyTitle")}</h2>
-          <span>{t("progress")}</span>
-          <strong>{progress === null ? "—" : `${progress.toFixed(2)}%`}</strong>
-          <div className="progress-track">
-            <div style={{ width: `${progress ?? 0}%` }} />
-          </div>
-          <div className="graduation-metrics">
-            <div>
-              <span>{t("raisedBnb")}</span>
-              <strong>
-                {principalValue === undefined ? "—" : formatEther(principalValue)} BNB
-              </strong>
+            <h2 className="section-title">{t("safetyTitle")}</h2>
+            <span>{t("progress")}</span>
+            <strong>
+              {progress === null ? "—" : `${progress.toFixed(2)}%`}
+            </strong>
+            <div className="progress-track">
+              <div style={{ width: `${progress ?? 0}%` }} />
             </div>
-            <div>
-              <span>{t("remainingBnb")}</span>
-              <strong>
-                {remainingBNB === undefined ? "—" : formatEther(remainingBNB)} BNB
-              </strong>
-            </div>
-            <div>
-              <span>{t("curveRemaining")}</span>
-              <strong title={curveTokenBalanceValue === undefined ? "" : formatEther(curveTokenBalanceValue)}>
-                {curveTokenBalanceValue === undefined
-                  ? "—"
-                  : formatTokenAmount(curveTokenBalanceValue)}{" "}
-                {tokenSymbol ?? "—"}
-              </strong>
-            </div>
-          </div>
-          <p className="graduation-note">{t("automaticMigration")}</p>
-          <span>
-            {t("myBalance")}：
-            {balance.data === undefined ? "—" : formatEther(balance.data)}
-          </span>
-          <button
-            className="security-toggle"
-            type="button"
-            aria-expanded={securityExpanded}
-            onClick={() => setSecurityExpanded((expanded) => !expanded)}
-          >
-            <span>
-              {securityExpanded ? t("hideSecurityDetails") : t("securityDetails")}
-            </span>
-            <strong aria-hidden="true">{securityExpanded ? "−" : "+"}</strong>
-          </button>
-          <div className={`security-details${securityExpanded ? " expanded" : ""}`}>
-            <div className="security-facts">
-            <div>
-              <span>{t("verifiedFactory")}</span>
-              {factoryAddress === zeroAddress ? (
-                <strong>{t("dataUnknown")}</strong>
-              ) : (
-                <a href={`${blockExplorerUrl}/address/${factoryAddress}`} target="_blank" rel="noreferrer">{t("verified")} ↗</a>
-              )}
-            </div>
-            <div>
-              <span>{t("tokenTax")}</span>
-              <strong>{isAdvancedTemplate ? `${taxPercent(buyTaxTotal)} / ${taxPercent(sellTaxTotal)}` : t("zeroTax")}</strong>
-            </div>
-            <div><span>{t("fixedFee")}</span><strong>0.5%</strong></div>
-            <div><span>{t("slippage")}</span><strong>1%</strong></div>
-            <div>
-              <span>{t("supply")}</span>
-              <strong>
-                {totalSupplyValue === undefined
-                  ? "—"
-                  : `${Number(formatEther(totalSupplyValue)).toLocaleString(
-                      localeByLanguage[language],
-                    )} ${t("units")}`}
-              </strong>
-            </div>
-            <div>
-              <span>{t("factoryPermission")}</span>
-              <strong>
-                {launchManagerAddress === undefined
-                  ? t("dataUnknown")
-                  : launchManagerAddress === zeroAddress
-                    ? t("abandoned")
-                    : t("dataUnknown")}
-              </strong>
-            </div>
-            <div>
-              <span>{t("graduationPermission")}</span>
-              <strong>
-                {graduationAuthorityAddress === undefined
-                  ? t("dataUnknown")
-                  : graduationAuthorityAddress === zeroAddress
-                  ? t("destroyed")
-                  : graduationAuthorityAddress === curveAddress
-                    ? t("curveOnly")
-                    : t("dataUnknown")}
-              </strong>
-            </div>
-            <div>
-              <span>Pancake Pair</span>
-              {liquidityPairAddress ? (
-                <a
-                  href={`${blockExplorerUrl}/address/${liquidityPairAddress}`}
-                  target="_blank"
-                  rel="noreferrer"
+            <div className="graduation-metrics">
+              <div>
+                <span>{t("raisedBnb")}</span>
+                <strong>
+                  {principalValue === undefined
+                    ? "—"
+                    : formatEther(principalValue)}{" "}
+                  BNB
+                </strong>
+              </div>
+              <div>
+                <span>{t("remainingBnb")}</span>
+                <strong>
+                  {remainingBNB === undefined ? "—" : formatEther(remainingBNB)}{" "}
+                  BNB
+                </strong>
+              </div>
+              <div>
+                <span>{t("curveRemaining")}</span>
+                <strong
+                  title={
+                    curveTokenBalanceValue === undefined
+                      ? ""
+                      : formatEther(curveTokenBalanceValue)
+                  }
                 >
-                  {liquidityPairAddress.slice(0, 6)}…
-                  {liquidityPairAddress.slice(-4)} ↗
-                </a>
-              ) : (
-                <strong>{t("dataUnknown")}</strong>
-              )}
+                  {curveTokenBalanceValue === undefined
+                    ? "—"
+                    : formatTokenAmount(curveTokenBalanceValue)}{" "}
+                  {tokenSymbol ?? "—"}
+                </strong>
+              </div>
             </div>
-            <div>
-              <span>{t("tokenPairTransferStatus")}</span>
-              <strong>
-                {pairUnlockedValue === undefined
-                  ? t("dataUnknown")
-                  : pairUnlockedValue
-                    ? t("tokenPairTransferOpen")
-                    : t("tokenPairTransferProtected")}
-              </strong>
+            <p className="graduation-note">{t("automaticMigration")}</p>
+            <span>
+              {t("myBalance")}：
+              {balance.data === undefined ? "—" : formatEther(balance.data)}
+            </span>
+            <button
+              className="security-toggle"
+              type="button"
+              aria-expanded={securityExpanded}
+              onClick={() => setSecurityExpanded((expanded) => !expanded)}
+            >
+              <span>
+                {securityExpanded
+                  ? t("hideSecurityDetails")
+                  : t("securityDetails")}
+              </span>
+              <strong aria-hidden="true">{securityExpanded ? "−" : "+"}</strong>
+            </button>
+            <div
+              className={`security-details${securityExpanded ? " expanded" : ""}`}
+            >
+              <div className="security-facts">
+                <div>
+                  <span>{t("verifiedFactory")}</span>
+                  {factoryAddress === zeroAddress ? (
+                    <strong>{t("dataUnknown")}</strong>
+                  ) : (
+                    <a
+                      href={`${blockExplorerUrl}/address/${factoryAddress}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t("verified")} ↗
+                    </a>
+                  )}
+                </div>
+                <div>
+                  <span>{t("tokenTax")}</span>
+                  <strong>
+                    {isAdvancedTemplate
+                      ? `${taxPercent(buyTaxTotal)} / ${taxPercent(sellTaxTotal)}`
+                      : t("zeroTax")}
+                  </strong>
+                </div>
+                <div>
+                  <span>{t("fixedFee")}</span>
+                  <strong>0.5%</strong>
+                </div>
+                <div>
+                  <span>{t("slippage")}</span>
+                  <strong>1%</strong>
+                </div>
+                <div>
+                  <span>{t("supply")}</span>
+                  <strong>
+                    {totalSupplyValue === undefined
+                      ? "—"
+                      : `${Number(formatEther(totalSupplyValue)).toLocaleString(
+                          localeByLanguage[language],
+                        )} ${t("units")}`}
+                  </strong>
+                </div>
+                <div>
+                  <span>{t("factoryPermission")}</span>
+                  <strong>
+                    {launchManagerAddress === undefined
+                      ? t("dataUnknown")
+                      : launchManagerAddress === zeroAddress
+                        ? t("abandoned")
+                        : t("dataUnknown")}
+                  </strong>
+                </div>
+                <div>
+                  <span>{t("graduationPermission")}</span>
+                  <strong>
+                    {graduationAuthorityAddress === undefined
+                      ? t("dataUnknown")
+                      : graduationAuthorityAddress === zeroAddress
+                        ? t("destroyed")
+                        : graduationAuthorityAddress === curveAddress
+                          ? t("curveOnly")
+                          : t("dataUnknown")}
+                  </strong>
+                </div>
+                <div>
+                  <span>Pancake Pair</span>
+                  {liquidityPairAddress ? (
+                    <a
+                      href={`${blockExplorerUrl}/address/${liquidityPairAddress}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {liquidityPairAddress.slice(0, 6)}…
+                      {liquidityPairAddress.slice(-4)} ↗
+                    </a>
+                  ) : (
+                    <strong>{t("dataUnknown")}</strong>
+                  )}
+                </div>
+                <div>
+                  <span>{t("tokenPairTransferStatus")}</span>
+                  <strong>
+                    {pairUnlockedValue === undefined
+                      ? t("dataUnknown")
+                      : pairUnlockedValue
+                        ? t("tokenPairTransferOpen")
+                        : t("tokenPairTransferProtected")}
+                  </strong>
+                </div>
+                <div>
+                  <span>{t("lpTokenStatus")}</span>
+                  <strong>
+                    {lpBurnStatus === "burned"
+                      ? t("lpBurned")
+                      : lpBurnStatus === "pending"
+                        ? t("lpBurnPending")
+                        : lpBurnStatus === "missing"
+                          ? t("lpBurnMissing")
+                          : t("dataUnknown")}
+                  </strong>
+                </div>
+                <div>
+                  <span>{t("lpBurnProof")}</span>
+                  <a
+                    href={lpBurnProofUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={lpBurnAddress}
+                  >
+                    {t("viewBurnProof")} ↗
+                  </a>
+                </div>
+              </div>
             </div>
-            <div>
-              <span>{t("lpTokenStatus")}</span>
-              <strong>
-                {lpBurnStatus === "burned"
-                  ? t("lpBurned")
-                  : lpBurnStatus === "pending"
-                    ? t("lpBurnPending")
-                    : lpBurnStatus === "missing"
-                      ? t("lpBurnMissing")
-                      : t("dataUnknown")}
-              </strong>
-            </div>
-            <div>
-              <span>{t("lpBurnProof")}</span>
-              <a
-                href={lpBurnProofUrl}
-                target="_blank"
-                rel="noreferrer"
-                title={lpBurnAddress}
-              >
-                {t("viewBurnProof")} ↗
-              </a>
-            </div>
-            </div>
-          </div>
           </article>
         </aside>
 

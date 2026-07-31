@@ -9,6 +9,8 @@ import {
   advancedTemplateValue,
   emptyTaxSide,
   normalizeTaxesForTemplate,
+  parseTaxPercent,
+  taxSideToBps,
 } from "./advanced-template-config.ts";
 import { rewardsFactoryDeploymentAbi } from "./rewards-factory-deployment.ts";
 
@@ -24,8 +26,9 @@ const request = {
   metadataURI: "",
   vanitySalt: `0x${"00".repeat(32)}`,
   marketingWallet: wallet,
+  rewardToken: "0x55d398326f99059fF775485246999027B3197955",
   taxes,
-  template: 2,
+  template: 0,
   minimumRewardShare: parseEther("10000"),
 };
 
@@ -33,16 +36,7 @@ test("uses the deployed advanced Factory function signatures", () => {
   const calls = [
     {
       functionName: "findVanitySalt",
-      args: [
-        request.name,
-        request.symbol,
-        request.marketingWallet,
-        request.taxes,
-        request.template,
-        request.minimumRewardShare,
-        0n,
-        10_000n,
-      ],
+      args: [request, 0n, 10_000n],
     },
     { functionName: "createVanityToken", args: [request] },
     {
@@ -70,31 +64,39 @@ test("uses the deployed advanced Factory function signatures", () => {
 });
 
 test("maps every advanced template to the onchain enum", () => {
-  assert.equal(advancedTemplateValue("liquidity"), 1);
-  assert.equal(advancedTemplateValue("holders"), 2);
-  assert.equal(advancedTemplateValue("lp"), 3);
+  assert.equal(advancedTemplateValue("holders"), 0);
+  assert.equal(advancedTemplateValue("lp"), 1);
 });
 
 test("keeps template taxes deployable when switching templates", () => {
   const empty = emptyTaxSide();
   const rewards = normalizeTaxesForTemplate("holders", empty, empty);
-  assert.equal(rewards.buy.rewards, 1);
-  assert.equal(rewards.sell.rewards, 1);
-
-  const liquidity = normalizeTaxesForTemplate(
-    "liquidity",
-    rewards.buy,
-    rewards.sell,
-  );
-  assert.equal(liquidity.buy.rewards, 0);
-  assert.equal(liquidity.sell.rewards, 0);
+  assert.equal(rewards.buy.rewards, "0");
+  assert.equal(rewards.sell.rewards, "0");
 
   const standard = normalizeTaxesForTemplate(
     "standard",
-    { ...empty, burn: 2 },
-    { ...empty, marketing: 3 },
+    { ...empty, burn: "2" },
+    { ...empty, marketing: "3" },
   );
   assert.deepEqual(standard, { buy: emptyTaxSide(), sell: emptyTaxSide() });
+});
+
+test("accepts typed zero taxes and rejects malformed values", () => {
+  assert.equal(parseTaxPercent("0"), 0);
+  assert.equal(parseTaxPercent("2.25"), 2.25);
+  assert.equal(parseTaxPercent(""), null);
+  assert.equal(parseTaxPercent("-1"), null);
+  assert.equal(parseTaxPercent("1.234"), null);
+  assert.deepEqual(
+    taxSideToBps({
+      burn: "0",
+      liquidity: "0.5",
+      marketing: "1",
+      rewards: "2.25",
+    }),
+    { burn: 0, liquidity: 50, marketing: 100, rewards: 225 },
+  );
 });
 
 test("reserves enough gas for advanced create-and-buy", () => {
@@ -105,16 +107,30 @@ test("reserves enough gas for advanced create-and-buy", () => {
 });
 
 test("wires the canonical ABI and advanced gas policy into creation", async () => {
-  const [page, web3] = await Promise.all([
+  const [page, web3, deployments] = await Promise.all([
     readFile(new URL("../app/create/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("./web3.ts", import.meta.url), "utf8"),
+    readFile(new URL("./deployments.ts", import.meta.url), "utf8"),
   ]);
   assert.match(page, /advancedTemplateValue\(template\)/);
   assert.match(page, /estimateContractGas/);
   assert.match(page, /advancedCreateGasLimit/);
   assert.match(page, /writeContractAsync/);
   assert.match(page, /normalizeTaxesForTemplate/);
+  assert.match(page, /type="number"/);
+  assert.doesNotMatch(page, /tax-slider-control/);
+  assert.match(page, /tax-number-control/);
+  assert.match(page, /rewardToken/);
+  assert.match(page, /validateRewardPool/);
+  assert.match(page, /getReserves/);
+  assert.ok(
+    page.indexOf("await validateRewardPool") <
+      page.indexOf("const metadataURI = await uploadMetadata"),
+  );
   assert.match(web3, /advancedFactoryAbi/);
   assert.match(web3, /autoLiquidityFactoryAbi = advancedFactoryAbi/);
   assert.match(web3, /rewardsFactoryAbi = advancedFactoryAbi/);
+  assert.match(page, /v3StandardFactoryAddress/);
+  assert.match(deployments, /legacy standard Factory remains readable/);
+  assert.match(deployments, /v3StandardFactoryAddress/);
 });
