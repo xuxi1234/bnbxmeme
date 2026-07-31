@@ -21,6 +21,20 @@ test("publishes crawler rules without exposing private application surfaces", as
   }
 });
 
+test("marks internal application pages as noindex and nofollow", async () => {
+  for (const path of [
+    "../app/admin/moderation/layout.tsx",
+    "../app/deploy-mainnet/layout.tsx",
+    "../app/deploy-testnet/layout.tsx",
+  ]) {
+    const source = await readFile(new URL(path, import.meta.url), "utf8");
+
+    assert.match(source, /robots:\s*\{/);
+    assert.match(source, /index:\s*false/);
+    assert.match(source, /follow:\s*false/);
+  }
+});
+
 test("publishes public pages and official Factory tokens in the sitemap", async () => {
   const source = await readFile(
     new URL("../app/sitemap.ts", import.meta.url),
