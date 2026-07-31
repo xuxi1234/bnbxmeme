@@ -95,6 +95,16 @@ export function buildTokenSeoTitle(
   return identity ? `${identity} — BNBX` : null;
 }
 
+export function buildTokenShareImageAlt(
+  name: string | null | undefined,
+  symbol: string | null | undefined,
+) {
+  const identity = buildTokenIdentityLabel(name, symbol);
+  return identity
+    ? `${identity} — BNB Chain token project on BNBX`
+    : "BNBX token project on BNB Chain";
+}
+
 export function buildTokenSeoDescription(
   name: string | null | undefined,
   symbol: string | null | undefined,

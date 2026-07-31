@@ -7,6 +7,7 @@ import {
   buildTokenIdentityLabel,
   buildTokenPageMetadata,
   buildTokenSeoDescription,
+  buildTokenShareImageAlt,
   buildTokenStructuredData,
   seoCopy,
   serializeJsonLd,
@@ -96,6 +97,18 @@ test("reuses the bounded token identity for safe share images", () => {
   assert.equal(
     [...buildTokenIdentityLabel("A".repeat(80), "B".repeat(40))].length,
     71,
+  );
+  assert.equal(
+    buildTokenShareImageAlt("BNBX 人生", "LIFE"),
+    "BNBX 人生 (LIFE) — BNB Chain token project on BNBX",
+  );
+  assert.equal(
+    buildTokenShareImageAlt(`A\u200bB\u202eC`, "ABC"),
+    "A B C (ABC) — BNB Chain token project on BNBX",
+  );
+  assert.equal(
+    buildTokenShareImageAlt("\u200b\u202e", "\u200d"),
+    "BNBX token project on BNB Chain",
   );
 });
 
@@ -203,10 +216,15 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
   assert.match(languageMetadata, /if \(tokenPage\) return;/);
   assert.match(tokenOpenGraphImage, /renderTokenShareImage/);
   assert.match(tokenTwitterImage, /renderTokenShareImage/);
+  assert.match(tokenOpenGraphImage, /generateImageMetadata/);
+  assert.match(tokenTwitterImage, /generateImageMetadata/);
+  assert.match(tokenOpenGraphImage, /readTokenShareImageAlt/);
+  assert.match(tokenTwitterImage, /readTokenShareImageAlt/);
   assert.match(tokenShareImage, /validateTokenProject/);
   assert.match(tokenShareImage, /project\.status === "valid"/);
   assert.match(tokenShareImage, /readTokenIdentity/);
   assert.match(tokenShareImage, /buildTokenIdentityLabel/);
+  assert.match(tokenShareImage, /buildTokenShareImageAlt/);
   assert.match(tokenShareImage, /OFFICIAL FACTORY TOKEN/);
   assert.doesNotMatch(
     tokenShareImage,
