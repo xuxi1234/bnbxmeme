@@ -5,6 +5,7 @@ import {
   buildCreatorIdentityLabel,
   buildCreatorPageMetadata,
   buildCreatorSeoDescription,
+  buildCreatorStructuredData,
   buildPageMetadata,
   buildSiteMetadata,
   buildTokenIdentityLabel,
@@ -182,12 +183,41 @@ test("publishes localized creator-specific metadata without exposing unsafe inpu
   assert.equal(buildCreatorSeoDescription("<script>alert(1)</script>"), null);
 });
 
+test("publishes safe creator-specific CollectionPage structured data", () => {
+  const checksumAddress = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
+  const address = checksumAddress.toLowerCase();
+  const structuredData = buildCreatorStructuredData(checksumAddress);
+
+  assert.equal(structuredData["@context"], "https://schema.org");
+  assert.equal(structuredData["@type"], "CollectionPage");
+  assert.equal(structuredData.url, `${SITE_URL}/creator/${address}`);
+  assert.equal(structuredData.mainEntityOfPage, structuredData.url);
+  assert.equal(
+    structuredData.about.sameAs,
+    `https://bscscan.com/address/${address}`,
+  );
+  assert.deepEqual(
+    structuredData.about.identifier.map(({ propertyID, value }) => ({
+      propertyID,
+      value,
+    })),
+    [
+      { propertyID: "walletAddress", value: address },
+      { propertyID: "blockchain", value: "BNB Chain" },
+    ],
+  );
+  assert.equal(structuredData.isPartOf.name, "BNBX");
+  assert.deepEqual(JSON.parse(serializeJsonLd(structuredData)), structuredData);
+  assert.equal(buildCreatorStructuredData("<script>alert(1)</script>"), null);
+});
+
 test("wires canonical, localized metadata, share image, and token alt text", async () => {
   const [
     layout,
     home,
     languageMetadata,
     creatorLayout,
+    creatorRoute,
     tokenMarket,
     tokenTradingPage,
     tokenRoute,
@@ -205,6 +235,10 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
     ),
     readFile(
       new URL("../app/creator/[address]/layout.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/creator/[address]/page.tsx", import.meta.url),
       "utf8",
     ),
     readFile(
@@ -241,6 +275,9 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
   assert.match(layout, /<LanguageMetadata \/>/);
   assert.match(home, /buildPageMetadata\(\"\/\"\)/);
   assert.match(creatorLayout, /buildCreatorPageMetadata/);
+  assert.match(creatorRoute, /application\/ld\+json/);
+  assert.match(creatorRoute, /buildCreatorStructuredData/);
+  assert.match(creatorRoute, /serializeJsonLd/);
   assert.match(languageMetadata, /buildCreatorSeoTitle/);
   assert.match(languageMetadata, /buildCreatorSeoDescription/);
   assert.match(languageMetadata, /meta\[name="description"\]/);

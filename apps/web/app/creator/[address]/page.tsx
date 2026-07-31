@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { validateCreatorProject } from "@/lib/creator-project-server";
+import { buildCreatorStructuredData, serializeJsonLd } from "@/lib/seo";
 import { CreatorProfilePage } from "./creator-profile-page";
 
 export default async function CreatorPage({
@@ -14,5 +15,20 @@ export default async function CreatorPage({
     notFound();
   }
 
-  return <CreatorProfilePage address={creator.address} />;
+  const structuredData = buildCreatorStructuredData(creator.address);
+
+  return (
+    <>
+      {structuredData ? (
+        <script
+          id="creator-structured-data"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(structuredData),
+          }}
+        />
+      ) : null}
+      <CreatorProfilePage address={creator.address} />
+    </>
+  );
 }

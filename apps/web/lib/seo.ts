@@ -217,6 +217,52 @@ export function buildTokenStructuredData(
   };
 }
 
+export function buildCreatorStructuredData(
+  address: string,
+  language: Language = "zh",
+) {
+  const normalizedAddress = normalizeCreatorAddress(address);
+  if (!normalizedAddress) return null;
+
+  const identity = buildCreatorIdentityLabel(normalizedAddress);
+  const name = buildCreatorSeoTitle(normalizedAddress, language);
+  const description = buildCreatorSeoDescription(normalizedAddress, language);
+  if (!identity || !name || !description) return null;
+
+  const url = `${SITE_URL}/creator/${normalizedAddress}`;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name,
+    description,
+    url,
+    mainEntityOfPage: url,
+    about: {
+      "@type": "Thing",
+      name: `BNB Chain creator ${identity}`,
+      sameAs: `https://bscscan.com/address/${normalizedAddress}`,
+      identifier: [
+        {
+          "@type": "PropertyValue",
+          propertyID: "walletAddress",
+          value: normalizedAddress,
+        },
+        {
+          "@type": "PropertyValue",
+          propertyID: "blockchain",
+          value: "BNB Chain",
+        },
+      ],
+    },
+    isPartOf: {
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+  };
+}
+
 export function serializeJsonLd(value: unknown) {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
