@@ -5,6 +5,7 @@ import {
   buildCreatorIdentityLabel,
   buildCreatorPageMetadata,
   buildCreatorSeoDescription,
+  buildCreatorShareImageAlt,
   buildCreatorStructuredData,
   buildPageMetadata,
   buildSiteMetadata,
@@ -183,6 +184,23 @@ test("publishes localized creator-specific metadata without exposing unsafe inpu
   assert.equal(buildCreatorSeoDescription("<script>alert(1)</script>"), null);
 });
 
+test("uses a bounded creator identity in share-image alt text", () => {
+  const address = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
+
+  assert.equal(
+    buildCreatorShareImageAlt(address),
+    "BNBX creator 0xbe37…b0a2 — BNB Chain project collection",
+  );
+  assert.equal(
+    buildCreatorShareImageAlt("<script>alert(1)</script>"),
+    "BNBX creator projects on BNB Chain",
+  );
+  assert.equal(
+    buildCreatorShareImageAlt(null),
+    "BNBX creator projects on BNB Chain",
+  );
+});
+
 test("publishes safe creator-specific CollectionPage structured data", () => {
   const checksumAddress = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
   const address = checksumAddress.toLowerCase();
@@ -209,6 +227,40 @@ test("publishes safe creator-specific CollectionPage structured data", () => {
   assert.equal(structuredData.isPartOf.name, "BNBX");
   assert.deepEqual(JSON.parse(serializeJsonLd(structuredData)), structuredData);
   assert.equal(buildCreatorStructuredData("<script>alert(1)</script>"), null);
+});
+
+test("wires verified creator-specific Open Graph and X images", async () => {
+  const [openGraphImage, twitterImage, shareImage] = await Promise.all([
+    readFile(
+      new URL("../app/creator/[address]/opengraph-image.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/creator/[address]/twitter-image.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("./creator-share-image-server.tsx", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  for (const image of [openGraphImage, twitterImage]) {
+    assert.match(image, /renderCreatorShareImage/);
+    assert.match(image, /generateImageMetadata/);
+    assert.match(image, /readCreatorShareImageAlt/);
+    assert.match(image, /CREATOR_SHARE_IMAGE_SIZE/);
+  }
+  assert.match(shareImage, /validateCreatorProject/);
+  assert.match(shareImage, /creator\.status === "valid"/);
+  assert.match(shareImage, /buildCreatorIdentityLabel/);
+  assert.match(shareImage, /buildCreatorShareImageAlt/);
+  assert.match(shareImage, /VERIFIED CREATOR/);
+  assert.match(shareImage, /BNB CHAIN PROJECT COLLECTION/);
+  assert.doesNotMatch(
+    shareImage,
+    /\b(current price|token price|yield|profit|guaranteed return)\b/i,
+  );
 });
 
 test("wires canonical, localized metadata, share image, and token alt text", async () => {
