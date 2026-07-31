@@ -7,6 +7,12 @@ export const legacyAutoLiquidityFactoryAddress =
 export const legacyRewardsFactoryAddress =
   "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8" as const;
 
+// V3 holder/LP rewards Factory deployed by the authorized platform wallet.
+// Its constructor values and one-time manager binding are immutable chain
+// facts, so this fallback also protects production from a stale V2 env value.
+export const v3RewardsFactoryAddress =
+  "0xef95ead95292408090e61112580f62e4d556c550" as const;
+
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
 
@@ -33,8 +39,8 @@ const configuredRewardsFactoryAddress = process.env
 export const rewardsFactoryAddress =
   configuredRewardsFactoryAddress?.toLowerCase() ===
   legacyRewardsFactoryAddress.toLowerCase()
-    ? undefined
-    : configuredRewardsFactoryAddress;
+    ? v3RewardsFactoryAddress
+    : (configuredRewardsFactoryAddress ?? v3RewardsFactoryAddress);
 
 export const officialFactoryAddresses = Array.from(
   new Set<`0x${string}`>([
