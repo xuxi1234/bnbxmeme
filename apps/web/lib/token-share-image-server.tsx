@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ImageResponse } from "next/og";
-import { buildTokenIdentityLabel } from "@/lib/seo";
+import { buildTokenIdentityLabel, buildTokenShareImageAlt } from "@/lib/seo";
 import { readTokenIdentity } from "@/lib/token-identity-server";
 import { validateTokenProject } from "@/lib/token-project-server";
 
@@ -15,6 +15,16 @@ function identityFontSize(identity: string) {
   if (length > 56) return "52px";
   if (length > 38) return "62px";
   return "76px";
+}
+
+export async function readTokenShareImageAlt(address: string) {
+  const project = await validateTokenProject(address);
+  if (project.status !== "valid") {
+    return buildTokenShareImageAlt(null, null);
+  }
+
+  const identity = await readTokenIdentity(project.token);
+  return buildTokenShareImageAlt(identity?.name, identity?.symbol);
 }
 
 export async function renderTokenShareImage(address: string) {
