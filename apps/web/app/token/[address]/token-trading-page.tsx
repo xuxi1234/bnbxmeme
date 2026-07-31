@@ -875,10 +875,9 @@ export function TokenTradingPage({
                 {formatCompactTokenPriceUsdt(
                   currentTokenPriceUsdt,
                   localeByLanguage[language],
-                )}{" "}
-                USDT
+                )}
               </strong>
-              <small>/ 1 {tokenSymbol ?? t("token")}</small>
+              <small>{tokenName ?? tokenSymbol ?? t("token")} / USDT</small>
             </div>
             <div>
               <span>{t("change24h")}</span>

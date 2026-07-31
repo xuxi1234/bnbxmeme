@@ -142,11 +142,10 @@ function TokenCard({
         <div>
           <span>{t("currentPrice")}</span>
           <strong>
-            {formatCompactTokenPriceUsdt(priceUsdt, localeByLanguage[language])}{" "}
-            USDT
+            {formatCompactTokenPriceUsdt(priceUsdt, localeByLanguage[language])}
           </strong>
           <small>
-            / 1 {entry.symbol ?? t("token")}
+            {entry.name ?? entry.symbol ?? t("token")} / USDT
             {score?.priceChange24h !== undefined
               ? ` · ${score.priceChange24h >= 0 ? "+" : ""}${score.priceChange24h.toFixed(2)}%`
               : ""}

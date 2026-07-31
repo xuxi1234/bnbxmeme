@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("shows each token name before USDT in every localized chart unit", async () => {
-  const [messages, chart, tokenPage] = await Promise.all([
+test("shows each token name before USDT across chart and price metrics", async () => {
+  const [messages, chart, tokenPage, tokenMarket] = await Promise.all([
     readFile(
       new URL("../components/language-provider.tsx", import.meta.url),
       "utf8",
@@ -16,6 +16,10 @@ test("shows each token name before USDT in every localized chart unit", async ()
       new URL("../app/token/[address]/token-trading-page.tsx", import.meta.url),
       "utf8",
     ),
+    readFile(
+      new URL("../components/token-market.tsx", import.meta.url),
+      "utf8",
+    ),
   ]);
 
   assert.equal(
@@ -26,4 +30,14 @@ test("shows each token name before USDT in every localized chart unit", async ()
   assert.match(chart, /name: string/);
   assert.match(chart, /interpolate\(t\("priceUnit"\), \{ tokenName: name \}\)/);
   assert.match(tokenPage, /name=\{tokenName \?\? tokenSymbol \?\? "—"\}/);
+  assert.match(
+    tokenPage,
+    /\{tokenName \?\? tokenSymbol \?\? t\("token"\)\} \/ USDT/,
+  );
+  assert.match(
+    tokenMarket,
+    /\{entry\.name \?\? entry\.symbol \?\? t\("token"\)\} \/ USDT/,
+  );
+  assert.doesNotMatch(tokenPage, /\/ 1 \{tokenSymbol/);
+  assert.doesNotMatch(tokenMarket, /\/ 1 \{entry\.symbol/);
 });
