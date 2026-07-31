@@ -4,6 +4,7 @@ import solc from "solc";
 import {
   createPublicClient,
   encodeAbiParameters,
+  fallback,
   getAddress,
   http,
 } from "viem";
@@ -16,8 +17,13 @@ const EXPECTED_FEE_RECIPIENT = "0xDAF4f62914f7F64c9eabFd473F4dB4b7e74048A6";
 const EXPECTED_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 const dryRun = process.env.VERIFY_DRY_RUN === "1";
 const apiKey = process.env.BSC_SCAN_API_KEY;
-const rpcUrl =
-  process.env.BSC_MAINNET_RPC_URL?.trim() || "https://bsc-rpc.publicnode.com";
+const configuredRpcUrls = (process.env.BSC_MAINNET_RPC_URL ?? "")
+  .split(/\s+/)
+  .map((url) => url.trim())
+  .filter(Boolean);
+const rpcUrls = configuredRpcUrls.length
+  ? configuredRpcUrls
+  : ["https://bsc-rpc.publicnode.com"];
 const standardFactory = process.env.BNBX_V3_STANDARD_FACTORY_ADDRESS;
 const rewardsFactory = process.env.BNBX_V3_REWARDS_FACTORY_ADDRESS;
 const verifyLaunchedTokens = process.env.VERIFY_LAUNCHED_TOKENS === "1";
@@ -93,7 +99,12 @@ const standardAddress = getAddress(standardFactory);
 const rewardsAddress = getAddress(rewardsFactory);
 const client = createPublicClient({
   chain: bsc,
-  transport: http(rpcUrl, { timeout: 20_000, retryCount: 2 }),
+  transport:
+    rpcUrls.length === 1
+      ? http(rpcUrls[0], { timeout: 20_000, retryCount: 2 })
+      : fallback(
+          rpcUrls.map((url) => http(url, { timeout: 20_000, retryCount: 1 })),
+        ),
 });
 
 const addressReadAbi = (name) => [
