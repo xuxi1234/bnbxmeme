@@ -11,6 +11,7 @@ import {
   buildTokenStructuredData,
   seoCopy,
   serializeJsonLd,
+  SHARE_IMAGE_ALT,
   SHARE_IMAGE_PATH,
   SITE_URL,
 } from "./seo.ts";
@@ -26,7 +27,10 @@ test("publishes canonical and complete social metadata", () => {
   assert.equal(page.openGraph.images[0].url, SHARE_IMAGE_PATH);
   assert.equal(page.openGraph.images[0].width, 1200);
   assert.equal(page.openGraph.images[0].height, 630);
+  assert.equal(page.openGraph.images[0].alt, SHARE_IMAGE_ALT);
   assert.equal(page.twitter.card, "summary_large_image");
+  assert.equal(page.twitter.images[0].url, SHARE_IMAGE_PATH);
+  assert.equal(page.twitter.images[0].alt, SHARE_IMAGE_ALT);
 });
 
 test("keeps SEO title and description localized in all four languages", () => {

@@ -4,6 +4,7 @@ import type { Language } from "@/components/language-provider";
 export const SITE_URL = "https://www.bnbx.meme";
 export const SITE_NAME = "BNBX";
 export const SHARE_IMAGE_PATH = "/opengraph-image";
+export const SHARE_IMAGE_ALT = "BNBX — BNB Chain Meme Token Launchpad";
 const MAX_TOKEN_NAME_LENGTH = 48;
 const MAX_TOKEN_SYMBOL_LENGTH = 20;
 const MAX_META_DESCRIPTION_LENGTH = 160;
@@ -184,7 +185,7 @@ function socialMetadata(language: Language, path?: string): Metadata {
           url: SHARE_IMAGE_PATH,
           width: 1200,
           height: 630,
-          alt: "BNBX — BNB Chain Meme Token Launchpad",
+          alt: SHARE_IMAGE_ALT,
         },
       ],
     },
@@ -192,7 +193,12 @@ function socialMetadata(language: Language, path?: string): Metadata {
       card: "summary_large_image",
       title: copy.title,
       description: copy.description,
-      images: [SHARE_IMAGE_PATH],
+      images: [
+        {
+          url: SHARE_IMAGE_PATH,
+          alt: SHARE_IMAGE_ALT,
+        },
+      ],
     },
   };
 }
