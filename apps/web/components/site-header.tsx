@@ -53,6 +53,15 @@ export function SiteHeader() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileMenuOpen]);
+
   function chooseLanguage(nextLanguage: Language) {
     setLanguage(nextLanguage);
     setLanguageMenuOpen(false);
@@ -138,6 +147,16 @@ export function SiteHeader() {
           </button>
           {mobileMenuOpen && (
             <div className="mobile-menu-panel" role="menu">
+              <div className="mobile-menu-heading">
+                <strong>BNBX</strong>
+                <button
+                  type="button"
+                  aria-label={t("close")}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span aria-hidden="true">×</span>
+                </button>
+              </div>
               <nav aria-label={t("mobileMenu")}>
                 {navigation.map(([label, href]) => (
                   <Link

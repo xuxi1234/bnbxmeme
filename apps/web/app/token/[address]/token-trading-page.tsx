@@ -193,6 +193,8 @@ export function TokenTradingPage({
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [securityExpanded, setSecurityExpanded] = useState(false);
   const [linksExpanded, setLinksExpanded] = useState(false);
+  const [tokenomicsExpanded, setTokenomicsExpanded] = useState(false);
+  const [rewardsExpanded, setRewardsExpanded] = useState(false);
   const [continueAfterApproval, setContinueAfterApproval] = useState(false);
   const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
     latestPricePerMillionBnb: null,
@@ -793,15 +795,6 @@ export function TokenTradingPage({
     window.setTimeout(() => setQQCopied(false), 2_400);
   }
 
-  function openMobileTrade(mode: "buy" | "sell") {
-    setTradeMode(mode);
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById("trade")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-
   if (tokenAddress === zeroAddress || tokenSnapshot.notFound) {
     return <ProjectState state="not-found" />;
   }
@@ -965,7 +958,9 @@ export function TokenTradingPage({
           )}
         </section>
         {isAdvancedTemplate && (
-          <section className="tax-template-card">
+          <section
+            className={`tax-template-card${tokenomicsExpanded ? " mobile-expanded" : ""}`}
+          >
             <div className="tax-template-heading">
               <div>
                 <span className="eyebrow">
@@ -988,6 +983,17 @@ export function TokenTradingPage({
                 {advancedCopy.sellTax} {taxPercent(sellTaxTotal)}
               </span>
             </div>
+            <button
+              className="mobile-section-toggle"
+              type="button"
+              aria-expanded={tokenomicsExpanded}
+              onClick={() => setTokenomicsExpanded((expanded) => !expanded)}
+            >
+              <span>{tokenomicsExpanded ? t("hideLinks") : t("moreLinks")}</span>
+              <strong aria-hidden="true">
+                {tokenomicsExpanded ? "−" : "+"}
+              </strong>
+            </button>
             <div className="tax-breakdown">
               <div>
                 <span>{advancedCopy.buyAllocation}</span>
@@ -1015,7 +1021,9 @@ export function TokenTradingPage({
           </section>
         )}
         {(isHolderRewards || isLPRewards) && (
-          <section className="tax-template-card">
+          <section
+            className={`tax-template-card${rewardsExpanded ? " mobile-expanded" : ""}`}
+          >
             <div className="tax-template-heading">
               <div>
                 <span className="eyebrow">BNB REWARD VAULT</span>
@@ -1030,6 +1038,17 @@ export function TokenTradingPage({
                 {formatEther(claimableRewards.data ?? 0n)} BNB
               </span>
             </div>
+            <button
+              className="mobile-section-toggle"
+              type="button"
+              aria-expanded={rewardsExpanded}
+              onClick={() => setRewardsExpanded((expanded) => !expanded)}
+            >
+              <span>{rewardsExpanded ? t("hideLinks") : t("moreLinks")}</span>
+              <strong aria-hidden="true">
+                {rewardsExpanded ? "−" : "+"}
+              </strong>
+            </button>
             <div className="tax-breakdown">
               <div>
                 <span>{advancedCopy.myRewardWeight}</span>
@@ -1579,36 +1598,6 @@ export function TokenTradingPage({
           )}
         </div>
       </section>
-      {tradeDestination === "curve" && (
-        <nav className="mobile-trade-dock" aria-label={t("marketData")}>
-          <button className="buy" type="button" onClick={() => openMobileTrade("buy")}>
-            {t("buy")}
-          </button>
-          <button className="sell" type="button" onClick={() => openMobileTrade("sell")}>
-            {t("sell")}
-          </button>
-        </nav>
-      )}
-      {tradeDestination === "pancake" && (
-        <nav className="mobile-trade-dock" aria-label="PancakeSwap V2">
-          <a
-            className="buy"
-            href={pancakeTradeLinks.buy}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t("buyOnPancake")}
-          </a>
-          <a
-            className="sell"
-            href={pancakeTradeLinks.sell}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t("sellOnPancake")}
-          </a>
-        </nav>
-      )}
     </main>
   );
 }
