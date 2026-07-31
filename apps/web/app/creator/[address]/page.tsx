@@ -1,5 +1,9 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { validateCreatorProject } from "@/lib/creator-project-server";
+import {
+  creatorProjectPath,
+  isCanonicalProjectAddress,
+} from "@/lib/project-paths";
 import { buildCreatorStructuredData, serializeJsonLd } from "@/lib/seo";
 import { CreatorProfilePage } from "./creator-profile-page";
 
@@ -13,6 +17,9 @@ export default async function CreatorPage({
 
   if (creator.status === "not_found") {
     notFound();
+  }
+  if (!isCanonicalProjectAddress(address, creator.address)) {
+    permanentRedirect(creatorProjectPath(creator.address));
   }
 
   const structuredData = buildCreatorStructuredData(creator.address);

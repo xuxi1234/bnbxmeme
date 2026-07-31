@@ -29,6 +29,7 @@ import {
   type CommunityLinkField,
 } from "@/lib/community-links";
 import { resolveCreateSubmitBlocker } from "@/lib/create-validation-core";
+import { tokenProjectPath } from "@/lib/project-paths";
 import {
   accessibilityCopy,
   createCopy,
@@ -234,7 +235,7 @@ export default function CreateTokenPage() {
         if (decoded.eventName !== "TokenCreated") continue;
         const args = decoded.args as { token?: `0x${string}` };
         if (args.token && isAddress(args.token)) {
-          router.push(`/token/${args.token}`);
+          router.push(tokenProjectPath(args.token));
           return;
         }
       } catch {
