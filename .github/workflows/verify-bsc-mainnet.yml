@@ -20,6 +20,11 @@ on:
         required: true
         default: true
         type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/verify-bsc-mainnet.yml"
 
 permissions:
   contents: read
@@ -37,10 +42,10 @@ jobs:
     env:
       BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
       BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
-      BNBX_V3_STANDARD_FACTORY_ADDRESS: ${{ inputs.standard_factory_address }}
-      BNBX_V3_REWARDS_FACTORY_ADDRESS: ${{ inputs.rewards_factory_address }}
-      BNBX_V3_TOKEN_DEPLOYER_ADDRESS: ${{ inputs.token_deployer_address }}
-      VERIFY_LAUNCHED_TOKENS: ${{ inputs.verify_launched_tokens && '1' || '0' }}
+      BNBX_V3_STANDARD_FACTORY_ADDRESS: ${{ inputs.standard_factory_address || '0xc5f6d2b221dfd950f919b82c77d82fc427f31b3d' }}
+      BNBX_V3_REWARDS_FACTORY_ADDRESS: ${{ inputs.rewards_factory_address || '0xef95ead95292408090e61112580f62e4d556c550' }}
+      BNBX_V3_TOKEN_DEPLOYER_ADDRESS: ${{ inputs.token_deployer_address || '0x0e5e09a760423e0d06125a63480e2d94652061bc' }}
+      VERIFY_LAUNCHED_TOKENS: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_launched_tokens && '1' || '0' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
