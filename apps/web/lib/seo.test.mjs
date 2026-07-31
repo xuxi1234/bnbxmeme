@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildPageMetadata,
   buildSiteMetadata,
+  buildTokenIdentityLabel,
   buildTokenPageMetadata,
   buildTokenStructuredData,
   seoCopy,
@@ -58,6 +59,23 @@ test("publishes a bounded token identity in detail-page metadata", () => {
   assert.ok(String(controlled.title).length < 100);
 });
 
+test("reuses the bounded token identity for safe share images", () => {
+  assert.equal(
+    buildTokenIdentityLabel("BNBX 人生", "LIFE"),
+    "BNBX 人生 (LIFE)",
+  );
+  assert.equal(buildTokenIdentityLabel("BNBX", "bnbx"), "BNBX");
+  assert.equal(
+    buildTokenIdentityLabel(`A\u200bB\u202eC`, "ABC"),
+    "A B C (ABC)",
+  );
+  assert.equal(buildTokenIdentityLabel("\u200b\u202e", "\u200d"), null);
+  assert.equal(
+    [...buildTokenIdentityLabel("A".repeat(80), "B".repeat(40))].length,
+    71,
+  );
+});
+
 test("publishes safe token-specific FinancialProduct structured data", () => {
   const token = "0x1111111111111111111111111111111111111111";
   const structuredData = buildTokenStructuredData(
@@ -100,6 +118,9 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
     tokenRoute,
     tokenLayout,
     openGraphImage,
+    tokenOpenGraphImage,
+    tokenTwitterImage,
+    tokenShareImage,
   ] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -124,6 +145,18 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
       "utf8",
     ),
     readFile(new URL("../app/opengraph-image.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/token/[address]/opengraph-image.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/token/[address]/twitter-image.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("./token-share-image-server.tsx", import.meta.url),
+      "utf8",
+    ),
   ]);
   assert.match(layout, /buildSiteMetadata/);
   assert.match(layout, /<LanguageMetadata \/>/);
@@ -144,4 +177,15 @@ test("wires canonical, localized metadata, share image, and token alt text", asy
   assert.match(tokenRoute, /buildTokenStructuredData/);
   assert.match(tokenRoute, /serializeJsonLd/);
   assert.match(languageMetadata, /pathname\.startsWith\("\/token\/"\)/);
+  assert.match(tokenOpenGraphImage, /renderTokenShareImage/);
+  assert.match(tokenTwitterImage, /renderTokenShareImage/);
+  assert.match(tokenShareImage, /validateTokenProject/);
+  assert.match(tokenShareImage, /project\.status === "valid"/);
+  assert.match(tokenShareImage, /readTokenIdentity/);
+  assert.match(tokenShareImage, /buildTokenIdentityLabel/);
+  assert.match(tokenShareImage, /OFFICIAL FACTORY TOKEN/);
+  assert.doesNotMatch(
+    tokenShareImage,
+    /\b(current price|token price|yield|profit|guaranteed return)\b/i,
+  );
 });

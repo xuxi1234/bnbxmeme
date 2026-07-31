@@ -56,7 +56,7 @@ function normalizeTokenIdentity(
   return [...normalized].slice(0, limit).join("");
 }
 
-function buildTokenIdentityLabel(
+export function buildTokenIdentityLabel(
   name: string | null | undefined,
   symbol: string | null | undefined,
 ) {
