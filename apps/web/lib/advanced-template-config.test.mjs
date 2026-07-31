@@ -131,6 +131,7 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.match(web3, /autoLiquidityFactoryAbi = advancedFactoryAbi/);
   assert.match(web3, /rewardsFactoryAbi = advancedFactoryAbi/);
   assert.match(page, /v3StandardFactoryAddress/);
+  assert.doesNotMatch(page, /disabled=\{!enabled\}/);
   assert.match(deployments, /legacy standard Factory remains readable/);
   assert.match(deployments, /v3StandardFactoryAddress/);
 });

@@ -724,7 +724,6 @@ export default function CreateTokenPage() {
                   <button
                     aria-pressed={template === id}
                     className={`template-card ${template === id ? "selected" : ""} ${enabled ? "" : "disabled"}`}
-                    disabled={!enabled}
                     key={id}
                     onClick={() => {
                       const normalizedTaxes = normalizeTaxesForTemplate(

@@ -2972,9 +2972,9 @@ h2 {
   background: var(--brand);
 }
 .template-card.disabled {
-  cursor: not-allowed;
+  cursor: pointer;
   filter: grayscale(0.7);
-  opacity: 0.48;
+  opacity: 0.64;
 }
 .quote-row {
   display: flex;
