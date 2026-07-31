@@ -34,3 +34,28 @@ test("routes invalid token projects back to the market section", async () => {
   assert.match(source, new RegExp(`href="${MARKET_HREF.replace("?", "\\?")}"`));
   assert.doesNotMatch(source, /<Link href="\/">/);
 });
+
+test("returns the global 404 for an invalid creator address", async () => {
+  const [page, profile] = await Promise.all([
+    readFile(
+      new URL("../app/creator/[address]/page.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL(
+        "../app/creator/[address]/creator-profile-page.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
+
+  assert.doesNotMatch(page, /"use client"/);
+  assert.match(page, /params:\s*Promise<\{ address: string \}>/);
+  assert.match(page, /const \{ address \} = await params/);
+  assert.match(page, /if \(!isAddress\(address\)\)/);
+  assert.match(page, /notFound\(\)/);
+  assert.match(page, /<CreatorProfilePage address=\{address\} \/>/);
+  assert.match(profile, /"use client"/);
+  assert.match(profile, /<TokenMarket creator=\{address\} \/>/);
+});
