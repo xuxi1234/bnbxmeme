@@ -25,6 +25,7 @@ on:
       - main
     paths:
       - ".github/workflows/verify-bsc-mainnet.yml"
+      - "packages/contracts/scripts/verify-source-mainnet.mjs"
 
 permissions:
   contents: read
