@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress, zeroAddress } from "viem";
+import { readOfficialCreatorCatalog } from "@/lib/creator-project-server";
 import { officialFactoryAddresses } from "@/lib/deployments";
 import { buildFactorySlots, chunkItems } from "@/lib/market-data-core";
 import { serverPublicClient } from "@/lib/server-chain";
@@ -11,8 +12,6 @@ export const dynamic = "force-dynamic";
 const MAX_VISIBLE_TOKENS_PER_FACTORY = 8;
 const TOKEN_READ_BATCH_SIZE = 100;
 const ENTRY_READ_BATCH_SIZE = 20;
-const CREATOR_CATALOG_CACHE_MS = 60_000;
-const PARTIAL_CREATOR_CATALOG_CACHE_MS = 10_000;
 
 const factoryReadAbi = [
   {
@@ -164,23 +163,6 @@ type CurveRecord = TokenRecord & {
   curve: `0x${string}` | null;
 };
 
-type CreatorRecord = TokenRecord & {
-  curve: `0x${string}`;
-  creator: `0x${string}`;
-};
-
-type CreatorCatalog = {
-  records: CreatorRecord[];
-  partial: boolean;
-};
-
-let creatorCatalogCache:
-  | (CreatorCatalog & {
-      expiresAt: number;
-    })
-  | undefined;
-let creatorCatalogRequest: Promise<CreatorCatalog> | undefined;
-
 type MarketEntry = {
   token: `0x${string}`;
   factory: `0x${string}`;
@@ -264,34 +246,6 @@ async function readCurveRecords(records: TokenRecord[]) {
     });
   }
   return { records: curveRecords, partial };
-}
-
-async function readCreatorRecords(records: CurveRecord[]) {
-  const creatorRecords: CreatorRecord[] = [];
-  let partial = records.some((record) => record.curve === null);
-  const candidates = records.filter(
-    (
-      record,
-    ): record is TokenRecord & {
-      curve: `0x${string}`;
-    } => record.curve !== null,
-  );
-  for (const batch of chunkItems(candidates, TOKEN_READ_BATCH_SIZE)) {
-    const results = await serverPublicClient.multicall({
-      allowFailure: true,
-      contracts: batch.map(({ curve }) => ({
-        address: curve,
-        abi: curveReadAbi,
-        functionName: "creator" as const,
-      })),
-    });
-    batch.forEach((record, position) => {
-      const creator = successful<`0x${string}`>(results[position]);
-      if (!creator) partial = true;
-      else creatorRecords.push({ ...record, creator });
-    });
-  }
-  return { records: creatorRecords, partial };
 }
 
 async function readEntries(records: CurveRecord[], initialPartial: boolean) {
@@ -428,7 +382,7 @@ async function readMarket() {
 }
 
 async function readCreatorMarket(creator: `0x${string}`) {
-  const catalog = await getCreatorCatalog();
+  const catalog = await readOfficialCreatorCatalog();
   const normalizedCreator = creator.toLowerCase();
   return readEntries(
     catalog.records.filter(
@@ -436,43 +390,6 @@ async function readCreatorMarket(creator: `0x${string}`) {
     ),
     catalog.partial,
   );
-}
-
-async function buildCreatorCatalog() {
-  const counts = await readFactoryCounts();
-  const slots = buildFactorySlots(counts.availableFactories);
-  const tokens = await readTokenRecords(slots);
-  const curves = await readCurveRecords(tokens.records);
-  const creators = await readCreatorRecords(curves.records);
-  return {
-    records: creators.records,
-    partial:
-      counts.partial || tokens.partial || curves.partial || creators.partial,
-  };
-}
-
-function getCreatorCatalog() {
-  if (creatorCatalogCache && creatorCatalogCache.expiresAt > Date.now()) {
-    return Promise.resolve(creatorCatalogCache);
-  }
-  if (!creatorCatalogRequest) {
-    creatorCatalogRequest = buildCreatorCatalog()
-      .then((catalog) => {
-        creatorCatalogCache = {
-          ...catalog,
-          expiresAt:
-            Date.now() +
-            (catalog.partial
-              ? PARTIAL_CREATOR_CATALOG_CACHE_MS
-              : CREATOR_CATALOG_CACHE_MS),
-        };
-        return catalog;
-      })
-      .finally(() => {
-        creatorCatalogRequest = undefined;
-      });
-  }
-  return creatorCatalogRequest;
 }
 
 type ValidProject = Extract<ProjectValidationResult, { status: "valid" }>;
@@ -526,8 +443,7 @@ async function readToken({ token, factory, curve }: ValidProject) {
       },
     ],
   });
-  const value = <T,>(position: number) =>
-    successful<T>(detailResults[position]);
+  const value = <T>(position: number) => successful<T>(detailResults[position]);
   const detail = {
     token,
     factory,
@@ -547,14 +463,20 @@ async function readToken({ token, factory, curve }: ValidProject) {
     liquidityPair: value<`0x${string}`>(12) ?? null,
   };
   const partial = Object.values(detail).some((item) => item === null);
-  return { detail, dataStatus: partial ? ("partial" as const) : ("fresh" as const) };
+  return {
+    detail,
+    dataStatus: partial ? ("partial" as const) : ("fresh" as const),
+  };
 }
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
   const creator = request.nextUrl.searchParams.get("creator");
   if (token && !isAddress(token)) {
-    return NextResponse.json({ error: "Invalid token address" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid token address" },
+      { status: 400 },
+    );
   }
   if (creator && !isAddress(creator)) {
     return NextResponse.json(

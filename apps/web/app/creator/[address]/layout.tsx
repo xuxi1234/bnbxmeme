@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { isAddress } from "viem";
+import { validateCreatorProject } from "@/lib/creator-project-server";
 import { buildCreatorPageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -8,10 +8,11 @@ export async function generateMetadata({
   params: Promise<{ address: string }>;
 }>): Promise<Metadata> {
   const { address } = await params;
-  if (!isAddress(address)) {
+  const creator = await validateCreatorProject(address);
+  if (creator.status !== "valid") {
     return { robots: { index: false, follow: false } };
   }
-  const normalizedAddress = address.toLowerCase();
+  const normalizedAddress = creator.address.toLowerCase();
   return buildCreatorPageMetadata(
     `/creator/${normalizedAddress}`,
     normalizedAddress,
