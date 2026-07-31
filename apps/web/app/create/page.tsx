@@ -31,6 +31,16 @@ import {
 import { resolveCreateSubmitBlocker } from "@/lib/create-validation-core";
 import { tokenProjectPath } from "@/lib/project-paths";
 import {
+  ADVANCED_CREATE_GAS_LIMIT,
+  STANDARD_CREATE_GAS_LIMIT,
+  advancedTemplateValue,
+  emptyTaxSide,
+  normalizeTaxesForTemplate,
+  type TaxKey,
+  type TaxSide,
+  type TemplateId,
+} from "@/lib/advanced-template-config";
+import {
   accessibilityCopy,
   createCopy,
   localizeCreateErrorMessage,
@@ -38,10 +48,6 @@ import {
 import { MAX_TEMPLATE_SIDE_TAX_PERCENT as MAX_SIDE_TAX } from "@/lib/template-rules";
 
 const CREATION_FEE_WEI = parseEther("0.001");
-// Some injected mobile wallets incorrectly submit gasLimit=0 when estimation is
-// interrupted. This cap prevents that invalid request; users still pay only for
-// gas actually consumed by the transaction.
-const CREATE_GAS_LIMIT = 8_000_000n;
 const VANITY_SEARCH_LIMIT = 500_000;
 // One eth_call can safely search a much larger CREATE2 salt range than the
 // previous 1,000-attempt batch. 10,000 keeps the call below common BSC RPC
@@ -53,17 +59,6 @@ const SLIPPAGE_BPS = 100n;
 const BPS = 10_000n;
 const CURVE_TOKEN_SUPPLY = parseEther("800000000");
 const INITIAL_VIRTUAL_TOKEN_RESERVE = parseEther("3200000000") / 3n;
-
-type TemplateId = "standard" | "liquidity" | "holders" | "lp";
-type TaxKey = "burn" | "liquidity" | "marketing" | "rewards";
-type TaxSide = Record<TaxKey, number>;
-
-const emptyTaxes: TaxSide = {
-  burn: 0,
-  liquidity: 0,
-  marketing: 0,
-  rewards: 0,
-};
 
 const templateIds: TemplateId[] = ["standard", "liquidity", "holders", "lp"];
 
@@ -197,8 +192,8 @@ export default function CreateTokenPage() {
   const [target, setTarget] = useState(5);
   const [initialBuy, setInitialBuy] = useState("");
   const [template, setTemplate] = useState<TemplateId>("standard");
-  const [buyTaxes, setBuyTaxes] = useState<TaxSide>({ ...emptyTaxes });
-  const [sellTaxes, setSellTaxes] = useState<TaxSide>({ ...emptyTaxes });
+  const [buyTaxes, setBuyTaxes] = useState<TaxSide>(emptyTaxSide);
+  const [sellTaxes, setSellTaxes] = useState<TaxSide>(emptyTaxSide);
   const [marketingWallet, setMarketingWallet] = useState("");
   const [minimumRewardBalance, setMinimumRewardBalance] = useState("10000");
   const [uploadError, setUploadError] = useState("");
@@ -310,7 +305,7 @@ export default function CreateTokenPage() {
       if (!rewardsFactoryAddress) {
         throw new Error(copy.errors.rewardsFactoryMissing);
       }
-      const templateValue = template === "holders" ? 2 : 3;
+      const templateValue = advancedTemplateValue(template);
       const minimumShare = parseEther(minimumRewardBalance || "0");
       setVanityProgress(0);
       for (
@@ -363,6 +358,8 @@ export default function CreateTokenPage() {
             tokenSymbol,
             marketingAddress,
             configuredTaxes(),
+            advancedTemplateValue(template),
+            0n,
             start + BigInt(index),
             BigInt(VANITY_SEARCH_CHUNK_SIZE),
           ],
@@ -450,12 +447,10 @@ export default function CreateTokenPage() {
           vanitySalt,
           marketingWallet: marketing,
           taxes: configuredTaxes(),
-          ...(isRewardsTemplate
-            ? {
-                template: template === "holders" ? 2 : 3,
-                minimumRewardShare: parseEther(minimumRewardBalance || "0"),
-              }
-            : {}),
+          template: advancedTemplateValue(template),
+          minimumRewardShare: isRewardsTemplate
+            ? parseEther(minimumRewardBalance || "0")
+            : 0n,
         };
         if (initialBuyWei === 0n) {
           writeContract({
@@ -464,7 +459,7 @@ export default function CreateTokenPage() {
             functionName: "createVanityToken",
             args: [request],
             value: CREATION_FEE_WEI,
-            gas: CREATE_GAS_LIMIT,
+            gas: ADVANCED_CREATE_GAS_LIMIT,
             chain: bsc,
             account: address,
           });
@@ -482,7 +477,7 @@ export default function CreateTokenPage() {
               },
             ],
             value: CREATION_FEE_WEI + initialBuyWei,
-            gas: CREATE_GAS_LIMIT,
+            gas: ADVANCED_CREATE_GAS_LIMIT,
             chain: bsc,
             account: address,
           });
@@ -502,7 +497,7 @@ export default function CreateTokenPage() {
             vanitySalt,
           }],
           value: CREATION_FEE_WEI,
-          gas: CREATE_GAS_LIMIT,
+          gas: STANDARD_CREATE_GAS_LIMIT,
           chain: bsc,
           account: address,
         });
@@ -525,7 +520,7 @@ export default function CreateTokenPage() {
           refundRecipient: address,
         }],
         value: CREATION_FEE_WEI + initialBuyWei,
-        gas: CREATE_GAS_LIMIT,
+        gas: STANDARD_CREATE_GAS_LIMIT,
         chain: bsc,
         account: address,
       });
@@ -625,12 +620,15 @@ export default function CreateTokenPage() {
                     disabled={!enabled}
                     key={id}
                     onClick={() => {
+                      const normalizedTaxes = normalizeTaxesForTemplate(
+                        id,
+                        buyTaxes,
+                        sellTaxes,
+                      );
                       setTemplate(id);
                       setUploadError("");
-                      if (id === "standard") {
-                        setBuyTaxes({ ...emptyTaxes });
-                        setSellTaxes({ ...emptyTaxes });
-                      }
+                      setBuyTaxes(normalizedTaxes.buy);
+                      setSellTaxes(normalizedTaxes.sell);
                     }}
                     type="button"
                   >
