@@ -161,6 +161,13 @@ export function buildCreatorIdentityLabel(address: string) {
     : null;
 }
 
+export function buildCreatorShareImageAlt(address: string | null | undefined) {
+  const identity = address ? buildCreatorIdentityLabel(address) : null;
+  return identity
+    ? `BNBX creator ${identity} — BNB Chain project collection`
+    : "BNBX creator projects on BNB Chain";
+}
+
 export function buildCreatorSeoTitle(
   address: string,
   language: Language = "zh",
