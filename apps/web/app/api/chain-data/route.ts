@@ -26,6 +26,7 @@ import {
   serverLogClient as logClient,
   serverPublicClient as client,
 } from "@/lib/server-chain";
+import { createInFlightRequestCoalescer } from "@/lib/server-request-coalescing";
 import { validateTokenProject } from "@/lib/token-project-server";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,8 @@ const swapEvent = parseAbiItem(
 const LOG_BLOCK_RANGE = 10_000n;
 const CACHE_MAX_AGE_MS = 10_000;
 const LP_BURN_ADDRESS = "0x000000000000000000000000000000000000dead";
+const coalesceChainDataRequest =
+  createInFlightRequestCoalescer<NextResponse>();
 
 type MarketSnapshot = {
   source: "curve" | "pancake";
@@ -539,7 +542,7 @@ function backfillResponse(
   };
 }
 
-export async function GET(request: NextRequest) {
+async function handleChainDataRequest(request: NextRequest) {
   const curve = request.nextUrl.searchParams.get("curve");
   const token = request.nextUrl.searchParams.get("token");
   const pair = request.nextUrl.searchParams.get("pair");
@@ -1046,4 +1049,27 @@ export async function GET(request: NextRequest) {
       { status: 502 },
     );
   }
+}
+
+export async function GET(request: NextRequest) {
+  const curve = request.nextUrl.searchParams.get("curve");
+  const token = request.nextUrl.searchParams.get("token");
+  const pair = request.nextUrl.searchParams.get("pair");
+  if (
+    !curve ||
+    !isAddress(curve) ||
+    !token ||
+    !isAddress(token) ||
+    (pair && !isAddress(pair))
+  ) {
+    return handleChainDataRequest(request);
+  }
+
+  const key = [curve, token, pair ?? ""]
+    .map((address) => address.toLowerCase())
+    .join(":");
+  const response = await coalesceChainDataRequest(key, () =>
+    handleChainDataRequest(request),
+  );
+  return response.clone();
 }
