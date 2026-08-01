@@ -513,18 +513,9 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     [
       t("nearGraduation"),
       projectSummaryComplete
-        ? knownEntries.filter((entry) => {
-            const principal = asBigInt(entry.principal);
-            const target = asBigInt(entry.target);
-            return (
-              entry.state !== null &&
-              entry.state < 2 &&
-              principal !== undefined &&
-              target !== undefined &&
-              target > 0n &&
-              principal * 100n >= target * 75n
-            );
-          }).length
+        ? knownEntries.filter(
+            (entry) => entry.state !== null && entry.state < 2,
+          ).length
         : "—",
     ],
     [
