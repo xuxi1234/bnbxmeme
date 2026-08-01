@@ -79,24 +79,14 @@ export function parseMarketFilter(value: string | null): MarketFilter | null {
 
 export function marketEntryMatchesFilter(
   filter: MarketFilter,
-  entry: Pick<RankingEntry, "principal" | "target" | "state">,
+  entry: Pick<RankingEntry, "state">,
 ) {
   if (entry.state === null || entry.state === undefined) return false;
   const isExternal = entry.state === 2;
   if (filter === "newExternal" || filter === "hotExternal") {
     return isExternal;
   }
-  if (isExternal) return false;
-  if (filter !== "graduating") return true;
-
-  const principal = entry.principal === null ? null : BigInt(entry.principal);
-  const target = entry.target === null ? null : BigInt(entry.target);
-  return (
-    principal !== null &&
-    target !== null &&
-    target > 0n &&
-    principal * 100n >= target * 75n
-  );
+  return !isExternal;
 }
 
 function compareKnownDescending(

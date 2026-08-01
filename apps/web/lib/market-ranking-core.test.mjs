@@ -126,20 +126,20 @@ test("keeps internal and external lifecycle categories strictly separated", () =
   }
 });
 
-test("keeps near-graduation limited to internal projects at least 75% full", () => {
+test("includes every ungraduated internal project in progress ranking", () => {
   assert.equal(
     marketEntryMatchesFilter(
       "graduating",
-      entry("eligible", 1, { principal: "75", target: "100" }),
+      entry("high-progress", 1, { principal: "75", target: "100" }),
     ),
     true,
   );
   assert.equal(
     marketEntryMatchesFilter(
       "graduating",
-      entry("too-early", 1, { principal: "74", target: "100" }),
+      entry("low-progress", 1, { principal: "1", target: "100" }),
     ),
-    false,
+    true,
   );
 });
 
@@ -155,14 +155,15 @@ test("orders graduating cards by progress and then creation index", () => {
   const first = entry("first", 1, { principal: "80" });
   const newerTie = entry("newer-tie", 3, { principal: "80" });
   const lower = entry("lower", 4, { principal: "75" });
+  const empty = entry("empty", 5, { principal: "0" });
 
   assert.deepEqual(
-    [first, lower, newerTie]
+    [first, empty, lower, newerTie]
       .sort((left, right) =>
         compareMarketEntries("graduating", {}, left, right),
       )
       .map(({ token }) => token),
-    ["newer-tie", "first", "lower"],
+    ["newer-tie", "first", "lower", "empty"],
   );
 });
 
