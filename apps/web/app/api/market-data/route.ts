@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAddress, zeroAddress } from "viem";
 import { readOfficialCreatorCatalog } from "@/lib/creator-project-server";
 import { officialFactoryAddresses } from "@/lib/deployments";
-import { buildFactorySlots, chunkItems } from "@/lib/market-data-core";
+import {
+  buildFactorySlots,
+  chunkItems,
+  hasCompleteMarketEntryRead,
+} from "@/lib/market-data-core";
 import { serverPublicClient } from "@/lib/server-chain";
 import { validateTokenProject } from "@/lib/token-project-server";
 import type { ProjectValidationResult } from "@/lib/project-validation-core";
@@ -332,16 +336,18 @@ async function readEntries(records: CurveRecord[], initialPartial: boolean) {
       const creator = successful<`0x${string}`>(stats[3]);
       const liquidityPair = successful<`0x${string}`>(stats[4]);
       if (
-        !name ||
-        !symbol ||
-        totalSupply === undefined ||
-        !metadataURI ||
-        !record.curve ||
-        principal === undefined ||
-        target === undefined ||
-        state === undefined ||
-        !creator ||
-        !liquidityPair
+        !hasCompleteMarketEntryRead({
+          name,
+          symbol,
+          totalSupply,
+          metadataURI,
+          curve: record.curve,
+          principal,
+          target,
+          state,
+          creator,
+          liquidityPair,
+        })
       ) {
         partial = true;
       }

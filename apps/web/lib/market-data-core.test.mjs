@@ -4,7 +4,35 @@ import {
   buildFactorySlots,
   buildMarketScoreRefreshKey,
   chunkItems,
+  hasCompleteMarketEntryRead,
 } from "./market-data-core.ts";
+
+const completeMarketEntryRead = {
+  name: "No Metadata Token",
+  symbol: "NMT",
+  totalSupply: 1_000_000_000n,
+  metadataURI: "",
+  curve: "0x1111111111111111111111111111111111111111",
+  principal: 0n,
+  target: 10_000_000_000_000_000n,
+  state: 0,
+  creator: "0x2222222222222222222222222222222222222222",
+  liquidityPair: "0x3333333333333333333333333333333333333333",
+};
+
+test("treats an empty optional metadata URI as a complete chain read", () => {
+  assert.equal(hasCompleteMarketEntryRead(completeMarketEntryRead), true);
+});
+
+test("still reports a failed metadata URI RPC read as incomplete", () => {
+  assert.equal(
+    hasCompleteMarketEntryRead({
+      ...completeMarketEntryRead,
+      metadataURI: undefined,
+    }),
+    false,
+  );
+});
 
 test("keeps the homepage bounded to the newest Factory slots", () => {
   assert.deepEqual(
