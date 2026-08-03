@@ -25,8 +25,10 @@ any production address is changed.
 
 See [docs/token-economics.md](docs/token-economics.md) and
 [docs/bonding-curve-spec.md](docs/bonding-curve-spec.md) for the normative
-specification. The proposed automatic-reward design and its Mainnet release
-gates are documented in
+specification. The V4 templates, their exact source files, compiler settings,
+Mainnet deployments, and BscScan verification procedure are published in
+[docs/mainnet-source-verification.md](docs/mainnet-source-verification.md).
+The automatic-reward security model and release gates are documented in
 [docs/bnbx-v4-rewards-security.md](docs/bnbx-v4-rewards-security.md).
 
 ## Workspace
@@ -37,21 +39,30 @@ packages/contracts  Foundry smart contracts
 packages/chain-config shared chain addresses and IDs
 ```
 
-## BSC Mainnet canary
+## BSC Mainnet V4
 
 - Chain ID: `56`
 - PancakeSwap V2 Router: `0x10ED43C718714eb63d5aA57B78B54704E256024E`
 - Fee recipient: `0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`
 - Platform admin signing wallet:
   `0xbE37AB912De351B9312FA593C9f99e3279FDB0a2`
-- Advanced token deployer: `0xe7061e64991855a474ba29ad8adf7b6984c29cb4`
-- Rewards Factory: `0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8`
+- Standard zero-tax Factory: `0x6012aa2eb5164c8ed31f2a01950c3b5037211181`
+- Advanced token deployer: `0xbCf50926684726DA1C3674f110fCAb755E181525`
+- Holder/LP rewards Factory: `0xe4aAF8066bf1063CFd73dc9a784598DFFa412014`
+- Standard Factory deployment:
+  `0x8aa33936ad714c17b900b29d92271a8f6ed8d1832172670ba414f88c81b2455c`
 - Advanced token deployer deployment:
-  `0x76acc2ac3407d9dd68f5ec3ccc56ecb6471bb35ae09c26a0522c764764721a6c`
+  `0x00486285029bcb6ee32849380b648c897a50aba051cdc1e8ec3179b47ee64364`
 - Rewards Factory deployment:
-  `0x25fd96e9562b42a7b8e6b52b7bd7fbf4438ee35981253809be94f68a0b772c58`
+  `0xaae7031d8547bad975987709e7fe5b1430aeb1ebbecde5f01d6f002847ff629d`
 - Deployer manager configuration:
-  `0x843d747e99275ce20183da0a4bb11a834f2581e2b3f42563c83da0d8abc29623`
+  `0xc70eff63aec72f75480a07c37174f867d73ce2fa0a9076eaca83f77c7d76a149`
+
+All Solidity sources are public under the MIT License. The three user-facing
+templates are permanent zero tax, holder rewards, and LP rewards. They share
+the published V4 bonding-curve and reward-vault implementation; older Factory
+versions remain in the repository and on-chain for historical readability but
+are not used for new launches.
 
 The web deployment uses server-only `PINATA_JWT`, `BSC_MAINNET_RPC_URL`, and
 `BSC_LOG_RPC_URL` environment variables. Platform management signatures use
