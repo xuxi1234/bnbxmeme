@@ -26,6 +26,8 @@ type Holder = {
   balance: bigint;
 };
 
+const RECENT_TRADE_LIMIT = 20;
+
 export type ActivitySummary = {
   latestPricePerMillionBnb: number | null;
   bnbUsd: number;
@@ -99,13 +101,7 @@ export function TokenActivity({
   const activityIdentity = useRef<string | null>(null);
   const topTraders = useMemo(() => {
     const excluded = new Set(
-      [
-        curve,
-        pair,
-        token,
-        zeroAddress,
-        pancakeRouterAddress,
-      ]
+      [curve, pair, token, zeroAddress, pancakeRouterAddress]
         .filter(Boolean)
         .map((address) => address!.toLowerCase()),
     );
@@ -152,7 +148,14 @@ export function TokenActivity({
       let isBackfilling = false;
       try {
         const data = await fetchSharedChainData<{
-          trades: Array<Omit<Trade, "bnb" | "priceBNB" | "tokens" | "blockNumber"> & { bnb: string; priceBNB: string; tokens: string; blockNumber: string }>;
+          trades: Array<
+            Omit<Trade, "bnb" | "priceBNB" | "tokens" | "blockNumber"> & {
+              bnb: string;
+              priceBNB: string;
+              tokens: string;
+              blockNumber: string;
+            }
+          >;
           holders: Array<{ address: `0x${string}`; balance: string }>;
           holderCount?: number;
           holdersLimited?: boolean;
@@ -173,8 +176,7 @@ export function TokenActivity({
         if (data.index?.status === "backfilling") {
           isBackfilling = true;
           onSummary?.({
-            latestPricePerMillionBnb:
-              data.market?.pricePerMillionBnb ?? null,
+            latestPricePerMillionBnb: data.market?.pricePerMillionBnb ?? null,
             bnbUsd: Number(data.bnbUsd ?? 0),
             volume24hBnb: null,
             priceChange24h: null,
@@ -188,15 +190,16 @@ export function TokenActivity({
           });
           return;
         }
-        const allActivity = data.trades.map((trade) => ({
-          ...trade,
-          bnb: BigInt(trade.bnb),
-          priceBNB: BigInt(trade.priceBNB),
-          tokens: BigInt(trade.tokens),
-          blockNumber: BigInt(trade.blockNumber),
-        }))
+        const allActivity = data.trades
+          .map((trade) => ({
+            ...trade,
+            bnb: BigInt(trade.bnb),
+            priceBNB: BigInt(trade.priceBNB),
+            tokens: BigInt(trade.tokens),
+            blockNumber: BigInt(trade.blockNumber),
+          }))
           .sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1));
-        const activity = allActivity.slice(0, 50);
+        const activity = allActivity.slice(0, RECENT_TRADE_LIMIT);
         setTrades(activity);
         const nextHolders = data.holders.map((holder) => ({
           ...holder,
@@ -213,7 +216,9 @@ export function TokenActivity({
         const nextBnbUsd = Number(data.bnbUsd ?? 0);
         setBnbUsd(nextBnbUsd);
         const latestTrade = allActivity[0];
-        const latestTokens = latestTrade ? Number(formatEther(latestTrade.tokens)) : 0;
+        const latestTokens = latestTrade
+          ? Number(formatEther(latestTrade.tokens))
+          : 0;
         const fallbackPricePerMillionBnb =
           latestTrade && latestTokens > 0
             ? (Number(formatEther(latestTrade.priceBNB)) / latestTokens) *
@@ -230,15 +235,14 @@ export function TokenActivity({
           volume24hBnb:
             data.market?.volume24hBnb ??
             recentActivity.reduce(
-            (sum, trade) => sum + Number(formatEther(trade.bnb)),
-            0,
-          ),
+              (sum, trade) => sum + Number(formatEther(trade.bnb)),
+              0,
+            ),
           priceChange24h: data.market?.priceChange24h ?? null,
           liquidityBnb: data.market?.liquidityBnb ?? null,
           marketSource: data.market?.source ?? "curve",
           holderCount: data.holderCount ?? data.holders.length,
-          holdersLimited:
-            data.holdersLimited ?? data.holders.length >= 50,
+          holdersLimited: data.holdersLimited ?? data.holders.length >= 50,
           top10ConcentrationPct: nextTop10Concentration,
         });
       } catch {
@@ -263,7 +267,11 @@ export function TokenActivity({
         <div className="activity-heading">
           <div>
             <p className="eyebrow">ON-CHAIN ACTIVITY</p>
-            <div className="activity-tabs" role="tablist" aria-label={t("marketData")}>
+            <div
+              className="activity-tabs"
+              role="tablist"
+              aria-label={t("marketData")}
+            >
               <button
                 className={activeTab === "trades" ? "active" : ""}
                 type="button"
@@ -280,7 +288,11 @@ export function TokenActivity({
                 aria-selected={activeTab === "holders"}
                 onClick={() => setActiveTab("holders")}
               >
-                {t("holders")} <span>{holders.length}{holders.length >= 50 ? "+" : ""}</span>
+                {t("holders")}{" "}
+                <span>
+                  {holders.length}
+                  {holders.length >= 50 ? "+" : ""}
+                </span>
               </button>
               <button
                 className={activeTab === "topTraders" ? "active" : ""}
@@ -298,124 +310,158 @@ export function TokenActivity({
         {loadError && (trades.length > 0 || holders.length > 0) && (
           <div className="data-reliability-banner compact" role="status">
             <span>{t("staleDataNotice")}</span>
-            <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+            <button
+              type="button"
+              onClick={() => setReloadKey((value) => value + 1)}
+            >
               {t("retry")}
             </button>
           </div>
         )}
-        {activeTab === "trades" && (isLoading ? (
-          <p className="activity-empty">{t("readingLogs")}</p>
-        ) : loadError ? (
-          <div className="activity-empty activity-error">
-            <p>{t("chainBusy")}</p>
-            <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
-              {t("retry")}
-            </button>
-          </div>
-        ) : trades.length === 0 ? (
-          <p className="activity-empty">{t("noTrades")}</p>
-        ) : (
-          <div className="activity-table">
-            <div className="activity-table-head">
-              <span>{t("direction")}</span>
-              <span>{t("account")}</span>
-              <span>USD</span>
-              <span>BNB</span>
-              <span>{t("tokenAmount")}</span>
-              <span>{t("date")}</span>
-              <span>TXN</span>
-            </div>
-            {trades.map((trade) => (
-              <a
-                key={trade.id}
-                href={`${blockExplorerUrl}/tx/${trade.transactionHash}`}
-                target="_blank"
-                rel="noreferrer"
+        {activeTab === "trades" &&
+          (isLoading ? (
+            <p className="activity-empty">{t("readingLogs")}</p>
+          ) : loadError ? (
+            <div className="activity-empty activity-error">
+              <p>{t("chainBusy")}</p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((value) => value + 1)}
               >
-                <strong className={trade.side === "buy" ? "trade-buy" : "trade-sell"}>
-                  {t(trade.side)}
+                {t("retry")}
+              </button>
+            </div>
+          ) : trades.length === 0 ? (
+            <p className="activity-empty">{t("noTrades")}</p>
+          ) : (
+            <div className="activity-table">
+              <div className="activity-table-head">
+                <span>{t("direction")}</span>
+                <span>{t("account")}</span>
+                <span>USD</span>
+                <span>BNB</span>
+                <span>{t("tokenAmount")}</span>
+                <span>{t("date")}</span>
+                <span>TXN</span>
+              </div>
+              {trades.map((trade) => (
+                <a
+                  key={trade.id}
+                  href={`${blockExplorerUrl}/tx/${trade.transactionHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <strong
+                    className={
+                      trade.side === "buy" ? "trade-buy" : "trade-sell"
+                    }
+                  >
+                    {t(trade.side)}
+                  </strong>
+                  <span className="trade-account">
+                    <i
+                      style={{ background: accountColor(trade.account) }}
+                      aria-hidden="true"
+                    >
+                      {trade.account.slice(2, 4).toUpperCase()}
+                    </i>
+                    {shortAddress(trade.account)}
+                  </span>
+                  <span>
+                    {bnbUsd > 0
+                      ? `$${(Number(formatEther(trade.bnb)) * bnbUsd).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : "—"}
+                  </span>
+                  <span>{formatBnb(trade.bnb, locale)}</span>
+                  <span title={`${formatEther(trade.tokens)} ${t("units")}`}>
+                    {formatCompact(trade.tokens, locale)}
+                  </span>
+                  <time
+                    dateTime={new Date(trade.timestamp * 1000).toISOString()}
+                  >
+                    {new Intl.DateTimeFormat(locale, {
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    }).format(new Date(trade.timestamp * 1000))}
+                  </time>
+                  <strong
+                    className="trade-explorer"
+                    aria-label={t("viewExplorer")}
+                  >
+                    ↗
+                  </strong>
+                </a>
+              ))}
+            </div>
+          ))}
+        {activeTab === "holders" &&
+          (isLoading ? (
+            <p className="activity-empty">{t("readingLogs")}</p>
+          ) : loadError ? (
+            <div className="activity-empty activity-error">
+              <p>{t("holderSyncBusy")}</p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((value) => value + 1)}
+              >
+                {t("retry")}
+              </button>
+            </div>
+          ) : holders.length === 0 ? (
+            <p className="activity-empty">{t("noHolders")}</p>
+          ) : (
+            <div className="holder-list">
+              <div className="holder-concentration">
+                <span>{t("top10Concentration")}</span>
+                <strong>
+                  {top10ConcentrationPct === null
+                    ? "—"
+                    : `${top10ConcentrationPct.toFixed(2)}%`}
                 </strong>
-                <span className="trade-account">
-                  <i style={{ background: accountColor(trade.account) }} aria-hidden="true">
-                    {trade.account.slice(2, 4).toUpperCase()}
-                  </i>
-                  {shortAddress(trade.account)}
-                </span>
-                <span>{bnbUsd > 0 ? `$${(Number(formatEther(trade.bnb)) * bnbUsd).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</span>
-                <span>{formatBnb(trade.bnb, locale)}</span>
-                <span title={`${formatEther(trade.tokens)} ${t("units")}`}>{formatCompact(trade.tokens, locale)}</span>
-                <time dateTime={new Date(trade.timestamp * 1000).toISOString()}>
-                  {new Intl.DateTimeFormat(locale, {
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  }).format(new Date(trade.timestamp * 1000))}
-                </time>
-                <strong className="trade-explorer" aria-label={t("viewExplorer")}>↗</strong>
-              </a>
-            ))}
-          </div>
-        ))}
-        {activeTab === "holders" && (isLoading ? (
-          <p className="activity-empty">{t("readingLogs")}</p>
-        ) : loadError ? (
-          <div className="activity-empty activity-error">
-            <p>{t("holderSyncBusy")}</p>
-            <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
-              {t("retry")}
-            </button>
-          </div>
-        ) : holders.length === 0 ? (
-          <p className="activity-empty">{t("noHolders")}</p>
-        ) : (
-          <div className="holder-list">
-            <div className="holder-concentration">
-              <span>{t("top10Concentration")}</span>
-              <strong>
-                {top10ConcentrationPct === null
-                  ? "—"
-                  : `${top10ConcentrationPct.toFixed(2)}%`}
-              </strong>
+              </div>
+              {holders.map((holder, index) => (
+                <a
+                  key={holder.address}
+                  href={`${blockExplorerUrl}/token/${token}?a=${holder.address}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{shortAddress(holder.address)}</strong>
+                  <span title={formatEther(holder.balance)}>
+                    {formatCompact(holder.balance, locale)} {t("units")}
+                  </span>
+                </a>
+              ))}
             </div>
-            {holders.map((holder, index) => (
-              <a
-                key={holder.address}
-                href={`${blockExplorerUrl}/token/${token}?a=${holder.address}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <strong>{shortAddress(holder.address)}</strong>
-                <span title={formatEther(holder.balance)}>{formatCompact(holder.balance, locale)} {t("units")}</span>
-              </a>
-            ))}
-          </div>
-        ))}
-        {activeTab === "topTraders" && (isLoading ? (
-          <p className="activity-empty">{t("readingLogs")}</p>
-        ) : topTraders.length === 0 ? (
-          <p className="activity-empty">{t("noTopTraders")}</p>
-        ) : (
-          <div className="holder-list top-trader-list">
-            {topTraders.map((trader, index) => (
-              <a
-                key={trader.account}
-                href={`${blockExplorerUrl}/address/${trader.account}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <strong>{shortAddress(trader.account)}</strong>
-                <span>
-                  {formatBnb(trader.volume, locale)} BNB · {trader.buys} {t("buy")} /{" "}
-                  {trader.sells} {t("sell")}
-                </span>
-              </a>
-            ))}
-          </div>
-        ))}
+          ))}
+        {activeTab === "topTraders" &&
+          (isLoading ? (
+            <p className="activity-empty">{t("readingLogs")}</p>
+          ) : topTraders.length === 0 ? (
+            <p className="activity-empty">{t("noTopTraders")}</p>
+          ) : (
+            <div className="holder-list top-trader-list">
+              {topTraders.map((trader, index) => (
+                <a
+                  key={trader.account}
+                  href={`${blockExplorerUrl}/address/${trader.account}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{shortAddress(trader.account)}</strong>
+                  <span>
+                    {formatBnb(trader.volume, locale)} BNB · {trader.buys}{" "}
+                    {t("buy")} / {trader.sells} {t("sell")}
+                  </span>
+                </a>
+              ))}
+            </div>
+          ))}
       </article>
     </section>
   );

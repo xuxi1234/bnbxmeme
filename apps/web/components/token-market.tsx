@@ -18,7 +18,6 @@ import {
   marketEntryMatchesFilter,
   marketFilters,
   parseMarketFilter,
-  summarizeCompleteMarketActivity,
   type MarketFilter,
 } from "@/lib/market-ranking-core";
 import { resolveMarketNoResults } from "@/lib/market-empty-state-core";
@@ -588,43 +587,6 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     );
   }
 
-  const knownEntries = entries.filter(
-    (entry) =>
-      entry.principal !== null && entry.target !== null && entry.state !== null,
-  );
-  const activitySummary =
-    payload?.dataStatus === "fresh"
-      ? summarizeCompleteMarketActivity(
-          entries.map((entry) => entry.token),
-          scores,
-        )
-      : null;
-  const projectSummaryComplete =
-    payload?.dataStatus === "fresh" && knownEntries.length === entries.length;
-  const marketStats = [
-    [
-      t("volume24h"),
-      activitySummary
-        ? `${formatCompactMetric(activitySummary.volume24hBnb)} BNB`
-        : "—",
-    ],
-    [t("trades24h"), activitySummary?.trades24h ?? "—"],
-    [
-      t("nearGraduation"),
-      projectSummaryComplete
-        ? knownEntries.filter(
-            (entry) => entry.state !== null && entry.state < 2,
-          ).length
-        : "—",
-    ],
-    [
-      t("completedProjects"),
-      projectSummaryComplete
-        ? knownEntries.filter((entry) => entry.state === 2).length
-        : "—",
-    ],
-  ] as const;
-
   return (
     <>
       {(payload?.dataStatus === "partial" || loadError || scoreLoadPartial) && (
@@ -643,14 +605,6 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
           </button>
         </div>
       )}
-      <div className="market-overview" aria-label={t("projects")}>
-        {marketStats.map(([label, value]) => (
-          <div key={label}>
-            <strong>{value}</strong>
-            <span>{label}</span>
-          </div>
-        ))}
-      </div>
       <div className="market-toolbar">
         <label className="market-search">
           <span aria-hidden="true">⌕</span>

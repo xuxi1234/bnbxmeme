@@ -14,10 +14,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { formatEther, zeroAddress } from "viem";
-import {
-  chartPricePrecision,
-  formatTokenPriceUsdt,
-} from "@/lib/market-format";
+import { chartPricePrecision, formatTokenPriceUsdt } from "@/lib/market-format";
 import {
   aggregateChartPoints,
   coalesceChartPointsByTimestamp,
@@ -56,6 +53,15 @@ function compact(value: number) {
   return new Intl.NumberFormat("en-US", {
     notation: "compact",
     maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function compactAxisPrice(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  if (value !== 0 && Math.abs(value) < 0.001) return value.toExponential(2);
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 3,
   }).format(value);
 }
 
@@ -115,7 +121,12 @@ export function BondingCurveChart({
             if (!tokenWei || !bnbWei) return null;
             const tokens = Number(formatEther(tokenWei));
             const bnb = Number(formatEther(bnbWei));
-            if (!tokens || !bnb || !Number.isFinite(tokens) || !Number.isFinite(bnb)) {
+            if (
+              !tokens ||
+              !bnb ||
+              !Number.isFinite(tokens) ||
+              !Number.isFinite(bnb)
+            ) {
               return null;
             }
             return {
@@ -173,16 +184,17 @@ export function BondingCurveChart({
   useEffect(() => {
     const container = chartContainer.current;
     if (!container || points.length === 0) return;
+    const isMobile = window.matchMedia("(max-width: 560px)").matches;
 
     const chart = createChart(container, {
       autoSize: true,
-      height: 420,
+      height: isMobile ? 300 : 420,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#8d9788",
         fontFamily:
           "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        fontSize: 11,
+        fontSize: isMobile ? 10 : 11,
         attributionLogo: true,
       },
       grid: {
@@ -191,8 +203,14 @@ export function BondingCurveChart({
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: "rgba(243, 186, 47, .55)", labelBackgroundColor: "#44370f" },
-        horzLine: { color: "rgba(243, 186, 47, .4)", labelBackgroundColor: "#44370f" },
+        vertLine: {
+          color: "rgba(243, 186, 47, .55)",
+          labelBackgroundColor: "#44370f",
+        },
+        horzLine: {
+          color: "rgba(243, 186, 47, .4)",
+          labelBackgroundColor: "#44370f",
+        },
       },
       rightPriceScale: {
         borderColor: "rgba(80, 92, 76, .35)",
@@ -256,11 +274,17 @@ export function BondingCurveChart({
         crosshairMarkerRadius: 5,
         priceLineVisible: true,
         lastValueVisible: true,
-        priceFormat: {
-          type: "price",
-          precision: priceFormat.precision,
-          minMove: priceFormat.minMove,
-        },
+        priceFormat: isMobile
+          ? {
+              type: "custom",
+              formatter: compactAxisPrice,
+              minMove: priceFormat.minMove,
+            }
+          : {
+              type: "price",
+              precision: priceFormat.precision,
+              minMove: priceFormat.minMove,
+            },
       });
       const lineData: LineData<UTCTimestamp>[] = linePoints.map((point) => ({
         time: point.timestamp as UTCTimestamp,
@@ -293,11 +317,17 @@ export function BondingCurveChart({
         wickDownColor: "#ff6c64",
         priceLineVisible: true,
         lastValueVisible: true,
-        priceFormat: {
-          type: "price",
-          precision: priceFormat.precision,
-          minMove: priceFormat.minMove,
-        },
+        priceFormat: isMobile
+          ? {
+              type: "custom",
+              formatter: compactAxisPrice,
+              minMove: priceFormat.minMove,
+            }
+          : {
+              type: "price",
+              precision: priceFormat.precision,
+              minMove: priceFormat.minMove,
+            },
       });
       const candleData: CandlestickData<UTCTimestamp>[] = candles.map(
         (candle) => ({
@@ -390,17 +420,21 @@ export function BondingCurveChart({
         )}
         <span>
           {refreshedAt
-            ? `${t("lastUpdated")} ${new Intl.DateTimeFormat(
-                  locale,
-                { hour: "2-digit", minute: "2-digit", second: "2-digit" },
-              ).format(new Date(refreshedAt))}`
+            ? `${t("lastUpdated")} ${new Intl.DateTimeFormat(locale, {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              }).format(new Date(refreshedAt))}`
             : t("loading")}
         </span>
       </div>
       {loadError && points.length > 0 && (
         <div className="data-reliability-banner compact" role="status">
           <span>{t("staleDataNotice")}</span>
-          <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+          <button
+            type="button"
+            onClick={() => setReloadKey((value) => value + 1)}
+          >
             {t("retry")}
           </button>
         </div>
@@ -414,7 +448,10 @@ export function BondingCurveChart({
             <strong>{statusKey ? t(statusKey) : ""}</strong>
             <p>{t("chartTruth")}</p>
             {loadError && (
-              <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+              <button
+                type="button"
+                onClick={() => setReloadKey((value) => value + 1)}
+              >
                 {t("retry")}
               </button>
             )}
