@@ -83,20 +83,31 @@ test("publishes Router, burn proof, and unavailable-data semantics", async () =>
   assert.match(curve, /\.mint\(LP_BURN_ADDRESS\)/);
 });
 
-test("publishes the current one-percent launch fee and preserves the legacy disclosure", async () => {
-  const curve = await readFile(
-    new URL(
-      "../../../packages/contracts/src/BondingCurve.sol",
-      import.meta.url,
+test("publishes the five official domains and concise one-percent launch fees", async () => {
+  const [curve, page] = await Promise.all([
+    readFile(
+      new URL(
+        "../../../packages/contracts/src/BondingCurve.sol",
+        import.meta.url,
+      ),
+      "utf8",
     ),
-    "utf8",
-  );
+    readFile(new URL("../app/security/page.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(curve, /TRADE_FEE_BPS\s*=\s*100;/);
+  for (const domain of [
+    "bnbx.meme",
+    "bnbx.sh",
+    "bnbx.fun",
+    "bnbx.dev",
+    "bnbx.app",
+  ]) {
+    assert.match(page, new RegExp(`"${domain.replace(".", "\\.")}"`));
+  }
   for (const language of languages) {
     const rows = securityCopy[language].feeItems.slice(1, 3);
     for (const [, value] of rows) {
-      assert.match(value, /1%/);
-      assert.match(value, /0\.5%/);
+      assert.equal(value, "1%");
     }
   }
 });
