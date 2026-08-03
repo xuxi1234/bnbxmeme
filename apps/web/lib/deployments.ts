@@ -13,20 +13,33 @@ export const legacyRewardsFactoryAddress =
 export const v3RewardsFactoryAddress =
   "0xef95ead95292408090e61112580f62e4d556c550" as const;
 
+// Audited V4 holder/LP rewards Factory. The advanced deployer's immutable
+// one-time manager binding points to this address on BSC mainnet.
+export const v4RewardsFactoryAddress =
+  "0xe4aaf8066bf1063cfd73dc9a784598dffa412014" as const;
+
 // V3 Standard 0-tax Factory deployed by the authorized platform wallet. Its
 // constructor values are immutable chain facts, so this fallback also protects
 // production from an empty or stale V1 environment variable.
 const deployedV3StandardFactoryAddress =
   "0xc5f6d2b221dfd950f919b82c77d82fc427f31b3d" as const;
 
+// Audited V4 Standard 0-tax Factory deployed by the authorized platform
+// wallet with the production fee recipient and Pancake V2 Router.
+export const v4StandardFactoryAddress =
+  "0x6012aa2eb5164c8ed31f2a01950c3b5037211181" as const;
+
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
 
 export const v3StandardFactoryAddress =
-  configuredStandardFactoryAddress?.toLowerCase() ===
-  legacyStandardFactoryAddress.toLowerCase()
-    ? deployedV3StandardFactoryAddress
-    : (configuredStandardFactoryAddress ?? deployedV3StandardFactoryAddress);
+  configuredStandardFactoryAddress &&
+  ![
+    legacyStandardFactoryAddress.toLowerCase(),
+    deployedV3StandardFactoryAddress.toLowerCase(),
+  ].includes(configuredStandardFactoryAddress.toLowerCase())
+    ? configuredStandardFactoryAddress
+    : v4StandardFactoryAddress;
 
 export const standardFactoryAddress =
   v3StandardFactoryAddress ?? legacyStandardFactoryAddress;
@@ -38,13 +51,16 @@ export const autoLiquidityFactoryAddress =
 const configuredRewardsFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as `0x${string}` | undefined;
 
-// The legacy rewards Factory is intentionally read-only. New advanced
-// creation stays disabled until a distinct V3 address is configured.
+// Legacy and V3 rewards factories remain read-only. Treat either stale Vercel
+// value as V4 so a cached environment variable cannot re-enable old bytecode.
 export const rewardsFactoryAddress =
-  configuredRewardsFactoryAddress?.toLowerCase() ===
-  legacyRewardsFactoryAddress.toLowerCase()
-    ? v3RewardsFactoryAddress
-    : (configuredRewardsFactoryAddress ?? v3RewardsFactoryAddress);
+  configuredRewardsFactoryAddress &&
+  ![
+    legacyRewardsFactoryAddress.toLowerCase(),
+    v3RewardsFactoryAddress.toLowerCase(),
+  ].includes(configuredRewardsFactoryAddress.toLowerCase())
+    ? configuredRewardsFactoryAddress
+    : v4RewardsFactoryAddress;
 
 export const officialFactoryAddresses = Array.from(
   new Set<`0x${string}`>([
