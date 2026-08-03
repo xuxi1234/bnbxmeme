@@ -13,10 +13,15 @@ export const legacyRewardsFactoryAddress =
 export const v3RewardsFactoryAddress =
   "0xef95ead95292408090e61112580f62e4d556c550" as const;
 
-// Audited V4 holder/LP rewards Factory. The advanced deployer's immutable
-// one-time manager binding points to this address on BSC mainnet.
-export const v4RewardsFactoryAddress =
+// Pre-fix V4 rewards infrastructure remains readable for historical launches,
+// but must never be selected for new holder/LP-rewards deployments.
+export const preFixV4RewardsFactoryAddress =
   "0xe4aaf8066bf1063cfd73dc9a784598dffa412014" as const;
+
+// Audited V4 holder/LP rewards Factory. Its advanced deployer was regenerated
+// from the reviewed source and permanently bound to this address on Mainnet.
+export const v4RewardsFactoryAddress =
+  "0x6c72ece4f7aa05f3b2099ef9dd2d668e7e3f688e" as const;
 
 // V3 Standard 0-tax Factory deployed by the authorized platform wallet. Its
 // constructor values are immutable chain facts, so this fallback also protects
@@ -51,13 +56,15 @@ export const autoLiquidityFactoryAddress =
 const configuredRewardsFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_REWARDS_FACTORY_ADDRESS as `0x${string}` | undefined;
 
-// Legacy and V3 rewards factories remain read-only. Treat either stale Vercel
-// value as V4 so a cached environment variable cannot re-enable old bytecode.
+// Legacy, V3, and pre-fix V4 rewards factories remain read-only. Treat any
+// stale Vercel value as current V4 so a cached environment variable cannot
+// re-enable older bytecode.
 export const rewardsFactoryAddress =
   configuredRewardsFactoryAddress &&
   ![
     legacyRewardsFactoryAddress.toLowerCase(),
     v3RewardsFactoryAddress.toLowerCase(),
+    preFixV4RewardsFactoryAddress.toLowerCase(),
   ].includes(configuredRewardsFactoryAddress.toLowerCase())
     ? configuredRewardsFactoryAddress
     : v4RewardsFactoryAddress;
@@ -69,6 +76,7 @@ export const officialFactoryAddresses = Array.from(
     legacyStandardFactoryAddress,
     legacyAutoLiquidityFactoryAddress,
     legacyRewardsFactoryAddress,
+    preFixV4RewardsFactoryAddress,
   ]),
 );
 
