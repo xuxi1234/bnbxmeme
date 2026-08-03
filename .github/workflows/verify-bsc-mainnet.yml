@@ -51,6 +51,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # These deployed rewards contracts came from this exact generated
+          # artifact. Pin the full commit so BscScan publishes the source that
+          # is actually on-chain, not the later reviewed replacement.
+          ref: d8d953db9cd151d7b130b22f347aba4c9d513d92
 
       - name: Enable Corepack
         run: corepack enable
