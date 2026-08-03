@@ -414,28 +414,44 @@ export default function AcceptanceTestnetPage() {
     );
   }
 
-  async function approveFactory() {
+  async function approveCurve() {
     const context = ensureTrading();
     await runTransaction("授权卖出", () =>
       writeContractAsync({
         address: context.tokenAddress,
         abi: acceptanceErc20Abi,
         functionName: "approve",
-        args: [context.factory, maxUint256],
+        args: [snapshot!.curve, maxUint256],
         account: context.address,
         chain: bscTestnet,
       }),
     );
   }
 
+  function selectSellPercent(percent: 25 | 50 | 100) {
+    if (!snapshot) return;
+    setSellAmount(
+      formatEther((snapshot.balance * BigInt(percent)) / 100n),
+    );
+  }
+
   async function sell() {
     const context = ensureTrading();
+    const tokensIn = safeAmount(sellAmount);
+    if (tokensIn === 0n) {
+      setError("卖出数量必须大于 0");
+      return;
+    }
+    if (tokensIn > snapshot!.balance) {
+      setError("卖出数量不能超过钱包持币余额");
+      return;
+    }
     await runTransaction("曲线卖出", () =>
       writeContractAsync({
         address: context.factory,
         abi: factoryAbi,
         functionName: "sell",
-        args: [context.tokenAddress, safeAmount(sellAmount), 0n, deadline()],
+        args: [context.tokenAddress, tokensIn, 0n, deadline()],
         account: context.address,
         chain: bscTestnet,
       }),
@@ -782,13 +798,29 @@ export default function AcceptanceTestnetPage() {
                 onChange={(event) => setSellAmount(event.target.value)}
               />
             </label>
+            <div className="button-row" aria-label="卖出比例">
+              {([25, 50, 100] as const).map((percent) => (
+                <button
+                  className="button secondary"
+                  type="button"
+                  key={percent}
+                  disabled={!snapshot || snapshot.balance === 0n || Boolean(busy)}
+                  onClick={() => selectSellPercent(percent)}
+                >
+                  {percent}%
+                </button>
+              ))}
+            </div>
+            <p className="notice">
+              卖出授权对象：{snapshot ? shortAddress(snapshot.curve) : "—"}（当前曲线合约）
+            </p>
             <button
               className="button wide secondary"
               type="button"
               disabled={!snapshot || Boolean(busy)}
-              onClick={approveFactory}
+              onClick={approveCurve}
             >
-              先授权 Factory
+              先授权 Curve
             </button>
             <button
               className="button wide"
