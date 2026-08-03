@@ -1715,13 +1715,13 @@ h2 {
 .token-market-header,
 .token-market-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.55fr) minmax(94px, 0.85fr) minmax(
-      112px,
-      1fr
-    ) minmax(82px, 0.72fr) minmax(88px, 0.78fr) minmax(100px, 0.9fr) minmax(
+  grid-template-columns:
+    minmax(180px, 1.55fr) minmax(94px, 0.85fr) minmax(112px, 1fr)
+    minmax(82px, 0.72fr) minmax(88px, 0.78fr) minmax(100px, 0.9fr) minmax(
       60px,
       0.55fr
-    ) minmax(62px, 0.58fr) minmax(82px, 0.72fr) minmax(76px, 0.68fr);
+    )
+    minmax(62px, 0.58fr) minmax(82px, 0.72fr) minmax(76px, 0.68fr);
   align-items: center;
 }
 .token-market-header {
@@ -4117,7 +4117,7 @@ h2 {
     height: 38px;
   }
   .token-market-row {
-    grid-template-columns: 1.2fr 0.8fr 0.8fr;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
     grid-template-areas:
       "identity identity price"
       "progress progress change"
@@ -4126,11 +4126,13 @@ h2 {
   }
   .token-market-identity {
     min-height: 66px;
+    min-width: 0;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
   .token-market-price {
     min-height: 66px;
+    min-width: 0;
     border-bottom: 1px solid var(--line);
   }
   .token-market-value,
@@ -4144,7 +4146,10 @@ h2 {
     display: none;
   }
   .market-pagination {
-    justify-content: flex-start;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    flex-direction: row;
     overflow-x: auto;
     padding-bottom: 3px;
     scrollbar-width: none;
