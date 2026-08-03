@@ -1,4 +1,10 @@
-import { decodeEventLog, isAddress, parseEther, zeroAddress } from "viem";
+import {
+  decodeEventLog,
+  getAddress,
+  isAddress,
+  parseEther,
+  zeroAddress,
+} from "viem";
 import type { Log, TransactionReceipt } from "viem";
 
 export const BSC_TESTNET_CHAIN_ID = 97;
@@ -27,8 +33,25 @@ export const TESTNET_HOLDER_MINIMUM = parseEther("1000000");
 export const TESTNET_LP_MINIMUM = parseEther("0.000001");
 export const TESTNET_VANITY_LIMIT = 500_000;
 export const TESTNET_VANITY_CHUNK = 10_000;
+export const TESTNET_ACCEPTANCE_TOKEN_STORAGE_KEY =
+  "bnbx:v4-testnet-acceptance-token";
 
 export type AcceptanceTemplate = "standard" | "holders" | "lp";
+
+export function normalizeAcceptanceAddress(value?: string | null) {
+  if (!value || !/^0x[0-9a-f]{40}$/i.test(value.trim())) return null;
+  return getAddress(value.trim().toLowerCase());
+}
+
+export function acceptanceTokenCandidate(
+  search: string,
+  stored?: string | null,
+) {
+  const queryToken = new URLSearchParams(search).get("token");
+  return (
+    normalizeAcceptanceAddress(queryToken) ?? normalizeAcceptanceAddress(stored)
+  );
+}
 
 export function acceptanceFactory(template: AcceptanceTemplate) {
   return template === "standard"
