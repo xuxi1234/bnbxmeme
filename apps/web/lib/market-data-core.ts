@@ -10,6 +10,47 @@ export type MarketScoreTarget = {
   liquidityPair: string | null;
 };
 
+export type MarketEntryRead = {
+  name: string | undefined;
+  symbol: string | undefined;
+  totalSupply: bigint | undefined;
+  metadataURI: string | undefined;
+  curve: string | null;
+  principal: bigint | undefined;
+  target: bigint | undefined;
+  state: number | undefined;
+  creator: string | undefined;
+  liquidityPair: string | undefined;
+};
+
+export function hasCompleteMarketEntryRead({
+  name,
+  symbol,
+  totalSupply,
+  metadataURI,
+  curve,
+  principal,
+  target,
+  state,
+  creator,
+  liquidityPair,
+}: MarketEntryRead) {
+  return Boolean(
+    name &&
+    symbol &&
+    totalSupply !== undefined &&
+    // Metadata is optional. An empty string is a successful on-chain read;
+    // only an undefined result means that the RPC call failed.
+    metadataURI !== undefined &&
+    curve &&
+    principal !== undefined &&
+    target !== undefined &&
+    state !== undefined &&
+    creator &&
+    liquidityPair,
+  );
+}
+
 export function buildMarketScoreRefreshKey(entries: MarketScoreTarget[]) {
   return entries
     .map(({ token, curve, state, liquidityPair }) => {
