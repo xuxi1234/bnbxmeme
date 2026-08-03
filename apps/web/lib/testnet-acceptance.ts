@@ -33,6 +33,8 @@ export const TESTNET_HOLDER_MINIMUM = parseEther("1000000");
 export const TESTNET_LP_MINIMUM = parseEther("0.000001");
 export const TESTNET_VANITY_LIMIT = 500_000;
 export const TESTNET_VANITY_CHUNK = 10_000;
+export const TESTNET_REWARD_PROCESS_GAS = 500_000n;
+export const TESTNET_REWARD_PROCESS_TX_GAS = 750_000n;
 export const TESTNET_ACCEPTANCE_TOKEN_STORAGE_KEY =
   "bnbx:v4-testnet-acceptance-token";
 
