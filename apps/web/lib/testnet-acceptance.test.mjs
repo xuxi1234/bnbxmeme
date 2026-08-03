@@ -13,6 +13,7 @@ import {
   TESTNET_REWARDS_FACTORY,
   TESTNET_STANDARD_FACTORY,
   TESTNET_WBNB,
+  acceptanceTokenCandidate,
   acceptanceFactory,
   acceptanceStandardFactoryAbi,
   buildAcceptanceCreateRequest,
@@ -38,8 +39,26 @@ test("pins the isolated acceptance console to BSC Testnet V4 deployments", () =>
     TESTNET_BUSD,
     TESTNET_BUSD_WBNB_PAIR,
   ]) {
-    assert.equal(isAddress(address), true, `Invalid Testnet address: ${address}`);
+    assert.equal(
+      isAddress(address),
+      true,
+      `Invalid Testnet address: ${address}`,
+    );
   }
+});
+
+test("restores a valid acceptance token from the URL before local storage", () => {
+  const queryToken = "0xE12e6649C2Fd4665B67A5aF9C1218B0c43791111";
+  const storedToken = "0x5c5aAa165f5FBcE1875363EF59A17A0Ac3931111";
+  assert.equal(
+    acceptanceTokenCandidate(`?token=${queryToken}`, storedToken),
+    "0xE12E6649C2fD4665b67a5aF9C1218B0C43791111",
+  );
+  assert.equal(
+    acceptanceTokenCandidate("", storedToken),
+    "0x5c5AaA165f5fBce1875363ef59A17A0ac3931111",
+  );
+  assert.equal(acceptanceTokenCandidate("?token=invalid", "invalid"), null);
 });
 
 test("builds a permanent zero-tax standard request", () => {
