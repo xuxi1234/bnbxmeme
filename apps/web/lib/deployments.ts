@@ -79,16 +79,14 @@ export const rewardsFactoryAddress =
     ? configuredRewardsFactoryAddress
     : v4RewardsFactoryAddress;
 
+// Historical factories remain documented above for contract audits and
+// deployment provenance, but their projects are intentionally no longer part
+// of the public BNBX catalog. Only launches made through the current audited
+// 1% factories are displayed, searchable, or accepted as platform projects.
 export const officialFactoryAddresses = Array.from(
   new Set<`0x${string}`>([
     standardFactoryAddress,
     ...(rewardsFactoryAddress ? [rewardsFactoryAddress] : []),
-    legacyStandardFactoryAddress,
-    legacyAutoLiquidityFactoryAddress,
-    legacyRewardsFactoryAddress,
-    preFixV4RewardsFactoryAddress,
-    halfPercentV4StandardFactoryAddress,
-    halfPercentV4RewardsFactoryAddress,
   ]),
 );
 
