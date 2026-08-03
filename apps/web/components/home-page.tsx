@@ -6,7 +6,7 @@ import { TokenMarket } from "@/components/token-market";
 import { useLanguage } from "@/components/language-provider";
 
 export function HomePage() {
-  const { language, t } = useLanguage();
+  const { language } = useLanguage();
   const content = {
     zh: {
       assurances: [
@@ -89,12 +89,6 @@ export function HomePage() {
   return (
     <main className="home">
       <section className="market-section" id="market">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">PROJECT LIST</p>
-            <h2>{t("projects")}</h2>
-          </div>
-        </div>
         <Suspense fallback={null}>
           <TokenMarket />
         </Suspense>
