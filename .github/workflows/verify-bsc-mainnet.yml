@@ -1,6 +1,10 @@
 name: Verify BNBX contracts on BscScan
 
 on:
+  schedule:
+    # Scan both production factories regularly so newly launched contracts are
+    # published on BscScan without requiring an operator to run this workflow.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       standard_factory_address:
@@ -47,7 +51,7 @@ jobs:
       BNBX_V4_STANDARD_FACTORY_ADDRESS: ${{ inputs.standard_factory_address || '0x510dbBE270b2F009619BCbcF757aE2e2D48734Ad' }}
       BNBX_V4_REWARDS_FACTORY_ADDRESS: ${{ inputs.rewards_factory_address || '0x28100dBFA3F1a3D563e1667259433AdFA3aaC4BB' }}
       BNBX_V4_TOKEN_DEPLOYER_ADDRESS: ${{ inputs.token_deployer_address || '0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c' }}
-      VERIFY_LAUNCHED_TOKENS: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_launched_tokens && '1' || '0' }}
+      VERIFY_LAUNCHED_TOKENS: ${{ ((github.event_name == 'workflow_dispatch' && inputs.verify_launched_tokens) || github.event_name == 'schedule' || github.event_name == 'push') && '1' || '0' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
