@@ -89,6 +89,8 @@ type CreateErrorCopy = {
   marketingWalletInvalid: string;
   rewardTokenInvalid: string;
   rewardPoolMissing: string;
+  minimumHolderBalanceInvalid: string;
+  minimumLpBalanceInvalid: string;
   rewardsFactoryMissing: string;
   selectedFactoryMissing: string;
   vanityUnavailable: string;
@@ -170,12 +172,12 @@ export const createCopy: Record<Language, CreateCopy> = {
     marketingWallet: "营销钱包",
     rewardToken: "分红代币合约地址",
     rewardTokenHelp:
-      "必须是 BSC 上已有 WBNB 流动池的 BEP-20 代币，不能填写 BNB、WBNB 或本次创建的代币。",
+      "默认使用 BSC USDT；也可填写 BSC 上已有 WBNB 流动池的其他 BEP-20 代币，不能填写 BNB、WBNB 或本次创建的代币。",
     creatorDefault: "默认创建者",
     minimumHolderBalance: "最低参与分红持币量",
     minimumLpBalance: "最低参与分红 LP 数量",
     rewardsHelp:
-      "分红税自动兑换为上方指定代币，符合门槛的用户可主动领取；黑洞、曲线和交易对不参与。LP 分红需先把新增 LP 质押到公开分红金库。",
+      "持币分红的最低余额必须大于 1,000，默认 1,000,000；黑洞、曲线和交易对不参与。LP 分红需先把新增 LP 质押到公开分红金库。",
     factorySafetyLock:
       "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。",
     taxInvalid: "买入税或卖出税合计超过 10%，请降低税率。",
@@ -189,7 +191,8 @@ export const createCopy: Record<Language, CreateCopy> = {
       community: "请修正上方标出的社区链接。",
       initialBuy: "首购金额必须是有效的非负 BNB 数字。",
       tax: "请将买入税和卖出税各自降到 10% 以内。",
-      rewards: "请填写有效的分红代币地址和大于 0 的最低参与余额。",
+      rewards:
+        "请填写有效的分红代币地址；持币分红最低余额须大于 1,000，LP 分红最低数量须大于 0。",
     },
     errors: {
       metadataUploadFailed: "代币资料上传失败",
@@ -198,6 +201,8 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewardTokenInvalid: "分红代币合约地址格式错误",
       rewardPoolMissing:
         "分红代币必须是已部署合约，并且在 PancakeSwap V2 与 WBNB 的交易对已有非零流动性。",
+      minimumHolderBalanceInvalid: "最低参与分红持币量必须严格大于 1,000。",
+      minimumLpBalanceInvalid: "最低参与分红 LP 数量必须大于 0。",
       rewardsFactoryMissing: "分红模板主网 Factory 尚未配置",
       selectedFactoryMissing: "所选模板主网 Factory 尚未配置",
       vanityUnavailable: "暂未找到 1111 靓号，请重新提交",
@@ -254,12 +259,12 @@ export const createCopy: Record<Language, CreateCopy> = {
     marketingWallet: "Marketing wallet",
     rewardToken: "Reward token contract",
     rewardTokenHelp:
-      "Must be a BEP-20 token with an existing WBNB pool on BSC. BNB, WBNB, and the token being created are not accepted.",
+      "Defaults to BSC USDT. You may use another BEP-20 token with an existing WBNB pool on BSC. BNB, WBNB, and the token being created are not accepted.",
     creatorDefault: "creator default",
     minimumHolderBalance: "Minimum token balance for rewards",
     minimumLpBalance: "Minimum LP balance for rewards",
     rewardsHelp:
-      "Reward tax is converted to the selected token and claimed by eligible users. LP rewards require staking newly acquired LP in the public vault.",
+      "The holder-reward minimum must be above 1,000 and defaults to 1,000,000. LP rewards require staking newly acquired LP in the public vault.",
     factorySafetyLock:
       "Safety lock: creation is disabled until the corresponding Mainnet Factory is configured.",
     taxInvalid: "Buy or sell tax exceeds the 10% maximum.",
@@ -277,7 +282,7 @@ export const createCopy: Record<Language, CreateCopy> = {
       initialBuy: "The initial buy must be a valid non-negative BNB amount.",
       tax: "Reduce both the combined buy tax and sell tax to 10% or less.",
       rewards:
-        "Enter a valid reward-token address and a minimum eligible balance above zero.",
+        "Enter a valid reward-token address. Holder rewards require a balance above 1,000; LP rewards require an LP amount above zero.",
     },
     errors: {
       metadataUploadFailed: "Token metadata upload failed",
@@ -286,6 +291,10 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewardTokenInvalid: "The reward token contract address is invalid",
       rewardPoolMissing:
         "The reward token must be deployed and have non-zero liquidity in its PancakeSwap V2 WBNB pair.",
+      minimumHolderBalanceInvalid:
+        "The minimum holder balance for rewards must be strictly above 1,000.",
+      minimumLpBalanceInvalid:
+        "The minimum LP balance for rewards must be above zero.",
       rewardsFactoryMissing: "The Mainnet rewards Factory is not configured",
       selectedFactoryMissing:
         "The Mainnet Factory for this template is not configured",
@@ -346,12 +355,12 @@ export const createCopy: Record<Language, CreateCopy> = {
     marketingWallet: "마케팅 지갑",
     rewardToken: "보상 토큰 컨트랙트",
     rewardTokenHelp:
-      "BSC에서 기존 WBNB 풀이 있는 BEP-20 토큰이어야 합니다. BNB, WBNB 및 새로 생성할 토큰은 사용할 수 없습니다.",
+      "기본값은 BSC USDT입니다. BSC에서 기존 WBNB 풀이 있는 다른 BEP-20 토큰도 사용할 수 있습니다. BNB, WBNB 및 새로 생성할 토큰은 사용할 수 없습니다.",
     creatorDefault: "생성자 기본값",
     minimumHolderBalance: "보상 최소 토큰 보유량",
     minimumLpBalance: "보상 최소 LP 보유량",
     rewardsHelp:
-      "보상 세금은 지정 토큰으로 전환됩니다. LP 보상은 새로 취득한 LP를 공개 보상 금고에 스테이킹해야 합니다.",
+      "보유자 보상 최소 잔액은 1,000보다 커야 하며 기본값은 1,000,000입니다. LP 보상은 새로 취득한 LP를 공개 보상 금고에 스테이킹해야 합니다.",
     factorySafetyLock:
       "안전 잠금: 해당 메인넷 Factory가 설정될 때까지 실제 생성을 차단합니다.",
     taxInvalid: "매수 또는 매도 세금 합계가 최대 10%를 초과했습니다.",
@@ -366,7 +375,8 @@ export const createCopy: Record<Language, CreateCopy> = {
       community: "위에 표시된 커뮤니티 링크 항목을 수정하세요.",
       initialBuy: "최초 구매액은 유효한 0 이상의 BNB 숫자여야 합니다.",
       tax: "매수 및 매도 세금 합계를 각각 10% 이하로 낮추세요.",
-      rewards: "유효한 보상 토큰 주소와 0보다 큰 최소 참여 잔액을 입력하세요.",
+      rewards:
+        "유효한 보상 토큰 주소를 입력하세요. 보유자 보상 최소 잔액은 1,000보다 커야 하며 LP 보상 최소 수량은 0보다 커야 합니다.",
     },
     errors: {
       metadataUploadFailed: "토큰 메타데이터 업로드에 실패했습니다",
@@ -375,6 +385,9 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewardTokenInvalid: "보상 토큰 컨트랙트 주소가 올바르지 않습니다",
       rewardPoolMissing:
         "보상 토큰은 배포된 컨트랙트여야 하며 PancakeSwap V2 WBNB 페어에 0보다 큰 유동성이 있어야 합니다.",
+      minimumHolderBalanceInvalid:
+        "보상 대상 최소 토큰 보유량은 1,000보다 커야 합니다.",
+      minimumLpBalanceInvalid: "보상 대상 최소 LP 수량은 0보다 커야 합니다.",
       rewardsFactoryMissing: "메인넷 보상 Factory가 설정되지 않았습니다",
       selectedFactoryMissing:
         "선택한 템플릿의 메인넷 Factory가 설정되지 않았습니다",
@@ -435,12 +448,12 @@ export const createCopy: Record<Language, CreateCopy> = {
     marketingWallet: "マーケティングウォレット",
     rewardToken: "報酬トークンのコントラクト",
     rewardTokenHelp:
-      "BSC 上で既存の WBNB プールを持つ BEP-20 が必要です。BNB、WBNB、今回作成するトークンは指定できません。",
+      "初期値はBSC USDTです。BSC上で既存のWBNBプールを持つ他のBEP-20も指定できます。BNB、WBNB、今回作成するトークンは指定できません。",
     creatorDefault: "作成者を初期値に使用",
     minimumHolderBalance: "報酬対象の最低トークン保有量",
     minimumLpBalance: "報酬対象の最低 LP 保有量",
     rewardsHelp:
-      "報酬税は指定トークンに変換されます。LP 報酬には新たに取得した LP を公開報酬保管庫へステークする必要があります。",
+      "保有者報酬の最低残高は1,000を超える必要があり、初期値は1,000,000です。LP報酬には新たに取得したLPを公開報酬保管庫へステークする必要があります。",
     factorySafetyLock:
       "安全ロック：対応するメインネットFactoryが設定されるまで実際の作成を無効にします。",
     taxInvalid: "買い税または売り税の合計が上限10%を超えています。",
@@ -456,7 +469,7 @@ export const createCopy: Record<Language, CreateCopy> = {
       initialBuy: "初回購入額には0以上の有効なBNB数値を入力してください。",
       tax: "購入税と売却税の合計をそれぞれ10%以下にしてください。",
       rewards:
-        "有効な報酬トークンアドレスと0より大きい最低参加残高を入力してください。",
+        "有効な報酬トークンアドレスを入力してください。保有者報酬の最低残高は1,000を超え、LP報酬の最低数量は0を超える必要があります。",
     },
     errors: {
       metadataUploadFailed: "トークン情報のアップロードに失敗しました",
@@ -465,6 +478,10 @@ export const createCopy: Record<Language, CreateCopy> = {
       rewardTokenInvalid: "報酬トークンのコントラクトアドレスが無効です",
       rewardPoolMissing:
         "報酬トークンはデプロイ済みで、PancakeSwap V2 の WBNB ペアにゼロではない流動性が必要です。",
+      minimumHolderBalanceInvalid:
+        "報酬対象の最低トークン保有量は1,000を超える必要があります。",
+      minimumLpBalanceInvalid:
+        "報酬対象の最低LP数量は0を超える必要があります。",
       rewardsFactoryMissing: "メインネット報酬Factoryが設定されていません",
       selectedFactoryMissing:
         "選択したテンプレートのメインネットFactoryが設定されていません",

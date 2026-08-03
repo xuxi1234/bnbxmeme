@@ -5,10 +5,14 @@ import { encodeFunctionData, parseEther } from "viem";
 import { advancedFactoryAbi } from "./advanced-factory-abi.ts";
 import {
   ADVANCED_CREATE_GAS_LIMIT,
+  DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE,
+  DEFAULT_LP_MINIMUM_REWARD_BALANCE,
+  DEFAULT_REWARD_TOKEN_ADDRESS,
   advancedCreateGasLimit,
   advancedTemplateValue,
   emptyTaxSide,
   normalizeTaxesForTemplate,
+  parseMinimumRewardShare,
   parseTaxPercent,
   taxSideToBps,
 } from "./advanced-template-config.ts";
@@ -29,7 +33,7 @@ const request = {
   rewardToken: "0x55d398326f99059fF775485246999027B3197955",
   taxes,
   template: 0,
-  minimumRewardShare: parseEther("10000"),
+  minimumRewardShare: parseEther(DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE),
 };
 
 test("uses the deployed advanced Factory function signatures", () => {
@@ -66,6 +70,38 @@ test("uses the deployed advanced Factory function signatures", () => {
 test("maps every advanced template to the onchain enum", () => {
   assert.equal(advancedTemplateValue("holders"), 0);
   assert.equal(advancedTemplateValue("lp"), 1);
+});
+
+test("uses USDT and one million tokens as the holder-reward defaults", () => {
+  assert.equal(
+    DEFAULT_REWARD_TOKEN_ADDRESS,
+    "0x55d398326f99059ff775485246999027b3197955",
+  );
+  assert.equal(DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE, "1000000");
+  assert.equal(DEFAULT_LP_MINIMUM_REWARD_BALANCE, "10000");
+});
+
+test("requires holder-reward balances to be strictly above one thousand", () => {
+  assert.equal(parseMinimumRewardShare("holders", "1000"), null);
+  assert.equal(
+    parseMinimumRewardShare("holders", "1000.000000000000000001"),
+    parseEther("1000") + 1n,
+  );
+  assert.equal(
+    parseMinimumRewardShare("holders", DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE),
+    parseEther("1000000"),
+  );
+  assert.equal(parseMinimumRewardShare("holders", "1e6"), null);
+  assert.equal(parseMinimumRewardShare("holders", ""), null);
+});
+
+test("keeps the LP reward threshold independently configurable", () => {
+  assert.equal(parseMinimumRewardShare("lp", "0"), null);
+  assert.equal(parseMinimumRewardShare("lp", "0.000000000000000001"), 1n);
+  assert.equal(
+    parseMinimumRewardShare("lp", DEFAULT_LP_MINIMUM_REWARD_BALANCE),
+    parseEther("10000"),
+  );
 });
 
 test("keeps template taxes deployable when switching templates", () => {
@@ -121,6 +157,9 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.doesNotMatch(page, /tax-slider-control/);
   assert.match(page, /tax-number-control/);
   assert.match(page, /rewardToken/);
+  assert.match(page, /useState\(DEFAULT_REWARD_TOKEN_ADDRESS\)/);
+  assert.match(page, /holders: DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE/);
+  assert.match(page, /parseMinimumRewardShare/);
   assert.match(page, /validateRewardPool/);
   assert.match(page, /getReserves/);
   assert.ok(

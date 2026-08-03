@@ -4,6 +4,15 @@ export type TaxSide = Record<TaxKey, string>;
 
 export const STANDARD_CREATE_GAS_LIMIT = 8_000_000n;
 export const ADVANCED_CREATE_GAS_LIMIT = 12_000_000n;
+export const DEFAULT_REWARD_TOKEN_ADDRESS =
+  "0x55d398326f99059ff775485246999027b3197955";
+export const DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE = "1000000";
+export const DEFAULT_LP_MINIMUM_REWARD_BALANCE = "10000";
+
+const TOKEN_DECIMALS = 18;
+const ONE_TOKEN = 10n ** BigInt(TOKEN_DECIMALS);
+const MINIMUM_HOLDER_REWARD_BALANCE = 1000n * ONE_TOKEN;
+const UINT256_MAX = 2n ** 256n - 1n;
 
 function ceilDiv(value: bigint, divisor: bigint) {
   if (value === 0n) return 0n;
@@ -32,6 +41,21 @@ export function advancedTemplateValue(
   template: Exclude<TemplateId, "standard">,
 ) {
   return template === "holders" ? 0 : 1;
+}
+
+export function parseMinimumRewardShare(template: TemplateId, value: string) {
+  const normalized = value.trim();
+  if (!/^(?:\d+|\d*\.\d{1,18})$/.test(normalized)) return null;
+
+  const [whole = "0", fraction = ""] = normalized.split(".");
+  const share =
+    BigInt(whole || "0") * ONE_TOKEN +
+    BigInt(fraction.padEnd(TOKEN_DECIMALS, "0") || "0");
+  if (share > UINT256_MAX) return null;
+
+  const exclusiveMinimum =
+    template === "holders" ? MINIMUM_HOLDER_REWARD_BALANCE : 0n;
+  return share > exclusiveMinimum ? share : null;
 }
 
 export function normalizeTaxesForTemplate(
