@@ -1,4 +1,5 @@
 name: Verify BNBX contracts on BscScan
+run-name: Verify BNBX contracts ${{ inputs.launch_tx_hash || github.event_name }}
 
 on:
   schedule:
@@ -24,6 +25,10 @@ on:
         required: true
         default: true
         type: boolean
+      launch_tx_hash:
+        description: "Optional confirmed BNBX launch transaction for immediate verification"
+        required: false
+        type: string
   push:
     branches:
       - main
