@@ -87,6 +87,14 @@ risk from an unrelated external contract.
 Use these addresses only for BSC Testnet acceptance. They must never be copied
 into the Mainnet web configuration:
 
+- Isolated web console: `/acceptance-testnet`
+- V4 Standard Factory:
+  `0xC59fFc56743539cb502036004cD61404a793e42B`
+- V4 Advanced Token Deployer:
+  `0xD443F346Cc9404592abF8B391C3b2dF519FE504D`
+- V4 Rewards Factory:
+  `0x8f16eAaF401c27EfFF22B6d07D7DB8c767D07Cf7`
+
 - PancakeSwap V2 Router:
   `0xD99D1c33F9fC3444f8101754aBC46c52416550D1`
 - PancakeSwap V2 Factory:
@@ -97,6 +105,22 @@ into the Mainnet web configuration:
   `0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7`
 - Existing BUSD/WBNB V2 Pair:
   `0x85EcdCdD01EBE0bFD0aBa74B81CA6D7F4a53582B`
+
+Deployment transactions:
+
+- Advanced Token Deployer:
+  `0xf0c7f1b5222784bc2a358081477f2ddcfb1f90c2963c10ede55904c35acb4986`
+- Rewards Factory:
+  `0xf927f33b8bbf271981c7195de77820ec98a57adcb1dba6e2988b25e353f1be12`
+- One-time manager binding:
+  `0x2618b3e7897c0d67fd67a7f12c3b34546a7c9af0ced9ef7d88676aa90f7ab968`
+- Standard Factory:
+  `0xbc194605a41a5d13ecc0180f2ff4e4944702095d75774e3641c1a779c5cb0e80`
+
+The isolated console pins Chain ID 97 and these addresses in a Testnet-only
+module. It is `noindex`, absent from the sitemap, and does not read the
+production Factory environment variables. Every write waits for a successful
+receipt before refreshing state.
 
 At BSC Testnet block `122856981`, the Pair reported non-zero reserves of about
 `5,564.099856 BUSD` and `12.551902 WBNB`. Re-check code, token ordering, and
