@@ -89,11 +89,11 @@ into the Mainnet web configuration:
 
 - Isolated web console: `/acceptance-testnet`
 - V4 Standard Factory:
-  `0xC59fFc56743539cb502036004cD61404a793e42B`
+  `0xC59FfC56743539Cb502036004cD61404A793E42B`
 - V4 Advanced Token Deployer:
-  `0xD443F346Cc9404592abF8B391C3b2dF519FE504D`
+  `0xD443F346CC9404592abF8B391C3b2Df519FE504d`
 - V4 Rewards Factory:
-  `0x8f16eAaF401c27EfFF22B6d07D7DB8c767D07Cf7`
+  `0x8F16EAaF401C27eFfF22B6d07D7DB8C767d07Cf7`
 
 - PancakeSwap V2 Router:
   `0xD99D1c33F9fC3444f8101754aBC46c52416550D1`
@@ -104,7 +104,7 @@ into the Mainnet web configuration:
 - Testnet BUSD reward token:
   `0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7`
 - Existing BUSD/WBNB V2 Pair:
-  `0x85EcdCdD01EBE0bFD0aBa74B81CA6D7F4a53582B`
+  `0x85EcDcdd01EbE0BfD0Aba74B81Ca6d7F4A53582b`
 
 Deployment transactions:
 

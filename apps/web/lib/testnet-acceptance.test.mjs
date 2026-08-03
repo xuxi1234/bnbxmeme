@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { encodeFunctionData, parseEther } from "viem";
+import { encodeFunctionData, isAddress, parseEther } from "viem";
 import {
   BSC_TESTNET_CHAIN_ID,
   TESTNET_ADVANCED_DEPLOYER,
   TESTNET_BUSD,
+  TESTNET_BUSD_WBNB_PAIR,
   TESTNET_LP_MINIMUM,
+  TESTNET_PANCAKE_FACTORY,
+  TESTNET_PANCAKE_ROUTER,
   TESTNET_REWARDS_FACTORY,
   TESTNET_STANDARD_FACTORY,
+  TESTNET_WBNB,
   acceptanceFactory,
   acceptanceStandardFactoryAbi,
   buildAcceptanceCreateRequest,
@@ -24,7 +28,18 @@ test("pins the isolated acceptance console to BSC Testnet V4 deployments", () =>
   assert.equal(acceptanceFactory("holders"), TESTNET_REWARDS_FACTORY);
   assert.equal(acceptanceFactory("lp"), TESTNET_REWARDS_FACTORY);
   assert.notEqual(TESTNET_STANDARD_FACTORY, TESTNET_REWARDS_FACTORY);
-  assert.match(TESTNET_ADVANCED_DEPLOYER, /^0x[0-9a-f]{40}$/i);
+  for (const address of [
+    TESTNET_STANDARD_FACTORY,
+    TESTNET_ADVANCED_DEPLOYER,
+    TESTNET_REWARDS_FACTORY,
+    TESTNET_PANCAKE_ROUTER,
+    TESTNET_PANCAKE_FACTORY,
+    TESTNET_WBNB,
+    TESTNET_BUSD,
+    TESTNET_BUSD_WBNB_PAIR,
+  ]) {
+    assert.equal(isAddress(address), true, `Invalid Testnet address: ${address}`);
+  }
 });
 
 test("builds a permanent zero-tax standard request", () => {
