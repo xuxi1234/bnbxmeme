@@ -15,6 +15,14 @@ import { useLanguage } from "@/components/language-provider";
 import { resolveSecurityCopy } from "@/lib/security-copy";
 import { MAX_TEMPLATE_SIDE_TAX_PERCENT } from "@/lib/template-rules";
 
+const officialDomains = [
+  "bnbx.meme",
+  "bnbx.sh",
+  "bnbx.fun",
+  "bnbx.dev",
+  "bnbx.app",
+] as const;
+
 export default function SecurityPage() {
   const { language, t } = useLanguage();
   const content = resolveSecurityCopy(language, MAX_TEMPLATE_SIDE_TAX_PERCENT);
@@ -80,8 +88,11 @@ export default function SecurityPage() {
       <section className="trust-grid">
         <article>
           <h2>{content.domain}</h2>
-          <a href="https://www.bnbx.meme/">https://www.bnbx.meme/</a>
-          <a href="https://bnbx.meme/">https://bnbx.meme/</a>
+          {officialDomains.map((domain) => (
+            <a key={domain} href={`https://${domain}/`}>
+              {domain}
+            </a>
+          ))}
         </article>
         <article>
           <h2>{content.fees}</h2>
