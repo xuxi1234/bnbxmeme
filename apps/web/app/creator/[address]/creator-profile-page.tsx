@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { TokenMarket } from "@/components/token-market";
 import { useLanguage } from "@/components/language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
@@ -28,7 +29,9 @@ export function CreatorProfilePage({
             BscScan ↗
           </a>
         </div>
-        <TokenMarket creator={address} />
+        <Suspense fallback={null}>
+          <TokenMarket creator={address} />
+        </Suspense>
         <Link className="button secondary" href="/?market=hotInternal#market">
           ← {t("market")}
         </Link>

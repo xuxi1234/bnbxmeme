@@ -13,7 +13,6 @@ import type { ProjectValidationResult } from "@/lib/project-validation-core";
 
 export const dynamic = "force-dynamic";
 
-const MAX_VISIBLE_TOKENS_PER_FACTORY = 8;
 const TOKEN_READ_BATCH_SIZE = 100;
 const ENTRY_READ_BATCH_SIZE = 20;
 
@@ -378,10 +377,7 @@ async function readEntries(records: CurveRecord[], initialPartial: boolean) {
 
 async function readMarket() {
   const counts = await readFactoryCounts();
-  const slots = buildFactorySlots(
-    counts.availableFactories,
-    MAX_VISIBLE_TOKENS_PER_FACTORY,
-  );
+  const slots = buildFactorySlots(counts.availableFactories);
   const tokens = await readTokenRecords(slots);
   const curves = await readCurveRecords(tokens.records);
   return readEntries(

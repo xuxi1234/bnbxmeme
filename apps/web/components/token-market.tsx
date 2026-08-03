@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useTokenMetadata } from "@/lib/metadata";
@@ -68,7 +69,7 @@ type MarketScoreResult = readonly [string, MarketScore, boolean];
 
 const SCORE_REQUEST_BATCH_SIZE = 8;
 const SCORE_POLL_INTERVAL_MS = 60_000;
-const MARKET_PAGE_SIZE = 8;
+const MARKET_PAGE_SIZE = 30;
 
 function asBigInt(value: string | null) {
   return value === null ? undefined : BigInt(value);
@@ -263,6 +264,7 @@ function TokenMarketRow({
 }
 
 export function TokenMarket({ creator }: { creator?: string } = {}) {
+  const searchParams = useSearchParams();
   const [filter, setFilter] = useState<MarketFilter>("hotInternal");
   const [query, setQuery] = useState("");
   const [payload, setPayload] = useState<MarketPayload | null>(null);
@@ -279,10 +281,10 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   const { t } = useLanguage();
 
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get("market");
+    const requested = searchParams.get("market");
     const parsed = parseMarketFilter(requested);
     if (parsed) setFilter(parsed);
-  }, []);
+  }, [searchParams]);
 
   const chooseFilter = useCallback((next: MarketFilter) => {
     setFilter(next);
