@@ -4,6 +4,8 @@ const MAINNET_FACTORY_DEPLOYMENT_BLOCKS = new Map<string, bigint>([
   ["0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8", 112_626_381n],
   ["0xef95ead95292408090e61112580f62e4d556c550", 113_231_587n],
   ["0xc5f6d2b221dfd950f919b82c77d82fc427f31b3d", 113_235_314n],
+  ["0xe4aaf8066bf1063cfd73dc9a784598dffa412014", 113_775_105n],
+  ["0x6012aa2eb5164c8ed31f2a01950c3b5037211181", 113_777_341n],
 ]);
 
 function parseConfiguredBlock(value: string | undefined) {
