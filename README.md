@@ -59,10 +59,12 @@ packages/chain-config shared chain addresses and IDs
   `0xc70eff63aec72f75480a07c37174f867d73ce2fa0a9076eaca83f77c7d76a149`
 
 All Solidity sources are public under the MIT License. The three user-facing
-templates are permanent zero tax, holder rewards, and LP rewards. They share
-the published V4 bonding-curve and reward-vault implementation; older Factory
-versions remain in the repository and on-chain for historical readability but
-are not used for new launches.
+templates are permanent zero tax, holder rewards, and LP rewards. The deployed
+standard Factory matches the current V4 source. The deployed rewards Factory
+and advanced deployer match the pre-fix source snapshot identified in
+[docs/mainnet-source-verification.md](docs/mainnet-source-verification.md) and
+must be replaced before additional holder/LP-rewards launches. Older Factory
+versions remain public and readable for historical launches.
 
 The web deployment uses server-only `PINATA_JWT`, `BSC_MAINNET_RPC_URL`, and
 `BSC_LOG_RPC_URL` environment variables. Platform management signatures use
