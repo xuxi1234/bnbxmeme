@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const [homePage, tokenMarket, styles] = await Promise.all([
+  readFile(new URL("../components/home-page.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../components/token-market.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+]);
+
+test("starts the home market with search and filters on every viewport", () => {
+  assert.doesNotMatch(homePage, /PROJECT LIST/);
+  assert.doesNotMatch(homePage, /section-heading/);
+  assert.doesNotMatch(tokenMarket, /market-overview/);
+  assert.doesNotMatch(styles, /\.market-overview/);
+  assert.match(tokenMarket, /<div className="market-toolbar">/);
+});
