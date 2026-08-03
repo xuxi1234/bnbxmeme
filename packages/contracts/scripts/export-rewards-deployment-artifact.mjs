@@ -18,8 +18,8 @@ function findImports(path) {
 }
 
 const sources = [
-  "src/BNBXAdvancedTokenDeployer.sol",
-  "src/BNBXRewardsFactoryV3.sol",
+  "src/BNBXAdvancedTokenDeployerV4.sol",
+  "src/BNBXRewardsFactoryV4.sol",
 ];
 const input = {
   language: "Solidity",
@@ -51,10 +51,10 @@ if (errors.length) {
 }
 
 const deployer =
-  output.contracts["src/BNBXAdvancedTokenDeployer.sol"]
-    .BNBXAdvancedTokenDeployer;
+  output.contracts["src/BNBXAdvancedTokenDeployerV4.sol"]
+    .BNBXAdvancedTokenDeployerV4;
 const factory =
-  output.contracts["src/BNBXRewardsFactoryV3.sol"].BNBXRewardsFactoryV3;
+  output.contracts["src/BNBXRewardsFactoryV4.sol"].BNBXRewardsFactoryV4;
 const runtimeBytes = factory.evm.deployedBytecode.object.length / 2;
 if (runtimeBytes > 24_576) {
   throw new Error(

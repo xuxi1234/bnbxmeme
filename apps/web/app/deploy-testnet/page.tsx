@@ -182,7 +182,7 @@ export default function DeployTestnetPage() {
       <section className="form-shell">
         <p className="eyebrow">
           {isMainnet
-            ? "MAINNET / V3 FACTORY DEPLOYMENT"
+            ? "MAINNET / V4 FACTORY DEPLOYMENT"
             : "TESTNET / FACTORY DEPLOYMENT"}
         </p>
         <h1 className="form-title">

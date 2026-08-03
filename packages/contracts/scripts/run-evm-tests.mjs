@@ -25,6 +25,9 @@ const entrypoints = [
   "test/DividendFactoryIntegration.t.sol",
   "test/DividendTaxProcessing.t.sol",
   "test/BNBXRewardVaultV3.t.sol",
+  "test/BNBXRewardVaultV4.t.sol",
+  "test/BNBXV4Security.t.sol",
+  "test/DividendTaxProcessingV4.t.sol",
   "test/BNBXRewardVault.t.sol",
 ];
 
@@ -135,6 +138,41 @@ function check(condition, message) {
 }
 
 const suites = [
+  {
+    source: "test/BNBXRewardVaultV4.t.sol",
+    contract: "BNBXRewardVaultV4Test",
+    tests: [
+      "testExternalRewardsFollowHolderSharesAndCanBeClaimed",
+      "testQueuedRewardsReleaseOnlyAfterFirstEligibleShare",
+      "testLPRewardsUseOnlyCustodiedLiquidityAndPreservePastRewards",
+      "testNewSharesCannotTakePreviouslyAccruedRewards",
+      "testExcludedAndSubminimumAccountsReceiveNoShares",
+      "testBoundedProcessorAutomaticallyPaysEligibleHolders",
+      "testFailedAutomaticTransferStaysClaimable",
+      "testPastRewardsRemainAutomaticallyPayableAfterShareRemoval",
+      "testStakedLPRewardsAreAutomaticallyPaid",
+    ],
+  },
+  {
+    source: "test/BNBXV4Security.t.sol",
+    contract: "BNBXV4SecurityTest",
+    tests: [
+      "testZeroTaxV4HasNoOwnerMintBlacklistOrTaxSetter",
+      "testHolderMinimumIsStrictlyAboveOneThousandOnToken",
+      "testFactoryAlsoRejectsBypassedHolderMinimum",
+      "testDividendLaunchRolesAreOneTimeAndDestroyed",
+      "testFactoryManagerBindingCannotBeChanged",
+      "testRewardsFactoryCreatesConfiguredV4TokenAndDestroysSetupRole",
+    ],
+  },
+  {
+    source: "test/DividendTaxProcessingV4.t.sol",
+    contract: "DividendTaxProcessingV4Test",
+    tests: [
+      "testProcessesAllBucketsAndBurnsAutomaticLP",
+      "testFailedAutomaticProcessingCannotBlockSell",
+    ],
+  },
   {
     source: "test/BNBXRewardVaultV3.t.sol",
     contract: "BNBXRewardVaultV3Test",
@@ -268,7 +306,7 @@ for (const suite of selectedSuites) {
 
   if (
     suite.contract.endsWith("IntegrationTest") ||
-    suite.contract === "DividendTaxProcessingTest"
+    suite.contract.startsWith("DividendTaxProcessing")
   ) {
     const fundingHash = await walletClient.sendTransaction({
       to: expectedAddress,

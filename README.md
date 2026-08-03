@@ -25,7 +25,9 @@ any production address is changed.
 
 See [docs/token-economics.md](docs/token-economics.md) and
 [docs/bonding-curve-spec.md](docs/bonding-curve-spec.md) for the normative
-specification.
+specification. The proposed automatic-reward design and its Mainnet release
+gates are documented in
+[docs/bnbx-v4-rewards-security.md](docs/bnbx-v4-rewards-security.md).
 
 ## Workspace
 

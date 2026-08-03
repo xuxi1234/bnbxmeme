@@ -147,12 +147,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       holders: {
         name: "持币分红",
         badge: "高级 · 分红税",
-        text: "高复杂度 · 按合格持币数量分配指定代币奖励 · 创建费 0.001 BNB。",
+        text: "高复杂度 · 向合格持币地址自动派发指定代币 · 创建费 0.001 BNB。",
       },
       lp: {
         name: "LP 分红",
         badge: "高级 · LP 分红税",
-        text: "高复杂度 · 质押新增 Pancake LP 后按份额领取指定代币 · 创建费 0.001 BNB。",
+        text: "高复杂度 · 质押 Pancake LP 后按份额自动派发指定代币 · 创建费 0.001 BNB。",
       },
     },
     advancedWarningTitle: "你选择的是毕业后有税模板",
@@ -177,7 +177,7 @@ export const createCopy: Record<Language, CreateCopy> = {
     minimumHolderBalance: "最低参与分红持币量",
     minimumLpBalance: "最低参与分红 LP 数量",
     rewardsHelp:
-      "持币分红的最低余额必须大于 1,000，默认 1,000,000；黑洞、曲线和交易对不参与。LP 分红需先把新增 LP 质押到公开分红金库。",
+      "持币分红的最低余额必须大于 1,000，默认 1,000,000；黑洞、曲线和交易对不参与。符合条件的持币地址会自动到账。LP 分红需先质押 LP，质押后自动到账；自动派发失败时仍可手动领取。",
     factorySafetyLock:
       "安全锁定：对应主网 Factory 未配置时不会允许真实创建，避免误部署。",
     taxInvalid: "买入税或卖出税合计超过 10%，请降低税率。",
@@ -234,12 +234,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       holders: {
         name: "Holder Rewards",
         badge: "ADVANCED · REWARD TAX",
-        text: "High complexity · selected-token rewards for eligible holders · 0.001 BNB fee.",
+        text: "High complexity · automatic selected-token payouts to eligible holders · 0.001 BNB fee.",
       },
       lp: {
         name: "LP Rewards",
         badge: "ADVANCED · LP REWARDS",
-        text: "High complexity · selected-token rewards for staked Pancake LP · 0.001 BNB fee.",
+        text: "High complexity · automatic selected-token payouts for staked Pancake LP · 0.001 BNB fee.",
       },
     },
     advancedWarningTitle: "You selected a post-graduation tax template",
@@ -264,7 +264,7 @@ export const createCopy: Record<Language, CreateCopy> = {
     minimumHolderBalance: "Minimum token balance for rewards",
     minimumLpBalance: "Minimum LP balance for rewards",
     rewardsHelp:
-      "The holder-reward minimum must be above 1,000 and defaults to 1,000,000. LP rewards require staking newly acquired LP in the public vault.",
+      "The holder-reward minimum must be above 1,000 and defaults to 1,000,000. Eligible holders receive automatic payouts. LP rewards require staking LP, then pay automatically. Manual claiming remains available if an automatic transfer fails.",
     factorySafetyLock:
       "Safety lock: creation is disabled until the corresponding Mainnet Factory is configured.",
     taxInvalid: "Buy or sell tax exceeds the 10% maximum.",
@@ -330,12 +330,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       holders: {
         name: "홀더 보상",
         badge: "고급 · 보상 세금",
-        text: "높은 복잡도 · 조건을 충족한 홀더에게 지정 토큰 보상 · 수수료 0.001 BNB.",
+        text: "높은 복잡도 · 조건을 충족한 홀더에게 지정 토큰 자동 지급 · 수수료 0.001 BNB.",
       },
       lp: {
         name: "LP 보상",
         badge: "고급 · LP 보상",
-        text: "높은 복잡도 · 스테이킹한 Pancake LP에 지정 토큰 보상 · 수수료 0.001 BNB.",
+        text: "높은 복잡도 · 스테이킹한 Pancake LP에 지정 토큰 자동 지급 · 수수료 0.001 BNB.",
       },
     },
     advancedWarningTitle: "졸업 후 세금이 적용되는 템플릿을 선택했습니다",
@@ -360,7 +360,7 @@ export const createCopy: Record<Language, CreateCopy> = {
     minimumHolderBalance: "보상 최소 토큰 보유량",
     minimumLpBalance: "보상 최소 LP 보유량",
     rewardsHelp:
-      "보유자 보상 최소 잔액은 1,000보다 커야 하며 기본값은 1,000,000입니다. LP 보상은 새로 취득한 LP를 공개 보상 금고에 스테이킹해야 합니다.",
+      "보유자 보상 최소 잔액은 1,000보다 커야 하며 기본값은 1,000,000입니다. 조건을 충족한 홀더에게 자동 지급됩니다. LP는 먼저 스테이킹해야 하며 이후 자동 지급됩니다. 자동 지급 실패 시 수동 청구도 가능합니다.",
     factorySafetyLock:
       "안전 잠금: 해당 메인넷 Factory가 설정될 때까지 실제 생성을 차단합니다.",
     taxInvalid: "매수 또는 매도 세금 합계가 최대 10%를 초과했습니다.",
@@ -423,12 +423,12 @@ export const createCopy: Record<Language, CreateCopy> = {
       holders: {
         name: "ホルダー報酬",
         badge: "上級 · 報酬税",
-        text: "高複雑度 · 条件を満たすホルダーに指定トークン報酬 · 手数料 0.001 BNB。",
+        text: "高複雑度 · 条件を満たすホルダーへ指定トークンを自動送付 · 手数料 0.001 BNB。",
       },
       lp: {
         name: "LP 報酬",
         badge: "上級 · LP 報酬",
-        text: "高複雑度 · ステーク済み Pancake LP に指定トークン報酬 · 手数料 0.001 BNB。",
+        text: "高複雑度 · ステーク済み Pancake LP へ指定トークンを自動送付 · 手数料 0.001 BNB。",
       },
     },
     advancedWarningTitle: "卒業後に税が適用されるテンプレートです",
@@ -453,7 +453,7 @@ export const createCopy: Record<Language, CreateCopy> = {
     minimumHolderBalance: "報酬対象の最低トークン保有量",
     minimumLpBalance: "報酬対象の最低 LP 保有量",
     rewardsHelp:
-      "保有者報酬の最低残高は1,000を超える必要があり、初期値は1,000,000です。LP報酬には新たに取得したLPを公開報酬保管庫へステークする必要があります。",
+      "保有者報酬の最低残高は1,000を超える必要があり、初期値は1,000,000です。対象ホルダーには自動送付されます。LPは先にステークし、その後は自動送付されます。自動送付に失敗した場合も手動請求できます。",
     factorySafetyLock:
       "安全ロック：対応するメインネットFactoryが設定されるまで実際の作成を無効にします。",
     taxInvalid: "買い税または売り税の合計が上限10%を超えています。",
@@ -860,7 +860,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     switchMainnet: "切换到 BNB 主网",
     switchTestnet: "切换到 BNB 测试网",
     advancedStepsHelp:
-      "持币分红与 LP 分红共用 V3 Factory，需依次完成三笔链上操作。每一步确认后才会开放下一步。",
+      "持币分红与 LP 分红共用 V4 Factory，需依次完成三笔链上操作。每一步确认后才会开放下一步。",
     step1Done: "步骤 1 已完成",
     step1Confirm: "请确认步骤 1…",
     step1Waiting: "等待步骤 1 上链…",
@@ -906,7 +906,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     switchMainnet: "Switch to BNB Mainnet",
     switchTestnet: "Switch to BNB Testnet",
     advancedStepsHelp:
-      "Holder and LP rewards share one V3 Factory and require three on-chain steps in order. Each next step unlocks after the previous confirmation.",
+      "Holder and LP rewards share one V4 Factory and require three on-chain steps in order. Each next step unlocks after the previous confirmation.",
     step1Done: "Step 1 complete",
     step1Confirm: "Confirm step 1…",
     step1Waiting: "Waiting for step 1…",
@@ -954,7 +954,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     switchMainnet: "BNB 메인넷으로 전환",
     switchTestnet: "BNB 테스트넷으로 전환",
     advancedStepsHelp:
-      "홀더 및 LP 보상은 하나의 V3 Factory를 공유하며 세 단계의 온체인 작업을 순서대로 완료해야 합니다. 이전 단계가 확인되면 다음 단계가 열립니다.",
+      "홀더 및 LP 보상은 하나의 V4 Factory를 공유하며 세 단계의 온체인 작업을 순서대로 완료해야 합니다. 이전 단계가 확인되면 다음 단계가 열립니다.",
     step1Done: "1단계 완료",
     step1Confirm: "1단계를 확인하세요…",
     step1Waiting: "1단계 온체인 확인 중…",
@@ -1002,7 +1002,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     switchMainnet: "BNBメインネットへ切替",
     switchTestnet: "BNBテストネットへ切替",
     advancedStepsHelp:
-      "ホルダー報酬とLP報酬は1つのV3 Factoryを共有し、3つのオンチェーン操作を順番に行います。前の手順が確定すると次へ進めます。",
+      "ホルダー報酬とLP報酬は1つのV4 Factoryを共有し、3つのオンチェーン操作を順番に行います。前の手順が確定すると次へ進めます。",
     step1Done: "手順1完了",
     step1Confirm: "手順1を確認してください…",
     step1Waiting: "手順1の確定待ち…",
@@ -1090,7 +1090,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "授权 LP",
     stakeLp: "质押 LP",
     withdrawLp: "取回 LP",
-    claimRewards: "领取分红",
+    claimRewards: "手动领取 / 自动到账失败兜底",
     rewardTransactionFailed: "分红交易失败，请在钱包中查看详情。",
   },
   en: {
@@ -1118,7 +1118,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "Approve LP",
     stakeLp: "Stake LP",
     withdrawLp: "Withdraw LP",
-    claimRewards: "Claim rewards",
+    claimRewards: "Manual claim / auto-payout fallback",
     rewardTransactionFailed:
       "The reward transaction failed. Check your wallet for details.",
   },
@@ -1147,7 +1147,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "LP 승인",
     stakeLp: "LP 스테이킹",
     withdrawLp: "LP 출금",
-    claimRewards: "보상 청구",
+    claimRewards: "수동 청구 / 자동 지급 실패 대비",
     rewardTransactionFailed:
       "보상 거래에 실패했습니다. 지갑에서 상세 내용을 확인하세요.",
   },
@@ -1176,7 +1176,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     approveLp: "LP を承認",
     stakeLp: "LP をステーク",
     withdrawLp: "LP を引き出す",
-    claimRewards: "報酬を請求",
+    claimRewards: "手動請求 / 自動送付失敗時の代替",
     rewardTransactionFailed:
       "報酬取引に失敗しました。ウォレットで詳細を確認してください。",
   },
