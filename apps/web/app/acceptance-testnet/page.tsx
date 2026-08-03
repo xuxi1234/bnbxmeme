@@ -26,6 +26,8 @@ import {
   TESTNET_CREATION_FEE,
   TESTNET_GRADUATION_BUY,
   TESTNET_PANCAKE_ROUTER,
+  TESTNET_REWARD_PROCESS_GAS,
+  TESTNET_REWARD_PROCESS_TX_GAS,
   TESTNET_REWARDS_FACTORY,
   TESTNET_STANDARD_FACTORY,
   TESTNET_ACCEPTANCE_TOKEN_STORAGE_KEY,
@@ -536,7 +538,7 @@ export default function AcceptanceTestnetPage() {
       const context = requireVault();
       const args =
         functionName === "processRewards"
-          ? ([500_000n] as const)
+          ? ([TESTNET_REWARD_PROCESS_GAS] as const)
           : functionName === "claim"
             ? ([context.address] as const)
             : functionName === "claimFor"
@@ -554,7 +556,11 @@ export default function AcceptanceTestnetPage() {
           args,
           account: context.address,
           chain: bscTestnet,
-          ...(functionName === "syncRewards" ? { gas: 500_000n } : {}),
+          ...(functionName === "syncRewards"
+            ? { gas: 500_000n }
+            : functionName === "processRewards"
+              ? { gas: TESTNET_REWARD_PROCESS_TX_GAS }
+              : {}),
         }),
       );
     } catch (cause) {
@@ -937,9 +943,10 @@ export default function AcceptanceTestnetPage() {
               disabled={
                 !snapshot || snapshot.vault === zeroAddress || Boolean(busy)
               }
-              onClick={() => vaultAction("自动派发", "processRewards")}
+              aria-busy={busy === "自动派发"}
+              onClick={() => void vaultAction("自动派发", "processRewards")}
             >
-              有界自动派发
+              {busy === "自动派发" ? "自动派发执行中…" : "有界自动派发"}
             </button>
             <button
               className="button wide secondary"
