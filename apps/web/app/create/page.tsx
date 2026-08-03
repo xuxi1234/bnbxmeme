@@ -303,6 +303,17 @@ export default function CreateTokenPage() {
         if (decoded.eventName !== "TokenCreated") continue;
         const args = decoded.args as { token?: `0x${string}` };
         if (args.token && isAddress(args.token)) {
+          void fetch("/api/verify-launch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              transactionHash: receipt.data.transactionHash,
+            }),
+            keepalive: true,
+          }).catch(() => {
+            // The scheduled verifier remains the fallback if this best-effort
+            // immediate dispatch is interrupted by navigation or connectivity.
+          });
           router.push(tokenProjectPath(args.token));
           return;
         }
