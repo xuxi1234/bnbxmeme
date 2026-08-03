@@ -20,8 +20,8 @@ function findImports(path) {
 const input = {
   language: "Solidity",
   sources: {
-    "src/BNBXFactory.sol": {
-      content: readFileSync(resolve(root, "src/BNBXFactory.sol"), "utf8"),
+    "src/BNBXFactoryV4.sol": {
+      content: readFileSync(resolve(root, "src/BNBXFactoryV4.sol"), "utf8"),
     },
   },
   settings: {
@@ -46,11 +46,11 @@ if (errors.length) {
   throw new Error(errors.map((item) => item.formattedMessage).join("\n"));
 }
 
-const artifact = output.contracts["src/BNBXFactory.sol"].BNBXFactory;
+const artifact = output.contracts["src/BNBXFactoryV4.sol"].BNBXFactoryV4;
 const runtimeBytes = artifact.evm.deployedBytecode.object.length / 2;
 if (runtimeBytes > 24_576) {
   throw new Error(
-    `BNBXFactory runtime is ${runtimeBytes} bytes; EIP-170 allows 24576`,
+    `BNBXFactoryV4 runtime is ${runtimeBytes} bytes; EIP-170 allows 24576`,
   );
 }
 const destination = resolve(workspace, "apps/web/lib/factory-deployment.ts");
@@ -65,7 +65,7 @@ writeFileSync(
 console.log(`Wrote ${destination}`);
 
 const standardTokenArtifact =
-  output.contracts["src/BNBXTokenV3.sol"].BNBXTokenV3;
+  output.contracts["src/BNBXTokenV4.sol"].BNBXTokenV4;
 const tokenCreationDestination = resolve(
   workspace,
   "apps/web/lib/token-creation-bytecode.ts",

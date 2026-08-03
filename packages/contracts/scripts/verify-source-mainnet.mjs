@@ -15,6 +15,37 @@ const API_URL = "https://api.etherscan.io/v2/api";
 const EXPECTED_DEPLOYER = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
 const EXPECTED_FEE_RECIPIENT = "0xDAF4f62914f7F64c9eabFd473F4dB4b7e74048A6";
 const EXPECTED_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
+const contractVersion = (process.env.BNBX_CONTRACT_VERSION ?? "V3").toUpperCase();
+if (contractVersion !== "V3" && contractVersion !== "V4") {
+  throw new Error(`Unsupported BNBX_CONTRACT_VERSION: ${contractVersion}`);
+}
+const v4 = contractVersion === "V4";
+const addressPrefix = `BNBX_${contractVersion}`;
+const standardFactorySource = v4 ? "src/BNBXFactoryV4.sol" : "src/BNBXFactory.sol";
+const standardFactoryContract = v4 ? "BNBXFactoryV4" : "BNBXFactory";
+const standardTokenSource = v4 ? "src/BNBXTokenV4.sol" : "src/BNBXTokenV3.sol";
+const standardTokenContract = v4 ? "BNBXTokenV4" : "BNBXTokenV3";
+const rewardsFactorySource = v4
+  ? "src/BNBXRewardsFactoryV4.sol"
+  : "src/BNBXRewardsFactoryV3.sol";
+const rewardsFactoryContract = v4 ? "BNBXRewardsFactoryV4" : "BNBXRewardsFactoryV3";
+const tokenDeployerSource = v4
+  ? "src/BNBXAdvancedTokenDeployerV4.sol"
+  : "src/BNBXAdvancedTokenDeployer.sol";
+const tokenDeployerContract = v4
+  ? "BNBXAdvancedTokenDeployerV4"
+  : "BNBXAdvancedTokenDeployer";
+const dividendTokenSource = v4
+  ? "src/BNBXDividendTokenV4.sol"
+  : "src/BNBXDividendTokenV3.sol";
+const dividendTokenContract = v4 ? "BNBXDividendTokenV4" : "BNBXDividendTokenV3";
+const rewardVaultSource = v4
+  ? "src/BNBXRewardVaultV4.sol"
+  : "src/BNBXRewardVaultV3.sol";
+const rewardVaultContract = v4 ? "BNBXRewardVaultV4" : "BNBXRewardVaultV3";
+const templateConfigSource = v4
+  ? "src/libraries/TemplateConfigV4.sol"
+  : "src/libraries/TemplateConfigV3.sol";
 const dryRun = process.env.VERIFY_DRY_RUN === "1";
 const apiKey = process.env.BSC_SCAN_API_KEY;
 const configuredRpcUrls = (process.env.BSC_MAINNET_RPC_URL ?? "")
@@ -24,30 +55,30 @@ const configuredRpcUrls = (process.env.BSC_MAINNET_RPC_URL ?? "")
 const rpcUrls = configuredRpcUrls.length
   ? configuredRpcUrls
   : ["https://bsc-rpc.publicnode.com"];
-const standardFactory = process.env.BNBX_V3_STANDARD_FACTORY_ADDRESS;
-const rewardsFactory = process.env.BNBX_V3_REWARDS_FACTORY_ADDRESS;
+const standardFactory = process.env[`${addressPrefix}_STANDARD_FACTORY_ADDRESS`];
+const rewardsFactory = process.env[`${addressPrefix}_REWARDS_FACTORY_ADDRESS`];
 const verifyLaunchedTokens = process.env.VERIFY_LAUNCHED_TOKENS === "1";
 
 if (!dryRun && !apiKey) throw new Error("BSC_SCAN_API_KEY is required");
 if (!dryRun && (!standardFactory || !rewardsFactory)) {
   throw new Error(
-    "BNBX_V3_STANDARD_FACTORY_ADDRESS and BNBX_V3_REWARDS_FACTORY_ADDRESS are required",
+    `${addressPrefix}_STANDARD_FACTORY_ADDRESS and ${addressPrefix}_REWARDS_FACTORY_ADDRESS are required`,
   );
 }
 
 const root = resolve(import.meta.dirname, "..");
 const sourcePaths = [
-  "src/BNBXFactory.sol",
-  "src/BNBXTokenV3.sol",
-  "src/BNBXRewardsFactoryV3.sol",
-  "src/BNBXAdvancedTokenDeployer.sol",
-  "src/BNBXDividendTokenV3.sol",
-  "src/BNBXRewardVaultV3.sol",
+  standardFactorySource,
+  standardTokenSource,
+  rewardsFactorySource,
+  tokenDeployerSource,
+  dividendTokenSource,
+  rewardVaultSource,
   "src/BondingCurve.sol",
   "src/interfaces/IERC20Minimal.sol",
   "src/interfaces/IPancakeV2.sol",
   "src/libraries/FeeMath.sol",
-  "src/libraries/TemplateConfigV3.sol",
+  templateConfigSource,
 ];
 const compilerInput = {
   language: "Solidity",
@@ -131,10 +162,10 @@ const [chainId, standardCode, rewardsCode] = await Promise.all([
 if (chainId !== 56)
   throw new Error(`Refusing verification on chain ${chainId}`);
 if (!standardCode || standardCode === "0x") {
-  throw new Error("Standard V3 Factory has no bytecode");
+  throw new Error(`Standard ${contractVersion} Factory has no bytecode`);
 }
 if (!rewardsCode || rewardsCode === "0x") {
-  throw new Error("Rewards V3 Factory has no bytecode");
+  throw new Error(`Rewards ${contractVersion} Factory has no bytecode`);
 }
 
 const [standardFee, standardRouter, rewardsFee, rewardsRouter, tokenDeployer] =
@@ -166,9 +197,9 @@ requireAddress(rewardsRouter, EXPECTED_ROUTER, "Rewards router");
 requireAddress(bootstrapOwner, EXPECTED_DEPLOYER, "Authorized deployer");
 requireAddress(manager, rewardsAddress, "Advanced deployer manager");
 if (
-  process.env.BNBX_V3_TOKEN_DEPLOYER_ADDRESS &&
+  process.env[`${addressPrefix}_TOKEN_DEPLOYER_ADDRESS`] &&
   tokenDeployer.toLowerCase() !==
-    process.env.BNBX_V3_TOKEN_DEPLOYER_ADDRESS.toLowerCase()
+    process.env[`${addressPrefix}_TOKEN_DEPLOYER_ADDRESS`].toLowerCase()
 ) {
   throw new Error(`Token deployer mismatch: ${tokenDeployer}`);
 }
@@ -338,7 +369,7 @@ async function verifyRewardVault(vault) {
   ]);
   await verify(
     vault,
-    "src/BNBXRewardVaultV3.sol:BNBXRewardVaultV3",
+    `${rewardVaultSource}:${rewardVaultContract}`,
     encodeAbiParameters(
       [
         { type: "uint8" },
@@ -352,14 +383,14 @@ async function verifyRewardVault(vault) {
 }
 
 async function verifyStandardToken(token, factory) {
-  await requireCode(token, "Standard V3 token");
+  await requireCode(token, `Standard ${contractVersion} token`);
   const [name, symbol] = await Promise.all([
     readValue(token, stringReadAbi("name"), "name"),
     readValue(token, stringReadAbi("symbol"), "symbol"),
   ]);
   await verify(
     token,
-    "src/BNBXTokenV3.sol:BNBXTokenV3",
+    `${standardTokenSource}:${standardTokenContract}`,
     encodeAbiParameters(
       [{ type: "string" }, { type: "string" }, { type: "address" }],
       [name, symbol, factory],
@@ -368,7 +399,7 @@ async function verifyStandardToken(token, factory) {
 }
 
 async function verifyRewardsToken(token, factory) {
-  await requireCode(token, "Rewards V3 token");
+  await requireCode(token, `Rewards ${contractVersion} token`);
   const [
     name,
     symbol,
@@ -439,7 +470,7 @@ async function verifyRewardsToken(token, factory) {
   };
   await verify(
     token,
-    "src/BNBXDividendTokenV3.sol:BNBXDividendTokenV3",
+    `${dividendTokenSource}:${dividendTokenContract}`,
     encodeAbiParameters(
       [initType],
       [
@@ -494,7 +525,7 @@ async function verifyLaunched(factory, kind) {
 
 await verify(
   standardAddress,
-  "src/BNBXFactory.sol:BNBXFactory",
+  `${standardFactorySource}:${standardFactoryContract}`,
   encodeAbiParameters(
     [{ type: "address" }, { type: "address" }],
     [standardFee, standardRouter],
@@ -502,12 +533,12 @@ await verify(
 );
 await verify(
   tokenDeployer,
-  "src/BNBXAdvancedTokenDeployer.sol:BNBXAdvancedTokenDeployer",
+  `${tokenDeployerSource}:${tokenDeployerContract}`,
   encodeAbiParameters([{ type: "address" }], [bootstrapOwner]),
 );
 await verify(
   rewardsAddress,
-  "src/BNBXRewardsFactoryV3.sol:BNBXRewardsFactoryV3",
+  `${rewardsFactorySource}:${rewardsFactoryContract}`,
   encodeAbiParameters(
     [{ type: "address" }, { type: "address" }, { type: "address" }],
     [rewardsFee, rewardsRouter, tokenDeployer],
@@ -525,6 +556,7 @@ console.log(
   JSON.stringify(
     {
       status: dryRun ? "verified-config-dry-run" : "verified",
+      contractVersion,
       standardFactory: standardAddress,
       rewardsFactory: rewardsAddress,
       tokenDeployer,
