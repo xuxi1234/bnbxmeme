@@ -10,6 +10,8 @@ import {
   TESTNET_LP_MINIMUM,
   TESTNET_PANCAKE_FACTORY,
   TESTNET_PANCAKE_ROUTER,
+  TESTNET_REWARD_PROCESS_GAS,
+  TESTNET_REWARD_PROCESS_TX_GAS,
   TESTNET_REWARDS_FACTORY,
   TESTNET_STANDARD_FACTORY,
   TESTNET_WBNB,
@@ -59,6 +61,19 @@ test("restores a valid acceptance token from the URL before local storage", () =
     "0x5c5AaA165f5fBce1875363ef59A17A0ac3931111",
   );
   assert.equal(acceptanceTokenCandidate("?token=invalid", "invalid"), null);
+});
+
+test("reserves enough transaction gas for bounded reward processing", async () => {
+  assert.equal(TESTNET_REWARD_PROCESS_GAS, 500_000n);
+  assert.equal(TESTNET_REWARD_PROCESS_TX_GAS, 750_000n);
+  assert.ok(TESTNET_REWARD_PROCESS_TX_GAS > TESTNET_REWARD_PROCESS_GAS);
+
+  const page = await readFile(
+    new URL("../app/acceptance-testnet/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(page, /\[TESTNET_REWARD_PROCESS_GAS\]/);
+  assert.match(page, /gas: TESTNET_REWARD_PROCESS_TX_GAS/);
 });
 
 test("builds a permanent zero-tax standard request", () => {
