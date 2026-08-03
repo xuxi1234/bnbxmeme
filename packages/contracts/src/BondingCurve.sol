@@ -22,7 +22,7 @@ contract BondingCurve {
 
     uint256 public constant CURVE_TOKEN_SUPPLY = 800_000_000 ether;
     uint256 public constant GRADUATION_TOKEN_SUPPLY = 200_000_000 ether;
-    uint256 public constant TRADE_FEE_BPS = 50;
+    uint256 public constant TRADE_FEE_BPS = 100;
     address public constant LP_BURN_ADDRESS =
         0x000000000000000000000000000000000000dEaD;
 

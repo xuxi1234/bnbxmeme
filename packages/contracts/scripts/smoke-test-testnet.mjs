@@ -71,11 +71,7 @@ const factoryAbi = [
       { type: "uint256" },
       { type: "uint256" },
     ],
-    outputs: [
-      { type: "bool" },
-      { type: "bytes32" },
-      { type: "address" },
-    ],
+    outputs: [{ type: "bool" }, { type: "bytes32" }, { type: "address" }],
   },
   {
     type: "function",
@@ -101,11 +97,7 @@ const factoryAbi = [
         ],
       },
     ],
-    outputs: [
-      { type: "address" },
-      { type: "address" },
-      { type: "uint256" },
-    ],
+    outputs: [{ type: "address" }, { type: "address" }, { type: "uint256" }],
   },
 ];
 const curveAbi = [
@@ -142,10 +134,10 @@ const erc20Abi = [
 ];
 
 function feeOn(gross) {
-  return (gross * 50n + 9_999n) / 10_000n;
+  return (gross * 100n + 9_999n) / 10_000n;
 }
 function grossForExactNet(net) {
-  let gross = (net * 10_000n + 9_949n) / 9_950n;
+  let gross = (net * 10_000n + 9_899n) / 9_900n;
   while (gross - feeOn(gross) > net) gross -= 1n;
   while (gross - feeOn(gross) < net) gross += 1n;
   return gross;
@@ -216,7 +208,10 @@ const curve = await publicClient.readContract({
   functionName: "curveOf",
   args: [token],
 });
-check(token.toLowerCase().endsWith("1111"), "Token address is not a 1111 vanity address");
+check(
+  token.toLowerCase().endsWith("1111"),
+  "Token address is not a 1111 vanity address",
+);
 const [state, principal, pair, userTokens] = await Promise.all([
   publicClient.readContract({
     address: curve,
@@ -264,8 +259,14 @@ const [pairTokens, pairWbnb, burnedLP] = await Promise.all([
 
 check(Number(state) === 2, "Curve did not graduate");
 check(principal === target, "Curve principal is not exactly 1 BNB");
-check(userTokens === parseEther("800000000"), "User did not receive 800m tokens");
-check(pairTokens === parseEther("200000000"), "Pair did not receive 200m tokens");
+check(
+  userTokens === parseEther("800000000"),
+  "User did not receive 800m tokens",
+);
+check(
+  pairTokens === parseEther("200000000"),
+  "Pair did not receive 200m tokens",
+);
 check(pairWbnb >= target, "Pair did not receive all WBNB principal");
 check(burnedLP > 0n, "Burn address did not receive LP");
 

@@ -95,9 +95,9 @@ const contracts = [
   ["Reward Vault", "src/BNBXRewardVaultV4.sol", "BNBXRewardVaultV4"],
 ];
 
-function generatedBytecode(exportName) {
+function generatedBytecode(file, exportName) {
   const generated = readFileSync(
-    resolve(workspace, "apps/web/lib/rewards-factory-deployment.ts"),
+    resolve(workspace, `apps/web/lib/${file}`),
     "utf8",
   );
   const match = generated.match(
@@ -108,17 +108,30 @@ function generatedBytecode(exportName) {
 }
 
 const generatedDeployerBytecode = generatedBytecode(
+  "rewards-factory-deployment.ts",
   "advancedTokenDeployerDeploymentBytecode",
 );
 const generatedRewardsFactoryBytecode = generatedBytecode(
+  "rewards-factory-deployment.ts",
   "rewardsFactoryDeploymentBytecode",
 );
+const generatedStandardFactoryBytecode = generatedBytecode(
+  "factory-deployment.ts",
+  "factoryDeploymentBytecode",
+);
+const compiledStandardFactoryBytecode =
+  output.contracts["src/BNBXFactoryV4.sol"].BNBXFactoryV4.evm.bytecode.object;
 const compiledDeployerBytecode =
   output.contracts["src/BNBXAdvancedTokenDeployerV4.sol"]
     .BNBXAdvancedTokenDeployerV4.evm.bytecode.object;
 const compiledRewardsFactoryBytecode =
   output.contracts["src/BNBXRewardsFactoryV4.sol"].BNBXRewardsFactoryV4.evm
     .bytecode.object;
+if (generatedStandardFactoryBytecode !== compiledStandardFactoryBytecode) {
+  throw new Error(
+    "Generated standard Factory bytecode is stale; run export:web-artifact",
+  );
+}
 if (generatedDeployerBytecode !== compiledDeployerBytecode) {
   throw new Error(
     "Generated advanced deployer bytecode is stale; run export:rewards-artifact",

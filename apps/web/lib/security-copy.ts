@@ -52,8 +52,8 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     fees: "平台固定费用",
     feeItems: [
       ["创建代币", "0.001 BNB"],
-      ["内盘买入", "0.5%"],
-      ["内盘卖出", "0.5%"],
+      ["新币内盘买入", "1%（历史币保持链上原 0.5%）"],
+      ["新币内盘卖出", "1%（历史币保持链上原 0.5%）"],
       ["报价保护", "界面默认最低收到保护 1%"],
     ],
     factoryLabels: {
@@ -107,8 +107,8 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     fees: "Fixed platform fees",
     feeItems: [
       ["Token creation", "0.001 BNB"],
-      ["Bonding-curve buy", "0.5%"],
-      ["Bonding-curve sell", "0.5%"],
+      ["New-launch curve buy", "1% (legacy curves remain 0.5%)"],
+      ["New-launch curve sell", "1% (legacy curves remain 0.5%)"],
       ["Quote protection", "1% minimum-output protection by default"],
     ],
     factoryLabels: {
@@ -171,8 +171,8 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     fees: "플랫폼 고정 수수료",
     feeItems: [
       ["토큰 생성", "0.001 BNB"],
-      ["본딩 커브 구매", "0.5%"],
-      ["본딩 커브 판매", "0.5%"],
+      ["신규 커브 구매", "1% (기존 커브는 0.5% 유지)"],
+      ["신규 커브 판매", "1% (기존 커브는 0.5% 유지)"],
       ["호가 보호", "기본 최소 수령 보호 1%"],
     ],
     factoryLabels: {
@@ -232,8 +232,8 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     fees: "プラットフォーム固定手数料",
     feeItems: [
       ["トークン作成", "0.001 BNB"],
-      ["カーブ購入", "0.5%"],
-      ["カーブ売却", "0.5%"],
+      ["新規カーブ購入", "1%（旧カーブは0.5%のまま）"],
+      ["新規カーブ売却", "1%（旧カーブは0.5%のまま）"],
       ["価格保護", "最低受取保護1%（初期値）"],
     ],
     factoryLabels: {

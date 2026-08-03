@@ -9,8 +9,9 @@ must use the V3 Factory addresses.
 - Fixed supply: 1,000,000,000 tokens.
 - Bonding curve allocation: 800,000,000 tokens.
 - PancakeSwap V2 graduation allocation: 200,000,000 tokens.
-- Internal trading fee: 0.5% in both directions, paid in BNB to the fixed
-  platform fee recipient. It is independent from token taxes.
+- Internal trading fee: 1% in both directions for new launches, paid in BNB to
+  the fixed platform fee recipient. It is independent from token taxes.
+  Previously deployed curves remain immutable at their original 0.5% fee.
 - Graduation target: creator-selected step from 0.01 through 0.18 BNB.
 - Token taxes are disabled throughout internal curve trading and the atomic
   graduation seed. Taxes activate only after the pair is unlocked.

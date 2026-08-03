@@ -123,11 +123,11 @@ async function deploy(artifact, args = []) {
 }
 
 function feeOn(grossAmount) {
-  return (grossAmount * 50n + 9_999n) / 10_000n;
+  return (grossAmount * 100n + 9_999n) / 10_000n;
 }
 
 function grossForExactNet(requiredNet) {
-  let gross = (requiredNet * 10_000n + 9_949n) / 9_950n;
+  let gross = (requiredNet * 10_000n + 9_899n) / 9_900n;
   while (gross - feeOn(gross) > requiredNet) gross -= 1n;
   while (gross - feeOn(gross) < requiredNet) gross += 1n;
   return gross;

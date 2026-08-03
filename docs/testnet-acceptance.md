@@ -14,7 +14,7 @@ transaction hashes and automated test coverage.
 
 ## Trading
 
-- Buy and sell with a 0.5% fee in both directions.
+- Buy and sell with a 1% fee in both directions.
 - Verify fee recipient balance and emitted accounting events.
 - Verify slippage, deadline, zero-value, and insufficient-reserve reverts.
 - Verify sells reduce graduation progress.
@@ -48,6 +48,7 @@ burn-address LP ownership for each target.
 - Static analysis has no unresolved high or critical findings.
 - Source verification is reproducible.
 - Mainnet address configuration remains disabled.
+
 ## Required secrets
 
 Secrets must be supplied through a local secret manager or the deployment

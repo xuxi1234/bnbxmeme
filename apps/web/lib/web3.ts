@@ -207,6 +207,13 @@ export const autoLiquidityFactoryAbi = advancedFactoryAbi;
 export const curveAbi = [
   {
     type: "function",
+    name: "TRADE_FEE_BPS",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "creator",
     stateMutability: "view",
     inputs: [],

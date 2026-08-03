@@ -44,9 +44,9 @@ jobs:
       BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
       BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
       BNBX_CONTRACT_VERSION: V4
-      BNBX_V4_STANDARD_FACTORY_ADDRESS: ${{ inputs.standard_factory_address || '0x6012aa2eb5164c8ed31f2a01950c3b5037211181' }}
-      BNBX_V4_REWARDS_FACTORY_ADDRESS: ${{ inputs.rewards_factory_address || '0x6C72ECE4F7AA05F3b2099Ef9dD2d668E7e3f688E' }}
-      BNBX_V4_TOKEN_DEPLOYER_ADDRESS: ${{ inputs.token_deployer_address || '0x1c6354eBf4B7BC4e3da65C2B718a36e7C2A81707' }}
+      BNBX_V4_STANDARD_FACTORY_ADDRESS: ${{ inputs.standard_factory_address || '0x510dbBE270b2F009619BCbcF757aE2e2D48734Ad' }}
+      BNBX_V4_REWARDS_FACTORY_ADDRESS: ${{ inputs.rewards_factory_address || '0x28100dBFA3F1a3D563e1667259433AdFA3aaC4BB' }}
+      BNBX_V4_TOKEN_DEPLOYER_ADDRESS: ${{ inputs.token_deployer_address || '0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c' }}
       VERIFY_LAUNCHED_TOKENS: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_launched_tokens && '1' || '0' }}
     steps:
       - name: Check out repository

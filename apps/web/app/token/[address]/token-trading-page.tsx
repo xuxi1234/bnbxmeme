@@ -378,6 +378,12 @@ export function TokenTradingPage({
     functionName: "totalSupply",
     query: { enabled: tokenAddress !== zeroAddress },
   });
+  const tradeFeeBps = useReadContract({
+    address: curveAddress,
+    abi: curveAbi,
+    functionName: "TRADE_FEE_BPS",
+    query: { enabled: curveAddress !== zeroAddress },
+  });
   const graduationAuthority = useReadContract({
     address: tokenAddress,
     abi: tokenAbi,
@@ -1717,7 +1723,11 @@ export function TokenTradingPage({
                 </div>
                 <div>
                   <span>{t("fixedFee")}</span>
-                  <strong>0.5%</strong>
+                  <strong>
+                    {tradeFeeBps.data === undefined
+                      ? "—"
+                      : `${Number(tradeFeeBps.data) / 100}%`}
+                  </strong>
                 </div>
                 <div>
                   <span>{t("slippage")}</span>
