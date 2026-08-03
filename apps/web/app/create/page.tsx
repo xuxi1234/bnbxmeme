@@ -67,7 +67,7 @@ const VANITY_SEARCH_LIMIT = 500_000;
 // execution limits while cutting the average number of network round trips
 // from ~66 to ~7 for a 16-bit vanity suffix.
 const VANITY_SEARCH_CHUNK_SIZE = 10_000;
-const TRADE_FEE_BPS = 50n;
+const TRADE_FEE_BPS = 100n;
 const SLIPPAGE_BPS = 100n;
 const BPS = 10_000n;
 const CURVE_TOKEN_SUPPLY = parseEther("800000000");

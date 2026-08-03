@@ -15,8 +15,8 @@ any production address is changed.
 - PancakeSwap V2 allocation: 200,000,000 tokens
 - Creator-selected graduation target: 0.01–0.18 BNB in 0.01 BNB steps
 - Token creation fee: 0.001 BNB
-- Internal buy fee: 0.5%
-- Internal sell fee: 0.5%
+- Internal buy fee: 1% for new launches (legacy curves remain immutable at 0.5%)
+- Internal sell fee: 1% for new launches (legacy curves remain immutable at 0.5%)
 - Standard tokens: immutable, non-upgradeable, permanently zero-tax
 - Advanced templates: independently configurable buy and sell tax, each
   capped on-chain at 10%

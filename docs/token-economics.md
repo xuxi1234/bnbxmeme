@@ -49,10 +49,13 @@ pull vault; it is not platform revenue.
 ## Fees
 
 - Creation fee: `0.001 BNB`
-- Internal buy fee: `50 bps` (`0.5%`)
-- Internal sell fee: `50 bps` (`0.5%`)
+- Internal buy fee: `100 bps` (`1%`) for new launches
+- Internal sell fee: `100 bps` (`1%`) for new launches
 - Basis-point denominator: `10,000`
 - Fee recipient: `0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`
+
+Previously deployed curves are immutable and continue using their original
+`50 bps` (`0.5%`) fee in both directions.
 
 Creation fees and trading fees are protocol revenue. They never count as curve
 principal, graduation progress, or graduation liquidity.
@@ -60,14 +63,14 @@ principal, graduation progress, or graduation liquidity.
 For a gross buy amount `G`:
 
 ```text
-buyFee = ceil(G * 50 / 10_000)
+buyFee = ceil(G * 100 / 10_000)
 netCurveInput = G - buyFee
 ```
 
 For a gross sell quote `Q`:
 
 ```text
-sellFee = ceil(Q * 50 / 10_000)
+sellFee = ceil(Q * 100 / 10_000)
 userReceives = Q - sellFee
 ```
 

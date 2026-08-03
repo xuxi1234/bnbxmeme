@@ -57,7 +57,7 @@ Given token input `dt`:
 newY = y + dt
 newX = ceil(k / newY)
 grossBNBOut = x - newX
-sellFee = ceil(grossBNBOut * 50 / 10_000)
+sellFee = ceil(grossBNBOut * 100 / 10_000)
 netBNBOut = grossBNBOut - sellFee
 ```
 
@@ -81,7 +81,7 @@ charged a trading fee.
 For remaining required net principal `N`:
 
 ```text
-requiredGross = ceil(N * 10_000 / 9_950)
+requiredGross = ceil(N * 10_000 / 9_900)
 ```
 
 Because the fee itself rounds upward, the implementation must verify the
