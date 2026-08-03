@@ -82,6 +82,47 @@ lose liquidity, or otherwise fail. V4 isolates those failures from launched
 token transfers and preserves manual claims, but BNBX cannot remove control or
 risk from an unrelated external contract.
 
+## BSC Testnet acceptance fixture
+
+Use these addresses only for BSC Testnet acceptance. They must never be copied
+into the Mainnet web configuration:
+
+- PancakeSwap V2 Router:
+  `0xD99D1c33F9fC3444f8101754aBC46c52416550D1`
+- PancakeSwap V2 Factory:
+  `0x6725F303b657a9451d8BA641348b6761A6CC7a17`
+- Testnet WBNB:
+  `0xae13d989dac2f0debff460ac112a837c89baa7cd`
+- Testnet BUSD reward token:
+  `0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7`
+- Existing BUSD/WBNB V2 Pair:
+  `0x85EcdCdD01EBE0bFD0aBa74B81CA6D7F4a53582B`
+
+At BSC Testnet block `122856981`, the Pair reported non-zero reserves of about
+`5,564.099856 BUSD` and `12.551902 WBNB`. Re-check code, token ordering, and
+both reserves immediately before acceptance because Testnet state is mutable.
+
+The acceptance record must include all deployment addresses and transaction
+hashes, then exercise:
+
+1. Deploy the V4 standard Factory.
+2. Deploy the V4 advanced token deployer, deploy the V4 rewards Factory, and
+   bind the deployer manager exactly once.
+3. Create and graduate one standard zero-tax token; confirm the full fixed
+   supply, burned graduation LP, and destroyed temporary launch roles.
+4. Create and graduate one holder-reward token using the Testnet BUSD address;
+   confirm automatic delivery, manual `claim`, permissionless
+   non-redirectable `claimFor`, the strict holder threshold, and excluded
+   system addresses.
+5. Create and graduate one LP-reward token using the Testnet BUSD address;
+   confirm LP stake, automatic delivery, partial/full withdrawal, and rejection
+   of an invalid remaining stake below the configured minimum.
+6. Exercise a reward-transfer failure fixture and confirm launched-token buys,
+   sells, and wallet transfers remain usable while unpaid rewards stay
+   claimable.
+7. Compare the deployed runtime bytecode and all immutable constructor values
+   with the exact PR artifact before approving any Mainnet deployment.
+
 ## Mainnet release gates
 
 Before Mainnet configuration changes:
