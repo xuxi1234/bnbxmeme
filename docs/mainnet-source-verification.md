@@ -1,11 +1,36 @@
-# BNBX V3 mainnet source verification
+# BNBX V4 Mainnet open source and verification
 
-BNBX V3 exposes exactly three creation templates:
+BNBX V4 exposes exactly three creation templates. All source files are public
+under the repository's MIT License:
 
-- Standard permanent zero-tax uses `BNBXTokenV3` and `BNBXFactory`.
-- Holder rewards and LP rewards use `BNBXDividendTokenV3`,
-  `BNBXRewardVaultV3`, `BNBXAdvancedTokenDeployer`, and
-  `BNBXRewardsFactoryV3`.
+- Standard permanent zero-tax uses
+  [`BNBXTokenV4`](../packages/contracts/src/BNBXTokenV4.sol) and
+  [`BNBXFactoryV4`](../packages/contracts/src/BNBXFactoryV4.sol).
+- Holder rewards and LP rewards use
+  [`BNBXDividendTokenV4`](../packages/contracts/src/BNBXDividendTokenV4.sol),
+  [`BNBXRewardVaultV4`](../packages/contracts/src/BNBXRewardVaultV4.sol),
+  [`BNBXAdvancedTokenDeployerV4`](../packages/contracts/src/BNBXAdvancedTokenDeployerV4.sol),
+  and [`BNBXRewardsFactoryV4`](../packages/contracts/src/BNBXRewardsFactoryV4.sol).
+- Every template uses the public
+  [`BondingCurve`](../packages/contracts/src/BondingCurve.sol),
+  [`FeeMath`](../packages/contracts/src/libraries/FeeMath.sol), and
+  [`TemplateConfigV4`](../packages/contracts/src/libraries/TemplateConfigV4.sol)
+  implementations.
+
+## Active BSC Mainnet deployments
+
+| Component                 | Address                                      | Deployment transaction                                               |
+| ------------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
+| Standard zero-tax Factory | `0x6012aa2eb5164c8ed31f2a01950c3b5037211181` | `0x8aa33936ad714c17b900b29d92271a8f6ed8d1832172670ba414f88c81b2455c` |
+| Advanced token deployer   | `0xbCf50926684726DA1C3674f110fCAb755E181525` | `0x00486285029bcb6ee32849380b648c897a50aba051cdc1e8ec3179b47ee64364` |
+| Holder/LP rewards Factory | `0xe4aAF8066bf1063CFd73dc9a784598DFFa412014` | `0xaae7031d8547bad975987709e7fe5b1430aeb1ebbecde5f01d6f002847ff629d` |
+
+The advanced deployer's one-time manager binding to the rewards Factory was
+confirmed in transaction
+`0xc70eff63aec72f75480a07c37174f867d73ce2fa0a9076eaca83f77c7d76a149`.
+The fixed fee recipient is
+`0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`, and the fixed PancakeSwap V2
+Router is `0x10ED43C718714eb63d5aA57B78B54704E256024E`.
 
 The standalone Auto Liquidity creation template is removed. Its previously
 deployed Factory remains listed as historical/read-only so old projects remain
@@ -14,8 +39,8 @@ discoverable.
 The verification command compiles the exact standard JSON input, reads the
 constructor arguments from BSC, checks the fixed router/revenue recipient,
 checks the authorized deployer and one-time manager binding, and submits the
-three V3 infrastructure contracts to BscScan. With
-`VERIFY_LAUNCHED_TOKENS=1`, it also reconstructs and verifies every V3 token,
+three V4 infrastructure contracts to BscScan. With
+`VERIFY_LAUNCHED_TOKENS=1`, it also reconstructs and verifies every V4 token,
 BondingCurve, and reward vault registered by those Factories. It is read-only
 and never signs or sends a transaction.
 
@@ -23,9 +48,9 @@ and never signs or sends a transaction.
 
 - `BSC_SCAN_API_KEY`
 - `BSC_MAINNET_RPC_URL` (optional; a public read-only endpoint is the fallback)
-- `BNBX_V3_STANDARD_FACTORY_ADDRESS`
-- `BNBX_V3_REWARDS_FACTORY_ADDRESS`
-- `BNBX_V3_TOKEN_DEPLOYER_ADDRESS` (optional cross-check)
+- `BNBX_V4_STANDARD_FACTORY_ADDRESS`
+- `BNBX_V4_REWARDS_FACTORY_ADDRESS`
+- `BNBX_V4_TOKEN_DEPLOYER_ADDRESS` (optional cross-check)
 
 Do not expose the API key or a private RPC URL through `NEXT_PUBLIC_` variables.
 
@@ -33,16 +58,16 @@ Do not expose the API key or a private RPC URL through `NEXT_PUBLIC_` variables.
 
 ```bash
 VERIFY_DRY_RUN=1 \
-pnpm --filter @bnbx/contracts verify-source:mainnet
+pnpm --filter @bnbx/contracts verify-source:mainnet:v4
 ```
 
-## Verify deployed V3 infrastructure
+## Verify deployed V4 infrastructure
 
 ```bash
-BNBX_V3_STANDARD_FACTORY_ADDRESS=0x... \
-BNBX_V3_REWARDS_FACTORY_ADDRESS=0x... \
-BNBX_V3_TOKEN_DEPLOYER_ADDRESS=0x... \
-pnpm --filter @bnbx/contracts verify-source:mainnet
+BNBX_V4_STANDARD_FACTORY_ADDRESS=0x6012aa2eb5164c8ed31f2a01950c3b5037211181 \
+BNBX_V4_REWARDS_FACTORY_ADDRESS=0xe4aAF8066bf1063CFd73dc9a784598DFFa412014 \
+BNBX_V4_TOKEN_DEPLOYER_ADDRESS=0xbCf50926684726DA1C3674f110fCAb755E181525 \
+pnpm --filter @bnbx/contracts verify-source:mainnet:v4
 ```
 
 After launches exist, rerun with `VERIFY_LAUNCHED_TOKENS=1`. The default safety
