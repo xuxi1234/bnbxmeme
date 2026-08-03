@@ -37,11 +37,15 @@ import {
 import { resolveCreateSubmitBlocker } from "@/lib/create-validation-core";
 import { tokenProjectPath } from "@/lib/project-paths";
 import {
+  DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE,
+  DEFAULT_LP_MINIMUM_REWARD_BALANCE,
+  DEFAULT_REWARD_TOKEN_ADDRESS,
   STANDARD_CREATE_GAS_LIMIT,
   advancedCreateGasLimit,
   advancedTemplateValue,
   emptyTaxSide,
   normalizeTaxesForTemplate,
+  parseMinimumRewardShare,
   parseTaxPercent,
   parseTaxSide,
   taxSideToBps,
@@ -257,8 +261,11 @@ export default function CreateTokenPage() {
   const [buyTaxes, setBuyTaxes] = useState<TaxSide>(emptyTaxSide);
   const [sellTaxes, setSellTaxes] = useState<TaxSide>(emptyTaxSide);
   const [marketingWallet, setMarketingWallet] = useState("");
-  const [rewardToken, setRewardToken] = useState("");
-  const [minimumRewardBalance, setMinimumRewardBalance] = useState("10000");
+  const [rewardToken, setRewardToken] = useState(DEFAULT_REWARD_TOKEN_ADDRESS);
+  const [minimumRewardBalances, setMinimumRewardBalances] = useState({
+    holders: DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE,
+    lp: DEFAULT_LP_MINIMUM_REWARD_BALANCE,
+  });
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isFindingVanity, setIsFindingVanity] = useState(false);
@@ -278,6 +285,10 @@ export default function CreateTokenPage() {
   const receipt = useWaitForTransactionReceipt({ hash });
   const factoryAddress =
     template === "standard" ? v3StandardFactoryAddress : rewardsFactoryAddress;
+  const minimumRewardBalance =
+    template === "holders"
+      ? minimumRewardBalances.holders
+      : minimumRewardBalances.lp;
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data || !factoryAddress) return;
@@ -307,6 +318,21 @@ export default function CreateTokenPage() {
       buy: taxSideToBps(buyTaxes),
       sell: taxSideToBps(sellTaxes),
     };
+  }
+
+  function minimumRewardShareOrThrow(
+    selectedTemplate: Exclude<TemplateId, "standard">,
+  ) {
+    const minimumShare = parseMinimumRewardShare(
+      selectedTemplate,
+      minimumRewardBalance,
+    );
+    if (minimumShare !== null) return minimumShare;
+    throw new Error(
+      selectedTemplate === "holders"
+        ? copy.errors.minimumHolderBalanceInvalid
+        : copy.errors.minimumLpBalanceInvalid,
+    );
   }
 
   async function validateRewardPool(rewardTokenAddress: `0x${string}`) {
@@ -405,7 +431,7 @@ export default function CreateTokenPage() {
         throw new Error(copy.errors.rewardsFactoryMissing);
       }
       const templateValue = advancedTemplateValue(template);
-      const minimumShare = parseEther(minimumRewardBalance || "0");
+      const minimumShare = minimumRewardShareOrThrow(template);
       const rewardTokenAddress = rewardToken.trim();
       if (!isAddress(rewardTokenAddress)) {
         throw new Error(copy.errors.rewardTokenInvalid);
@@ -531,7 +557,7 @@ export default function CreateTokenPage() {
           rewardToken: rewardTokenAddress,
           taxes: configuredTaxes(),
           template: advancedTemplateValue(template),
-          minimumRewardShare: parseEther(minimumRewardBalance || "0"),
+          minimumRewardShare: minimumRewardShareOrThrow(template),
         };
         if (initialBuyWei === 0n) {
           setIsPreflighting(true);
@@ -679,7 +705,8 @@ export default function CreateTokenPage() {
   const previewTotalValue = CREATION_FEE_WEI + previewInitialBuyWei;
   const rewardsValid =
     !advancedTemplate ||
-    (isAddress(rewardToken.trim()) && Number(minimumRewardBalance) > 0);
+    (isAddress(rewardToken.trim()) &&
+      parseMinimumRewardShare(template, minimumRewardBalance) !== null);
   const submitBlocker = resolveCreateSubmitBlocker({
     isConnected,
     factoryAvailable: Boolean(factoryAddress),
@@ -848,15 +875,37 @@ export default function CreateTokenPage() {
                   ? copy.minimumHolderBalance
                   : copy.minimumLpBalance}
                 <input
+                  required
+                  aria-invalid={
+                    parseMinimumRewardShare(template, minimumRewardBalance) ===
+                    null
+                  }
                   inputMode="decimal"
-                  min="0"
+                  min={template === "holders" ? "1000" : "0"}
+                  step="any"
                   type="number"
                   value={minimumRewardBalance}
-                  placeholder="10000"
-                  onChange={(event) =>
-                    setMinimumRewardBalance(event.target.value)
+                  placeholder={
+                    template === "holders"
+                      ? DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE
+                      : DEFAULT_LP_MINIMUM_REWARD_BALANCE
                   }
+                  onChange={(event) => {
+                    const key = template === "holders" ? "holders" : "lp";
+                    setMinimumRewardBalances((current) => ({
+                      ...current,
+                      [key]: event.target.value,
+                    }));
+                  }}
                 />
+                {parseMinimumRewardShare(template, minimumRewardBalance) ===
+                  null && (
+                  <small className="field-error">
+                    {template === "holders"
+                      ? copy.errors.minimumHolderBalanceInvalid
+                      : copy.errors.minimumLpBalanceInvalid}
+                  </small>
+                )}
                 <span className="field-help">{copy.rewardsHelp}</span>
               </label>
               {unavailableTemplate && (
