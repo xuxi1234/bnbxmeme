@@ -325,9 +325,21 @@ contract BNBXDividendTokenV4 {
     function _processTaxes(uint256 process, uint256 tracked) internal {
         ProcessAmounts memory amounts;
         amounts.liquidityTokens = process * tokensForLiquidity / tracked;
+        amounts.marketingTokens = process * tokensForMarketing / tracked;
         amounts.rewardsTokens = process * tokensForRewards / tracked;
-        amounts.marketingTokens =
-            process - amounts.liquidityTokens - amounts.rewardsTokens;
+        uint256 remainder = process - amounts.liquidityTokens
+            - amounts.marketingTokens - amounts.rewardsTokens;
+        uint256 allocation = _minimum(
+            remainder, tokensForMarketing - amounts.marketingTokens
+        );
+        amounts.marketingTokens += allocation;
+        remainder -= allocation;
+        allocation = _minimum(
+            remainder, tokensForRewards - amounts.rewardsTokens
+        );
+        amounts.rewardsTokens += allocation;
+        remainder -= allocation;
+        amounts.liquidityTokens += remainder;
         amounts.tokensToLiquidity = amounts.liquidityTokens / 2;
         amounts.tokensToSwap = process - amounts.tokensToLiquidity;
         if (amounts.tokensToSwap == 0) revert BelowSwapThreshold();
@@ -375,6 +387,14 @@ contract BNBXDividendTokenV4 {
             amounts.marketingBNB,
             amounts.rewardsBNB
         );
+    }
+
+    function _minimum(uint256 first, uint256 second)
+        internal
+        pure
+        returns (uint256)
+    {
+        return first < second ? first : second;
     }
 
     function _addAutomaticLiquidity(uint256 tokenAmount, uint256 bnbAmount)

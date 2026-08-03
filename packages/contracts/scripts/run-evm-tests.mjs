@@ -163,6 +163,7 @@ const suites = [
       "testDividendLaunchRolesAreOneTimeAndDestroyed",
       "testFactoryManagerBindingCannotBeChanged",
       "testRewardsFactoryCreatesConfiguredV4TokenAndDestroysSetupRole",
+      "testZeroMarketingWalletPredictionUsesTheCreator",
     ],
   },
   {
@@ -171,6 +172,7 @@ const suites = [
     tests: [
       "testProcessesAllBucketsAndBurnsAutomaticLP",
       "testFailedAutomaticProcessingCannotBlockSell",
+      "testPartialProcessingWithZeroMarketingTaxCannotUnderflow",
     ],
   },
   {

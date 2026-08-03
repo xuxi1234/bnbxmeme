@@ -161,8 +161,11 @@ contract BNBXRewardsFactoryV4 {
         uint256 start,
         uint256 maxIterations
     ) external view returns (bool found, bytes32 salt, address predicted) {
+        address marketing = request.marketingWallet == address(0)
+            ? msg.sender
+            : request.marketingWallet;
         bytes32 codeHash = tokenDeployer.initCodeHash(
-            _tokenInit(request, request.marketingWallet)
+            _tokenInit(request, marketing)
         );
         for (uint256 i; i < maxIterations; ++i) {
             salt = bytes32(start + i);
@@ -178,9 +181,12 @@ contract BNBXRewardsFactoryV4 {
         view
         returns (address)
     {
+        address marketing = request.marketingWallet == address(0)
+            ? msg.sender
+            : request.marketingWallet;
         return tokenDeployer.predict(
             request.vanitySalt,
-            _tokenInit(request, request.marketingWallet)
+            _tokenInit(request, marketing)
         );
     }
 

@@ -29,6 +29,14 @@ contract RewardsFactoryV4Harness is BNBXRewardsFactoryV4 {
     {
         return _create(request, creator);
     }
+
+    function tokenInitForTest(CreateRequest memory request, address marketing)
+        external
+        view
+        returns (BNBXDividendTokenV4.Init memory)
+    {
+        return _tokenInit(request, marketing);
+    }
 }
 
 contract BNBXV4SecurityTest {
@@ -192,6 +200,35 @@ contract BNBXV4SecurityTest {
         assert(address(token.rewardToken()) == address(rewardToken));
         assert(token.balanceOf(curveAddress) == token.TOTAL_SUPPLY());
         assert(token.rewardVault().controller() == tokenAddress);
+    }
+
+    function testZeroMarketingWalletPredictionUsesTheCreator() public {
+        BNBXAdvancedTokenDeployerV4 deployer =
+            new BNBXAdvancedTokenDeployerV4(address(this));
+        RewardsFactoryV4Harness factory = new RewardsFactoryV4Harness(
+            address(this), address(router), address(deployer)
+        );
+        deployer.configureManager(address(factory));
+
+        BNBXRewardsFactoryV4.CreateRequest memory request =
+            _request(TemplateConfigV4.Template.HolderRewards, 1_000_000 ether);
+        request.marketingWallet = address(0);
+        address searched;
+        (, request.vanitySalt, searched) = factory.findVanitySalt(request, 0, 1);
+        address predicted = factory.predictTokenAddress(request);
+        assert(predicted == searched);
+        assert(
+            predicted == deployer.predict(
+                request.vanitySalt,
+                factory.tokenInitForTest(request, address(this))
+            )
+        );
+        assert(
+            predicted != deployer.predict(
+                request.vanitySalt,
+                factory.tokenInitForTest(request, address(0))
+            )
+        );
     }
 
     function _init(TemplateConfigV4.Template template, uint256 minimumShare)

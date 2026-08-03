@@ -181,4 +181,53 @@ contract DividendTaxProcessingV4Test {
         assert(token.balanceOf(address(pair)) > pairBefore);
         assert(token.balanceOf(address(token)) > 1_500_000 ether);
     }
+
+    function testPartialProcessingWithZeroMarketingTaxCannotUnderflow() public {
+        TemplateConfigV4.Taxes memory taxes = TemplateConfigV4.Taxes(
+            TemplateConfigV4.SideTaxes(0, 0, 0, 0),
+            TemplateConfigV4.SideTaxes(0, 500, 0, 500)
+        );
+        BNBXDividendTokenV4.Init memory init = BNBXDividendTokenV4.Init(
+            "Zero Marketing V4",
+            "ZMV4",
+            address(this),
+            address(router),
+            address(this),
+            address(rewardToken),
+            taxes,
+            TemplateConfigV4.Template.HolderRewards,
+            10_000 ether
+        );
+        BNBXDividendTokenV4 zeroMarketingToken =
+            new BNBXDividendTokenV4(init);
+        MockPair zeroMarketingPair = MockPair(
+            pancakeFactory.createPair(address(zeroMarketingToken), address(wbnb))
+        );
+        zeroMarketingToken.configureLaunch(
+            address(this), address(zeroMarketingPair)
+        );
+        TokenSellerV4 zeroMarketingSeller = new TokenSellerV4();
+        zeroMarketingToken.transfer(
+            address(zeroMarketingSeller), 100_000_000 ether
+        );
+        zeroMarketingToken.unlockLiquidityPair();
+        zeroMarketingToken.transfer(
+            address(zeroMarketingPair), 200_000_000 ether
+        );
+
+        router.setFailQuotes(true);
+        zeroMarketingSeller.sell(
+            zeroMarketingToken, address(zeroMarketingPair), 20_000_000 ether
+        );
+        zeroMarketingSeller.sell(
+            zeroMarketingToken, address(zeroMarketingPair), 60_000_000 ether
+        );
+        router.setFailQuotes(false);
+
+        zeroMarketingToken.processTaxes();
+
+        assert(zeroMarketingToken.tokensForMarketing() == 0);
+        assert(zeroMarketingToken.tokensForLiquidity() == 1_500_000 ether);
+        assert(zeroMarketingToken.tokensForRewards() == 1_500_000 ether);
+    }
 }
