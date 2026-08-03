@@ -46,25 +46,25 @@ packages/chain-config shared chain addresses and IDs
 - Fee recipient: `0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`
 - Platform admin signing wallet:
   `0xbE37AB912De351B9312FA593C9f99e3279FDB0a2`
-- Standard zero-tax Factory: `0x6012aa2eb5164c8ed31f2a01950c3b5037211181`
-- Advanced token deployer: `0x1c6354eBf4B7BC4e3da65C2B718a36e7C2A81707`
-- Holder/LP rewards Factory: `0x6C72ECE4F7AA05F3b2099Ef9dD2d668E7e3f688E`
+- Standard zero-tax Factory: `0x510dbBE270b2F009619BCbcF757aE2e2D48734Ad`
+- Advanced token deployer: `0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c`
+- Holder/LP rewards Factory: `0x28100dBFA3F1a3D563e1667259433AdFA3aaC4BB`
 - Standard Factory deployment:
-  `0x8aa33936ad714c17b900b29d92271a8f6ed8d1832172670ba414f88c81b2455c`
+  `0x31dcdb83a885f1a02d1a19656c988cd61e6744a7149900f89c71dd26c13d528f`
 - Advanced token deployer deployment:
-  `0x614acd272d4ce00d168fc48e7d6354ed82c7e7479db44e309ee9db423b8a6b2f`
+  `0xe75203f55eb924c5606ee0733b3eb17d509eb446c3b5e6fef9c5d9b9a73ede54`
 - Rewards Factory deployment:
-  `0xd3682b2c51840a818d992e50c165428fa91844ede696bc2a4e3d85b272b940de`
+  `0x4700bf563aaa0d0c413962163ef0274a05daecf5789f664d43ff448a9fa4519e`
 - Deployer manager configuration:
-  `0x8e4cc30ec9908596510e4135641457f46fafd679ca6532622aacedfa9a111d41`
+  `0xdbe5034667981942a2f2654480175daf7b98527e32f14b1913d411b8f873695a`
 
 All Solidity sources are public under the MIT License. The three user-facing
 templates are permanent zero tax, holder rewards, and LP rewards. The deployed
 standard Factory, rewards Factory, and advanced deployer match the current V4
 source and generated deployment artifacts. The superseded pre-fix rewards
-infrastructure is documented in
+infrastructure and the superseded 0.5% V4 factories are documented in
 [docs/mainnet-source-verification.md](docs/mainnet-source-verification.md) and
-remains public and readable only for historical launches.
+remain public and readable only for historical launches.
 
 The web deployment uses server-only `PINATA_JWT`, `BSC_MAINNET_RPC_URL`, and
 `BSC_LOG_RPC_URL` environment variables. Platform management signatures use

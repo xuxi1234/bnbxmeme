@@ -40,16 +40,29 @@ snapshot on BscScan.
 
 | Component                 | Address                                      | Deployment transaction                                               |
 | ------------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
+| Standard zero-tax Factory | `0x510dbBE270b2F009619BCbcF757aE2e2D48734Ad` | `0x31dcdb83a885f1a02d1a19656c988cd61e6744a7149900f89c71dd26c13d528f` |
+| Advanced token deployer   | `0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c` | `0xe75203f55eb924c5606ee0733b3eb17d509eb446c3b5e6fef9c5d9b9a73ede54` |
+| Holder/LP rewards Factory | `0x28100dBFA3F1a3D563e1667259433AdFA3aaC4BB` | `0x4700bf563aaa0d0c413962163ef0274a05daecf5789f664d43ff448a9fa4519e` |
+
+The advanced deployer's one-time manager binding to the rewards Factory was
+confirmed in transaction
+`0xdbe5034667981942a2f2654480175daf7b98527e32f14b1913d411b8f873695a`.
+The fixed fee recipient is
+`0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`, and the fixed PancakeSwap V2
+Router is `0x10ED43C718714eb63d5aA57B78B54704E256024E`.
+
+## Historical 0.5% V4 deployments
+
+| Component                 | Address                                      | Deployment transaction                                               |
+| ------------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
 | Standard zero-tax Factory | `0x6012aa2eb5164c8ed31f2a01950c3b5037211181` | `0x8aa33936ad714c17b900b29d92271a8f6ed8d1832172670ba414f88c81b2455c` |
 | Advanced token deployer   | `0x1c6354eBf4B7BC4e3da65C2B718a36e7C2A81707` | `0x614acd272d4ce00d168fc48e7d6354ed82c7e7479db44e309ee9db423b8a6b2f` |
 | Holder/LP rewards Factory | `0x6C72ECE4F7AA05F3b2099Ef9dD2d668E7e3f688E` | `0xd3682b2c51840a818d992e50c165428fa91844ede696bc2a4e3d85b272b940de` |
 
-The advanced deployer's one-time manager binding to the rewards Factory was
-confirmed in transaction
+The previous advanced deployer was bound in transaction
 `0x8e4cc30ec9908596510e4135641457f46fafd679ca6532622aacedfa9a111d41`.
-The fixed fee recipient is
-`0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`, and the fixed PancakeSwap V2
-Router is `0x10ED43C718714eb63d5aA57B78B54704E256024E`.
+These immutable factories remain indexed for historical launches. New token
+creation must use the active 1% deployments above.
 
 ## Historical pre-fix rewards infrastructure
 
@@ -95,9 +108,9 @@ pnpm --filter @bnbx/contracts verify-source:mainnet:v4
 ## Verify deployed V4 infrastructure
 
 ```bash
-BNBX_V4_STANDARD_FACTORY_ADDRESS=0x6012aa2eb5164c8ed31f2a01950c3b5037211181 \
-BNBX_V4_REWARDS_FACTORY_ADDRESS=0x6C72ECE4F7AA05F3b2099Ef9dD2d668E7e3f688E \
-BNBX_V4_TOKEN_DEPLOYER_ADDRESS=0x1c6354eBf4B7BC4e3da65C2B718a36e7C2A81707 \
+BNBX_V4_STANDARD_FACTORY_ADDRESS=0x510dbBE270b2F009619BCbcF757aE2e2D48734Ad \
+BNBX_V4_REWARDS_FACTORY_ADDRESS=0x28100dBFA3F1a3D563e1667259433AdFA3aaC4BB \
+BNBX_V4_TOKEN_DEPLOYER_ADDRESS=0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c \
 pnpm --filter @bnbx/contracts verify-source:mainnet:v4
 ```
 
