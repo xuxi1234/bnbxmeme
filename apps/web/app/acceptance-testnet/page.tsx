@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   formatEther,
@@ -28,13 +28,16 @@ import {
   TESTNET_PANCAKE_ROUTER,
   TESTNET_REWARDS_FACTORY,
   TESTNET_STANDARD_FACTORY,
+  TESTNET_ACCEPTANCE_TOKEN_STORAGE_KEY,
   TESTNET_VANITY_CHUNK,
   TESTNET_VANITY_LIMIT,
   acceptanceErc20Abi,
   acceptanceFactory,
   acceptanceRewardVaultAbi,
   acceptanceRouterAbi,
+  acceptanceTokenCandidate,
   buildAcceptanceCreateRequest,
+  normalizeAcceptanceAddress,
   tokenCreatedFromReceipt,
   type AcceptanceTemplate,
 } from "@/lib/testnet-acceptance";
@@ -97,10 +100,11 @@ export default function AcceptanceTestnetPage() {
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [transactions, setTransactions] = useState<TxRecord[]>([]);
+  const restoredForAccount = useRef("");
 
   const wrongChain = isConnected && chainId !== bscTestnet.id;
   const configuredFactory = acceptanceFactory(template);
-  const tokenAddress = isAddress(token) ? token : null;
+  const tokenAddress = normalizeAcceptanceAddress(token);
   const deadline = () => BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
 
   const readiness = useMemo(
@@ -242,6 +246,13 @@ export default function AcceptanceTestnetPage() {
           lpBalance,
           rewardBalance,
         });
+        window.localStorage.setItem(
+          TESTNET_ACCEPTANCE_TOKEN_STORAGE_KEY,
+          selected,
+        );
+        const restoredUrl = new URL(window.location.href);
+        restoredUrl.searchParams.set("token", selected);
+        window.history.replaceState(null, "", restoredUrl);
       } catch (cause) {
         setSnapshot(null);
         setError(cause instanceof Error ? cause.message : "读取链上状态失败");
@@ -252,12 +263,30 @@ export default function AcceptanceTestnetPage() {
     [address, publicClient, tokenAddress],
   );
 
+  useEffect(() => {
+    if (!address || !publicClient || restoredForAccount.current === address)
+      return;
+    restoredForAccount.current = address;
+    const restored = acceptanceTokenCandidate(
+      window.location.search,
+      window.localStorage.getItem(TESTNET_ACCEPTANCE_TOKEN_STORAGE_KEY),
+    );
+    if (!restored) return;
+    setToken(restored);
+    setTransferRecipient(address);
+    setClaimForAccount(address);
+    void loadSnapshot(restored);
+  }, [address, loadSnapshot, publicClient]);
+
   async function runTransaction(
     label: string,
     submit: () => Promise<`0x${string}`>,
     refresh = true,
   ) {
-    if (!publicClient) return null;
+    if (!publicClient) {
+      setError("BSC Testnet 连接尚未就绪，请刷新后重试");
+      return null;
+    }
     setBusy(label);
     setError("");
     try {
@@ -430,9 +459,7 @@ export default function AcceptanceTestnetPage() {
 
   function selectSellPercent(percent: 25 | 50 | 100) {
     if (!snapshot) return;
-    setSellAmount(
-      formatEther((snapshot.balance * BigInt(percent)) / 100n),
-    );
+    setSellAmount(formatEther((snapshot.balance * BigInt(percent)) / 100n));
   }
 
   async function sell() {
@@ -500,27 +527,39 @@ export default function AcceptanceTestnetPage() {
     label: string,
     functionName: "syncRewards" | "processRewards" | "claim" | "claimFor",
   ) {
-    const context = requireVault();
-    const args =
-      functionName === "processRewards"
-        ? ([500_000n] as const)
-        : functionName === "claim"
-          ? ([context.address] as const)
-          : functionName === "claimFor"
-            ? ([
-                isAddress(claimForAccount) ? claimForAccount : context.address,
-              ] as const)
-            : ([] as const);
-    await runTransaction(label, () =>
-      writeContractAsync({
-        address: context.vault,
-        abi: acceptanceRewardVaultAbi,
-        functionName,
-        args,
-        account: context.address,
-        chain: bscTestnet,
-      }),
-    );
+    if (wrongChain) {
+      setError("请先将钱包切换到 BSC Testnet");
+      switchChain({ chainId: bscTestnet.id });
+      return;
+    }
+    try {
+      const context = requireVault();
+      const args =
+        functionName === "processRewards"
+          ? ([500_000n] as const)
+          : functionName === "claim"
+            ? ([context.address] as const)
+            : functionName === "claimFor"
+              ? ([
+                  isAddress(claimForAccount)
+                    ? claimForAccount
+                    : context.address,
+                ] as const)
+              : ([] as const);
+      await runTransaction(label, () =>
+        writeContractAsync({
+          address: context.vault,
+          abi: acceptanceRewardVaultAbi,
+          functionName,
+          args,
+          account: context.address,
+          chain: bscTestnet,
+          ...(functionName === "syncRewards" ? { gas: 500_000n } : {}),
+        }),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : `${label}失败`);
+    }
   }
 
   async function approveRouter() {
@@ -804,7 +843,9 @@ export default function AcceptanceTestnetPage() {
                   className="button secondary"
                   type="button"
                   key={percent}
-                  disabled={!snapshot || snapshot.balance === 0n || Boolean(busy)}
+                  disabled={
+                    !snapshot || snapshot.balance === 0n || Boolean(busy)
+                  }
                   onClick={() => selectSellPercent(percent)}
                 >
                   {percent}%
@@ -812,7 +853,8 @@ export default function AcceptanceTestnetPage() {
               ))}
             </div>
             <p className="notice">
-              卖出授权对象：{snapshot ? shortAddress(snapshot.curve) : "—"}（当前曲线合约）
+              卖出授权对象：{snapshot ? shortAddress(snapshot.curve) : "—"}
+              （当前曲线合约）
             </p>
             <button
               className="button wide secondary"
@@ -881,12 +923,13 @@ export default function AcceptanceTestnetPage() {
             <button
               className="button wide secondary"
               type="button"
-              disabled={
-                !snapshot || snapshot.vault === zeroAddress || Boolean(busy)
-              }
-              onClick={() => vaultAction("同步分红", "syncRewards")}
+              disabled={Boolean(busy)}
+              aria-busy={busy === "同步分红"}
+              onClick={() => void vaultAction("同步分红", "syncRewards")}
             >
-              syncRewards
+              {busy === "同步分红"
+                ? "等待钱包或链上确认…"
+                : "syncRewards（同步金库余额）"}
             </button>
             <button
               className="button wide"
