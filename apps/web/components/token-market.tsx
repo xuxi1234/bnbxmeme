@@ -68,12 +68,34 @@ type MarketScoreResult = readonly [string, MarketScore, boolean];
 
 const SCORE_REQUEST_BATCH_SIZE = 8;
 const SCORE_POLL_INTERVAL_MS = 60_000;
+const MARKET_PAGE_SIZE = 8;
 
 function asBigInt(value: string | null) {
   return value === null ? undefined : BigInt(value);
 }
 
-function TokenCard({
+function formatAge(timestamp: number | undefined, locale: string) {
+  if (timestamp === undefined || !Number.isFinite(timestamp)) return "—";
+  const elapsedSeconds = Math.max(0, (Date.now() - timestamp) / 1_000);
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  if (elapsedSeconds < 3_600) {
+    return formatter.format(
+      -Math.max(1, Math.floor(elapsedSeconds / 60)),
+      "minute",
+    );
+  }
+  if (elapsedSeconds < 86_400) {
+    return formatter.format(-Math.floor(elapsedSeconds / 3_600), "hour");
+  }
+  return formatter.format(-Math.floor(elapsedSeconds / 86_400), "day");
+}
+
+function formatUsdMetric(value: number | undefined, locale: string) {
+  if (value === undefined || !Number.isFinite(value) || value < 0) return "—";
+  return `$${formatCompactMetric(value, locale)}`;
+}
+
+function TokenMarketRow({
   entry,
   score,
   onCreationTime,
@@ -95,96 +117,147 @@ function TokenCard({
     principal !== undefined && target !== undefined && target > 0n
       ? Math.min(100, Number((principal * 10_000n) / target) / 100)
       : null;
+  const locale = localeByLanguage[language];
   const priceUsdt = tokenPriceUsdt(score?.pricePerMillion, score?.bnbUsd);
+  const supply = entry.totalSupply
+    ? Number(formatEther(BigInt(entry.totalSupply)))
+    : undefined;
+  const marketCap =
+    priceUsdt !== null && supply !== undefined ? priceUsdt * supply : undefined;
+  const volumeUsd =
+    score?.volume24hBnb !== undefined && score?.bnbUsd !== undefined
+      ? score.volume24hBnb * score.bnbUsd
+      : undefined;
+  const liquidityUsd =
+    score?.liquidityBnb !== undefined && score?.bnbUsd !== undefined
+      ? score.liquidityBnb * score.bnbUsd
+      : undefined;
+  const change = score?.priceChange24h;
+  const stateLabel =
+    entry.state === null
+      ? t("dataUnknown")
+      : entry.state === 2
+        ? t("graduatedState")
+        : entry.state === 1
+          ? t("graduatingState")
+          : t("internal");
 
   return (
-    <Link className="token-card" href={tokenProjectPath(entry.token)}>
-      <div className="token-avatar">
-        {metadata?.image && !imageFailed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={metadata.image}
-            alt={interpolate(a11y.tokenLogo, {
-              name:
-                entry.name ??
-                metadata?.name ??
-                entry.symbol ??
-                entry.token.slice(0, 10),
-            })}
-            loading="lazy"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          (entry.symbol ?? "?").slice(0, 2)
-        )}
-      </div>
-      <div className="token-card-title">
-        <strong>{entry.name ?? t("dataUnknown")}</strong>
-        <span>${entry.symbol ?? "—"}</span>
-      </div>
-      <span
-        className={
-          entry.state === null
-            ? "state-label"
-            : `state-label state-${entry.state}`
-        }
-      >
-        {entry.state === null
-          ? t("dataUnknown")
-          : entry.state === 2
-            ? t("graduatedState")
-            : entry.state === 1
-              ? t("graduatingState")
-              : t("internal")}
+    <Link
+      className="token-market-row"
+      href={tokenProjectPath(entry.token)}
+      role="row"
+    >
+      <span className="token-market-identity" role="cell">
+        <span className="token-avatar">
+          {metadata?.image && !imageFailed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={metadata.image}
+              alt={interpolate(a11y.tokenLogo, {
+                name:
+                  entry.name ??
+                  metadata?.name ??
+                  entry.symbol ??
+                  entry.token.slice(0, 10),
+              })}
+              loading="lazy"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            (entry.symbol ?? "?").slice(0, 2)
+          )}
+        </span>
+        <span className="token-market-name">
+          <strong>{entry.name ?? t("dataUnknown")}</strong>
+          <small>${entry.symbol ?? "—"}</small>
+        </span>
       </span>
-      <div className="token-card-progress">
-        <div>
-          <span>{t("progress")}</span>
+      <span
+        className="token-market-value token-market-price"
+        role="cell"
+        data-label={t("currentPrice")}
+      >
+        <strong>{formatCompactTokenPriceUsdt(priceUsdt, locale)}</strong>
+        <small>{entry.name ?? entry.symbol ?? t("token")} / USDT</small>
+      </span>
+      <span
+        className="token-market-progress"
+        role="cell"
+        data-label={t("progress")}
+      >
+        <span>
           <strong>{progress === null ? "—" : `${progress.toFixed(2)}%`}</strong>
-        </div>
-        <div className="mini-track">
-          <i style={{ width: `${progress ?? 0}%` }} />
-        </div>
-      </div>
-      <div className="token-card-market">
-        <div>
-          <span>{t("currentPrice")}</span>
-          <strong>
-            {formatCompactTokenPriceUsdt(priceUsdt, localeByLanguage[language])}
-          </strong>
-          <small>
-            {entry.name ?? entry.symbol ?? t("token")} / USDT
-            {score?.priceChange24h !== undefined
-              ? ` · ${score.priceChange24h >= 0 ? "+" : ""}${score.priceChange24h.toFixed(2)}%`
-              : ""}
+          <small
+            className={
+              entry.state === 2 ? "state-label state-2" : "state-label"
+            }
+          >
+            {stateLabel}
           </small>
-        </div>
-        <div>
-          <span>{t("volume24h")}</span>
-          <strong>
-            {score?.volume24hBnb === undefined
-              ? "—"
-              : formatCompactMetric(score.volume24hBnb)}{" "}
-            BNB
-          </strong>
-        </div>
-        <div>
-          <span>{t("trades24h")}</span>
-          <strong>{score?.activity ?? "—"}</strong>
-        </div>
-        <div>
-          <span>{t("holders")}</span>
-          <strong>{score?.holderCount ?? "—"}</strong>
-        </div>
-      </div>
-      <div className="token-card-footer">
-        <span>
-          {principal === undefined ? "—" : formatEther(principal)} BNB
         </span>
-        <span>
-          {t("target")} {target === undefined ? "—" : formatEther(target)} BNB
+        <span className="mini-track" aria-hidden="true">
+          <i style={{ width: `${progress ?? 0}%` }} />
         </span>
-      </div>
+      </span>
+      <span
+        className="token-market-value token-market-age"
+        role="cell"
+        data-label={t("launchTime")}
+      >
+        <strong>{formatAge(score?.createdAt, locale)}</strong>
+      </span>
+      <span
+        className="token-market-value token-market-cap"
+        role="cell"
+        data-label={t("marketCap")}
+      >
+        <strong>{formatUsdMetric(marketCap, locale)}</strong>
+      </span>
+      <span
+        className="token-market-value token-market-volume"
+        role="cell"
+        data-label={t("volume24h")}
+      >
+        <strong>{formatUsdMetric(volumeUsd, locale)}</strong>
+        <small>
+          {score?.volume24hBnb === undefined
+            ? "—"
+            : `${formatCompactMetric(score.volume24hBnb, locale)} BNB`}
+        </small>
+      </span>
+      <span
+        className="token-market-value token-market-holders"
+        role="cell"
+        data-label={t("holders")}
+      >
+        <strong>{score?.holderCount ?? "—"}</strong>
+      </span>
+      <span
+        className="token-market-value token-market-trades"
+        role="cell"
+        data-label={t("trades24h")}
+      >
+        <strong>{score?.activity ?? "—"}</strong>
+      </span>
+      <span
+        className="token-market-value token-market-liquidity"
+        role="cell"
+        data-label={t("liquidity")}
+      >
+        <strong>{formatUsdMetric(liquidityUsd, locale)}</strong>
+      </span>
+      <span
+        className={`token-market-value token-market-change ${change === undefined ? "" : change >= 0 ? "positive" : "negative"}`}
+        role="cell"
+        data-label={t("change24h")}
+      >
+        <strong>
+          {change === undefined
+            ? "—"
+            : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
+        </strong>
+      </span>
     </Link>
   );
 }
@@ -200,6 +273,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   const [scoreLoadPartial, setScoreLoadPartial] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [indexReloadKey, setIndexReloadKey] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const hasPayload = useRef(false);
   const scoreEntriesRef = useRef<MarketEntry[]>([]);
   const { t } = useLanguage();
@@ -469,6 +543,29 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     () => resolveMarketNoResults(query, filter),
     [filter, query],
   );
+  const pageCount = Math.max(1, Math.ceil(ranked.length / MARKET_PAGE_SIZE));
+  const pagedEntries = ranked.slice(
+    (currentPage - 1) * MARKET_PAGE_SIZE,
+    currentPage * MARKET_PAGE_SIZE,
+  );
+  const pageNumbers = Array.from(
+    { length: Math.min(5, pageCount) },
+    (_, index) => {
+      const start = Math.min(
+        Math.max(1, currentPage - 2),
+        Math.max(1, pageCount - 4),
+      );
+      return start + index;
+    },
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, query]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, pageCount));
+  }, [pageCount]);
 
   if (isLoading && !payload) {
     return <MarketNotice title={t("loading")} message="BNB Chain Mainnet" />;
@@ -616,16 +713,69 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
           </div>
         </section>
       ) : (
-        <div className="token-grid">
-          {ranked.map((entry) => (
-            <TokenCard
-              key={entry.token}
-              entry={entry}
-              score={scores[entry.token]}
-              onCreationTime={rememberCreationTime}
-            />
-          ))}
+        <div
+          className="token-market-table"
+          role="table"
+          aria-label={t("projects")}
+        >
+          <div className="token-market-header" role="row">
+            {[
+              t("token"),
+              t("currentPrice"),
+              t("progress"),
+              t("launchTime"),
+              t("marketCap"),
+              t("volume24h"),
+              t("holders"),
+              t("trades24h"),
+              t("liquidity"),
+              t("change24h"),
+            ].map((label) => (
+              <span key={label} role="columnheader">
+                {label}
+              </span>
+            ))}
+          </div>
+          <div className="token-market-body" role="rowgroup">
+            {pagedEntries.map((entry) => (
+              <TokenMarketRow
+                key={entry.token}
+                entry={entry}
+                score={scores[entry.token]}
+                onCreationTime={rememberCreationTime}
+              />
+            ))}
+          </div>
         </div>
+      )}
+      {ranked.length > MARKET_PAGE_SIZE && (
+        <nav className="market-pagination" aria-label={t("pagination")}>
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((page) => page - 1)}
+          >
+            {t("previousPage")}
+          </button>
+          {pageNumbers.map((page) => (
+            <button
+              type="button"
+              key={page}
+              className={page === currentPage ? "active" : ""}
+              aria-current={page === currentPage ? "page" : undefined}
+              onClick={() => setCurrentPage(page)}
+            >
+              {page}
+            </button>
+          ))}
+          <button
+            type="button"
+            disabled={currentPage === pageCount}
+            onClick={() => setCurrentPage((page) => page + 1)}
+          >
+            {t("nextPage")}
+          </button>
+        </nav>
       )}
     </>
   );
