@@ -34,5 +34,8 @@ test("collapses secondary mobile detail and keeps navigation compact", () => {
   assert.match(tokenPage, /tokenomicsExpanded/);
   assert.match(tokenPage, /rewardsExpanded/);
   assert.match(discussion, /mobileExpanded/);
-  assert.match(styles, /\.token-card-footer \{\s*display: none;\s*\}/);
+  assert.match(styles, /\.token-market-header \{\s*display: none;/);
+  assert.match(styles, /grid-template-areas:\s*"identity identity price"/);
+  assert.match(styles, /\.token-market-age,/);
+  assert.match(styles, /\.token-market-cap \{\s*display: none;/);
 });
