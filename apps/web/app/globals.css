@@ -56,16 +56,12 @@
 :root[data-theme="light"] .curve-chart {
   background: #fff;
 }
-:root[data-theme="light"] .assurance-grid article,
 :root[data-theme="light"] .token-card,
 :root[data-theme="light"] .activity-panel,
 :root[data-theme="light"] .tax-template-card {
   border-color: var(--line);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 12px 34px rgba(51, 46, 25, 0.06);
-}
-:root[data-theme="light"] .assurance-grid small {
-  color: #087c79;
 }
 :root[data-theme="light"] .quick-paths {
   border-color: var(--line);
@@ -153,7 +149,6 @@
   border-color: var(--emphasis-border);
   box-shadow: 0 24px 70px rgba(75, 62, 22, 0.12);
 }
-:root[data-theme="light"] .assurance-grid article,
 :root[data-theme="light"] .market-toolbar {
   border-color: var(--emphasis-border);
 }
@@ -1188,48 +1183,6 @@ h1 {
   color: var(--muted);
   font-size: 12px;
 }
-.assurance-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 28px;
-}
-.assurance-grid article {
-  min-height: 166px;
-  padding: 25px;
-  border: 1px solid var(--emphasis-border);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  transition:
-    border-color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-.assurance-grid article:hover {
-  transform: translateY(-3px);
-  border-color: var(--brand);
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
-}
-.assurance-grid small {
-  color: #76e4df;
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-}
-.assurance-grid strong {
-  display: block;
-  margin-top: 9px;
-  font-size: 21px;
-  line-height: 1.25;
-}
-.assurance-grid p {
-  max-width: 38ch;
-  margin: 13px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.65;
-}
-
 .market-section,
 .migration {
   padding: 42px 0 48px;
@@ -3793,9 +3746,6 @@ h2 {
   .banner-foot {
     padding-left: 34px;
   }
-  .assurance-grid {
-    grid-template-columns: 1fr;
-  }
   .quick-paths {
     grid-template-columns: 1fr 1fr;
   }
@@ -3804,9 +3754,6 @@ h2 {
   }
   .quick-paths article:nth-child(-n + 2) {
     border-bottom: 1px solid var(--line);
-  }
-  .assurance-grid article {
-    min-height: 0;
   }
   .hero {
     grid-template-columns: 1fr;
