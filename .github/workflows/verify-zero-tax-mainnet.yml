@@ -1,0 +1,62 @@
+name: Verify BNBX zero-tax contracts on BscScan
+run-name: Verify BNBX zero-tax contracts ${{ inputs.factory_address || github.event_name }}
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      factory_address:
+        description: "Deployed BNBXZeroTaxFactory address"
+        required: true
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/verify-zero-tax-mainnet.yml"
+      - "packages/contracts/src/BNBXZeroTaxToken.sol"
+      - "packages/contracts/src/BNBXZeroTaxFactory.sol"
+      - "packages/contracts/scripts/verify-zero-tax-source-mainnet.mjs"
+      - "packages/contracts/scripts/verification-compiler-input.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-bnbx-zero-tax-mainnet
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || vars.BNBX_ZERO_TAX_FACTORY_ADDRESS != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+      BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
+      BNBX_ZERO_TAX_FACTORY_ADDRESS: ${{ inputs.factory_address || vars.BNBX_ZERO_TAX_FACTORY_ADDRESS }}
+      VERIFY_DRY_RUN: ${{ github.event_name == 'push' && '1' || '0' }}
+      VERIFY_LAUNCHED_TOKENS: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit zero-tax template
+        run: pnpm --filter @bnbx/contracts audit:zero-tax
+
+      - name: Verify Factory, tokens, and Curves
+        run: pnpm --filter @bnbx/contracts verify-source:zero-tax-mainnet
