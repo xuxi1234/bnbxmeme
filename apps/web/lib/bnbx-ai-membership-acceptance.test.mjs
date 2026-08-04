@@ -2,31 +2,40 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [component, paymentRoute, chatRoute, auth, membership, migration, css] =
-  await Promise.all([
-    readFile(
-      new URL("../components/bnbx-ai-assistant.tsx", import.meta.url),
-      "utf8",
+const [
+  component,
+  paymentRoute,
+  chatRoute,
+  auth,
+  membership,
+  migration,
+  css,
+  copy,
+] = await Promise.all([
+  readFile(
+    new URL("../components/bnbx-ai-assistant.tsx", import.meta.url),
+    "utf8",
+  ),
+  readFile(
+    new URL("../app/api/bnbx-ai/payment/route.ts", import.meta.url),
+    "utf8",
+  ),
+  readFile(
+    new URL("../app/api/bnbx-ai/chat/route.ts", import.meta.url),
+    "utf8",
+  ),
+  readFile(new URL("bnbx-ai-auth.ts", import.meta.url), "utf8"),
+  readFile(new URL("bnbx-ai-membership.ts", import.meta.url), "utf8"),
+  readFile(
+    new URL(
+      "../../../supabase/migrations/20260805070000_bnbx_ai_permanent_credit.sql",
+      import.meta.url,
     ),
-    readFile(
-      new URL("../app/api/bnbx-ai/payment/route.ts", import.meta.url),
-      "utf8",
-    ),
-    readFile(
-      new URL("../app/api/bnbx-ai/chat/route.ts", import.meta.url),
-      "utf8",
-    ),
-    readFile(new URL("bnbx-ai-auth.ts", import.meta.url), "utf8"),
-    readFile(new URL("bnbx-ai-membership.ts", import.meta.url), "utf8"),
-    readFile(
-      new URL(
-        "../../../supabase/migrations/20260805070000_bnbx_ai_permanent_credit.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-    readFile(new URL("../app/bnbx-ai.css", import.meta.url), "utf8"),
-  ]);
+    "utf8",
+  ),
+  readFile(new URL("../app/bnbx-ai.css", import.meta.url), "utf8"),
+  readFile(new URL("bnbx-ai-copy.ts", import.meta.url), "utf8"),
+]);
 
 test("charges exactly 0.1 BNB to the approved BSC recipient", () => {
   const recipient = "0x3c97e99441cf86778d81fd6fef61bda84be9634a";
@@ -50,8 +59,8 @@ test("credits only a confirmed direct payment from the connected wallet", () => 
 
 test("makes membership permanent and each unique payment worth 68 USDT", () => {
   assert.match(membership, /BNBX_AI_CREDIT_MICROUSD = 68_000_000/);
-  assert.match(component, /68 USDT/);
-  assert.doesNotMatch(component, /100 USDT/);
+  assert.match(copy, /68 USDT/);
+  assert.doesNotMatch(copy, /100 USDT/);
   assert.match(migration, /permanent_member boolean not null default true/);
   assert.match(migration, /tx_hash text primary key/);
   assert.match(migration, /on conflict \(tx_hash\) do nothing/);
@@ -88,8 +97,30 @@ test("replaces the one-BNB balance gate with paid membership plus signature", ()
   assert.doesNotMatch(auth, /getBalance|More than 1 BNB|MIN_BALANCE/);
   assert.match(auth, /await assertAiMember\(address\)/);
   assert.match(component, /signMessageAsync/);
-  assert.match(component, /永久开通 BNBX AI/);
-  assert.match(component, /领取专属于您的小壹 \/ X-One/);
+  assert.match(copy, /永久开通 BNBX AI/);
+  assert.match(copy, /领取专属于您的小壹 \/ X-One/);
+});
+
+test("localizes the complete X-One experience in all four site languages", () => {
+  for (const language of ["zh", "en", "ko", "ja"]) {
+    assert.match(copy, new RegExp(`\\b${language}: \\{`));
+  }
+  assert.match(component, /useLanguage\(\)/);
+  assert.match(component, /bnbxAiCopy\[language\]/);
+  assert.match(component, /JSON\.stringify\(\{ messages: next, language \}\)/);
+  assert.match(chatRoute, /The interface language is/);
+});
+
+test("shows staged payment feedback and a useful My X-One summary", () => {
+  assert.match(component, /setPaymentStage\("wallet"\)/);
+  assert.match(component, /setPaymentStage\("submitted"\)/);
+  assert.match(component, /setPaymentStage\("verifying"\)/);
+  assert.match(component, /setPaymentStage\("success"\)/);
+  assert.match(component, /className="bnbx-ai-membership"/);
+  assert.match(component, /membership\.lifetimeSpentMicrousd/);
+  assert.match(component, /membership\.paymentCount/);
+  assert.match(component, /toFixed\(2\)/);
+  assert.match(css, /bnbx-ai-payment-progress/);
 });
 
 test("reserves credit before the provider call and settles actual token usage", () => {
