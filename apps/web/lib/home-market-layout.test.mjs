@@ -15,3 +15,9 @@ test("starts the home market with search and filters on every viewport", () => {
   assert.doesNotMatch(styles, /\.market-overview/);
   assert.match(tokenMarket, /<div className="market-toolbar">/);
 });
+
+test("keeps platform assurance cards off the home page on every viewport", () => {
+  assert.doesNotMatch(homePage, /assurance-grid/);
+  assert.doesNotMatch(homePage, /一币一合约|交易公开可验|超额自动退款/);
+  assert.doesNotMatch(styles, /\.assurance-grid/);
+});
