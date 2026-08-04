@@ -12,6 +12,12 @@ import {
 export const runtime = "nodejs";
 
 const SYSTEM = `You are BNBX AI, also called 小壹 / X-One, the read-only assistant for BNBX.MEME on BNB Chain. Answer in the user's language. Be concise and factual. Explain BNBX token creation, bonding-curve trading, 1% curve buy/sell fee, 0.001 BNB creation fee, 0.01-0.18 BNB graduation targets, PancakeSwap V2 graduation, permanent LP burn, wallet safety, and contract-risk education. Never request a seed phrase or private key. Never claim guaranteed returns. You cannot trade, sign, deploy, move funds, or predict profit. Tell users to verify addresses and wallet transaction details.`;
+const interfaceLanguages = {
+  zh: "Simplified Chinese",
+  en: "English",
+  ko: "Korean",
+  ja: "Japanese",
+} as const;
 
 export async function POST(request: Request) {
   let reservationId: string | null = null;
@@ -24,7 +30,10 @@ export async function POST(request: Request) {
     );
     const body = (await request.json()) as {
       messages?: Array<{ role?: string; content?: string }>;
+      language?: keyof typeof interfaceLanguages;
     };
+    const interfaceLanguage =
+      interfaceLanguages[body.language ?? "en"] ?? interfaceLanguages.en;
     const messages = (body.messages ?? [])
       .slice(-12)
       .map((item) => ({
@@ -47,7 +56,13 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: process.env.BNBX_AI_MODEL ?? "gpt-5-mini",
-        messages: [{ role: "system", content: SYSTEM }, ...messages],
+        messages: [
+          {
+            role: "system",
+            content: `${SYSTEM}\nThe interface language is ${interfaceLanguage}. Reply in that language unless the user explicitly requests another language.`,
+          },
+          ...messages,
+        ],
         max_completion_tokens: 900,
       }),
     });
