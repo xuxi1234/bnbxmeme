@@ -27,6 +27,7 @@ const entrypoints = [
   "test/BNBXRewardVaultV3.t.sol",
   "test/BNBXRewardVaultV4.t.sol",
   "test/BNBXV4Security.t.sol",
+  "test/BNBXZeroTaxTemplate.t.sol",
   "test/DividendTaxProcessingV4.t.sol",
   "test/BNBXRewardVault.t.sol",
 ];
@@ -138,6 +139,22 @@ function check(condition, message) {
 }
 
 const suites = [
+  {
+    source: "test/BNBXZeroTaxTemplate.t.sol",
+    contract: "BNBXZeroTaxTemplateTest",
+    tests: [
+      "testFixedSupplyAndTransfersNeverTakeTax",
+      "testRejectsInvalidIdentityAndLaunchManager",
+      "testLaunchPermissionsAreSingleUseAndDestroyed",
+      "testFiniteAndInfiniteAllowancesFollowERC20Rules",
+      "testNoOwnerMintTaxBlacklistPauseUpgradeOrWithdrawal",
+      "testFactorySourceUsesOnlyTheDedicatedZeroTaxToken",
+      "testFactoryCreatesAndLocksOneBillionZeroTaxTokens",
+      "testFactoryPredictionUsesOnlyTheCleanTokenInitCode",
+      "testImmediateBuySellCannotCreateBNBProfit",
+      "testExactFillGraduatesAndBurnsAllLP",
+    ],
+  },
   {
     source: "test/BNBXRewardVaultV4.t.sol",
     contract: "BNBXRewardVaultV4Test",
@@ -308,7 +325,8 @@ for (const suite of selectedSuites) {
 
   if (
     suite.contract.endsWith("IntegrationTest") ||
-    suite.contract.startsWith("DividendTaxProcessing")
+    suite.contract.startsWith("DividendTaxProcessing") ||
+    suite.contract === "BNBXZeroTaxTemplateTest"
   ) {
     const fundingHash = await walletClient.sendTransaction({
       to: expectedAddress,
@@ -470,6 +488,50 @@ for (const suite of selectedSuites) {
       if (saltReceipt.status !== "success") {
         throw new Error(`Failed to configure test salt for ${name}/${symbol}`);
       }
+    }
+  }
+
+  if (suite.contract === "BNBXZeroTaxTemplateTest") {
+    const factoryAddress = await publicClient.readContract({
+      address: expectedAddress,
+      abi: artifact.abi,
+      functionName: "testFactoryAddress",
+    });
+    const tokenArtifact =
+      output.contracts["src/BNBXZeroTaxToken.sol"].BNBXZeroTaxToken;
+    const initCode = encodeDeployData({
+      abi: tokenArtifact.abi,
+      bytecode: `0x${tokenArtifact.evm.bytecode.object}`,
+      args: ["Clean Factory Token", "CLEAN", factoryAddress],
+    });
+    const bytecodeHash = keccak256(initCode);
+    let foundSalt;
+    for (let candidate = 1n; candidate < 1_000_000n; candidate += 1n) {
+      const salt = padHex(toHex(candidate), { size: 32 });
+      const predicted = getContractAddress({
+        bytecodeHash,
+        from: factoryAddress,
+        opcode: "CREATE2",
+        salt,
+      });
+      if (predicted.toLowerCase().endsWith("1111")) {
+        foundSalt = salt;
+        break;
+      }
+    }
+    if (!foundSalt) throw new Error("No zero-tax test vanity salt found");
+    const saltHash = await walletClient.writeContract({
+      address: expectedAddress,
+      abi: artifact.abi,
+      functionName: "setTestSalt",
+      args: [foundSalt],
+      gas: 150_000n,
+    });
+    const saltReceipt = await publicClient.waitForTransactionReceipt({
+      hash: saltHash,
+    });
+    if (saltReceipt.status !== "success") {
+      throw new Error("Failed to configure zero-tax test vanity salt");
     }
   }
 

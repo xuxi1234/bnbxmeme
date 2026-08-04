@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 import solc from "solc";
 import {
   createMainnetVerificationInputs,
   createVerificationCompilerInput,
+  createZeroTaxVerificationInputs,
 } from "./verification-compiler-input.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const inputs = createMainnetVerificationInputs(root, "V4");
+const zeroTaxInputs = createZeroTaxVerificationInputs(root);
 
 function compile(compilerInput) {
   const output = JSON.parse(solc.compile(JSON.stringify(compilerInput)));
@@ -136,4 +139,50 @@ test("keeps V3 verification supported with template-scoped inputs", () => {
   );
   compile(v3Inputs.standardToken);
   compile(v3Inputs.holderRewardsToken);
+});
+
+test("publishes the new zero-tax token as one independent source", () => {
+  assert.deepEqual(Object.keys(zeroTaxInputs.token.sources), [
+    "src/BNBXZeroTaxToken.sol",
+  ]);
+  assert.deepEqual(Object.keys(zeroTaxInputs.factory.sources), [
+    "src/BNBXZeroTaxFactory.sol",
+    "src/BNBXZeroTaxToken.sol",
+    "src/BondingCurve.sol",
+    "src/interfaces/IERC20Minimal.sol",
+    "src/interfaces/IPancakeV2.sol",
+    "src/libraries/FeeMath.sol",
+  ]);
+  assert.equal(
+    Object.keys(zeroTaxInputs.token.sources).some(
+      (path) => path.includes("Factory") || path.includes("Dividend"),
+    ),
+    false,
+  );
+  compile(zeroTaxInputs.token);
+  compile(zeroTaxInputs.factory);
+});
+
+test("keeps zero-tax source publication read-only and scheduled", () => {
+  const verifier = readFileSync(
+    resolve(root, "scripts/verify-zero-tax-source-mainnet.mjs"),
+    "utf8",
+  );
+  const workflow = readFileSync(
+    resolve(root, "../../.github/workflows/verify-zero-tax-mainnet.yml"),
+    "utf8",
+  );
+  for (const forbidden of [
+    "DEPLOYER_PRIVATE_KEY",
+    "privateKeyToAccount",
+    "createWalletClient",
+    "writeContract",
+    "deployContract",
+    "sendTransaction",
+  ]) {
+    assert.equal(verifier.includes(forbidden), false);
+  }
+  assert.match(workflow, /cron:\s*"\*\/15 \* \* \* \*"/);
+  assert.match(workflow, /audit:zero-tax/);
+  assert.match(workflow, /verify-source:zero-tax-mainnet/);
 });
