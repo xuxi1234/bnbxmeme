@@ -1,5 +1,5 @@
 name: Verify BNBX zero-tax contracts on BscScan
-run-name: Verify BNBX zero-tax contracts ${{ inputs.factory_address || github.event_name }}
+run-name: Verify BNBX zero-tax contracts ${{ inputs.launch_tx_hash || inputs.factory_address || github.event_name }}
 
 on:
   schedule:
@@ -9,6 +9,10 @@ on:
       factory_address:
         description: "Deployed BNBXZeroTaxFactory address"
         required: true
+        type: string
+      launch_tx_hash:
+        description: "Optional launch transaction for audit provenance"
+        required: false
         type: string
   push:
     branches:
@@ -29,14 +33,13 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || vars.BNBX_ZERO_TAX_FACTORY_ADDRESS != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
     env:
       BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
       BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
-      BNBX_ZERO_TAX_FACTORY_ADDRESS: ${{ inputs.factory_address || vars.BNBX_ZERO_TAX_FACTORY_ADDRESS }}
+      BNBX_ZERO_TAX_FACTORY_ADDRESS: ${{ inputs.factory_address || vars.BNBX_ZERO_TAX_FACTORY_ADDRESS || '0xcdb3bb57cb27eab36a7c39685afcb93abfec326f' }}
       VERIFY_DRY_RUN: ${{ github.event_name == 'push' && '1' || '0' }}
       VERIFY_LAUNCHED_TOKENS: "1"
     steps:
