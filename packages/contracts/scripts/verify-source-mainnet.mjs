@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import solc from "solc";
+import { createMainnetVerificationInputs } from "./verification-compiler-input.mjs";
 import {
   createPublicClient,
   encodeAbiParameters,
@@ -15,20 +15,26 @@ const API_URL = "https://api.etherscan.io/v2/api";
 const EXPECTED_DEPLOYER = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
 const EXPECTED_FEE_RECIPIENT = "0xDAF4f62914f7F64c9eabFd473F4dB4b7e74048A6";
 const EXPECTED_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
-const contractVersion = (process.env.BNBX_CONTRACT_VERSION ?? "V3").toUpperCase();
+const contractVersion = (
+  process.env.BNBX_CONTRACT_VERSION ?? "V3"
+).toUpperCase();
 if (contractVersion !== "V3" && contractVersion !== "V4") {
   throw new Error(`Unsupported BNBX_CONTRACT_VERSION: ${contractVersion}`);
 }
 const v4 = contractVersion === "V4";
 const addressPrefix = `BNBX_${contractVersion}`;
-const standardFactorySource = v4 ? "src/BNBXFactoryV4.sol" : "src/BNBXFactory.sol";
+const standardFactorySource = v4
+  ? "src/BNBXFactoryV4.sol"
+  : "src/BNBXFactory.sol";
 const standardFactoryContract = v4 ? "BNBXFactoryV4" : "BNBXFactory";
 const standardTokenSource = v4 ? "src/BNBXTokenV4.sol" : "src/BNBXTokenV3.sol";
 const standardTokenContract = v4 ? "BNBXTokenV4" : "BNBXTokenV3";
 const rewardsFactorySource = v4
   ? "src/BNBXRewardsFactoryV4.sol"
   : "src/BNBXRewardsFactoryV3.sol";
-const rewardsFactoryContract = v4 ? "BNBXRewardsFactoryV4" : "BNBXRewardsFactoryV3";
+const rewardsFactoryContract = v4
+  ? "BNBXRewardsFactoryV4"
+  : "BNBXRewardsFactoryV3";
 const tokenDeployerSource = v4
   ? "src/BNBXAdvancedTokenDeployerV4.sol"
   : "src/BNBXAdvancedTokenDeployer.sol";
@@ -38,14 +44,13 @@ const tokenDeployerContract = v4
 const dividendTokenSource = v4
   ? "src/BNBXDividendTokenV4.sol"
   : "src/BNBXDividendTokenV3.sol";
-const dividendTokenContract = v4 ? "BNBXDividendTokenV4" : "BNBXDividendTokenV3";
+const dividendTokenContract = v4
+  ? "BNBXDividendTokenV4"
+  : "BNBXDividendTokenV3";
 const rewardVaultSource = v4
   ? "src/BNBXRewardVaultV4.sol"
   : "src/BNBXRewardVaultV3.sol";
 const rewardVaultContract = v4 ? "BNBXRewardVaultV4" : "BNBXRewardVaultV3";
-const templateConfigSource = v4
-  ? "src/libraries/TemplateConfigV4.sol"
-  : "src/libraries/TemplateConfigV3.sol";
 const dryRun = process.env.VERIFY_DRY_RUN === "1";
 const apiKey = process.env.BSC_SCAN_API_KEY;
 const configuredRpcUrls = (process.env.BSC_MAINNET_RPC_URL ?? "")
@@ -55,7 +60,8 @@ const configuredRpcUrls = (process.env.BSC_MAINNET_RPC_URL ?? "")
 const rpcUrls = configuredRpcUrls.length
   ? configuredRpcUrls
   : ["https://bsc-rpc.publicnode.com"];
-const standardFactory = process.env[`${addressPrefix}_STANDARD_FACTORY_ADDRESS`];
+const standardFactory =
+  process.env[`${addressPrefix}_STANDARD_FACTORY_ADDRESS`];
 const rewardsFactory = process.env[`${addressPrefix}_REWARDS_FACTORY_ADDRESS`];
 const verifyLaunchedTokens = process.env.VERIFY_LAUNCHED_TOKENS === "1";
 
@@ -67,41 +73,27 @@ if (!dryRun && (!standardFactory || !rewardsFactory)) {
 }
 
 const root = resolve(import.meta.dirname, "..");
-const sourcePaths = [
-  standardFactorySource,
-  standardTokenSource,
-  rewardsFactorySource,
-  tokenDeployerSource,
-  dividendTokenSource,
-  rewardVaultSource,
-  "src/BondingCurve.sol",
-  "src/interfaces/IERC20Minimal.sol",
-  "src/interfaces/IPancakeV2.sol",
-  "src/libraries/FeeMath.sol",
-  templateConfigSource,
-];
-const compilerInput = {
-  language: "Solidity",
-  sources: Object.fromEntries(
-    sourcePaths.map((path) => [
-      path,
-      { content: readFileSync(resolve(root, path), "utf8") },
-    ]),
-  ),
-  settings: {
-    optimizer: { enabled: true, runs: 200 },
-    evmVersion: "shanghai",
-    outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } },
-  },
-};
-const compilation = JSON.parse(solc.compile(JSON.stringify(compilerInput)));
-const compileErrors = (compilation.errors ?? []).filter(
-  (item) => item.severity === "error",
+const verificationInputs = createMainnetVerificationInputs(
+  root,
+  contractVersion,
 );
-if (compileErrors.length) {
-  throw new Error(
-    compileErrors.map((item) => item.formattedMessage).join("\n"),
+
+const validatedCompilerInputs = new Set();
+function validateCompilerInput(label, compilerInput) {
+  const serialized = JSON.stringify(compilerInput);
+  if (validatedCompilerInputs.has(serialized)) return;
+  const compilation = JSON.parse(solc.compile(serialized));
+  const compileErrors = (compilation.errors ?? []).filter(
+    (item) => item.severity === "error",
   );
+  if (compileErrors.length) {
+    throw new Error(
+      `${label} verification input failed:\n${compileErrors
+        .map((item) => item.formattedMessage)
+        .join("\n")}`,
+    );
+  }
+  validatedCompilerInputs.add(serialized);
 }
 const versionMatch = solc
   .version()
@@ -110,6 +102,9 @@ if (!versionMatch)
   throw new Error(`Unsupported solc version: ${solc.version()}`);
 
 if (dryRun && (!standardFactory || !rewardsFactory)) {
+  for (const [label, compilerInput] of Object.entries(verificationInputs)) {
+    validateCompilerInput(label, compilerInput);
+  }
   console.log(
     JSON.stringify(
       {
@@ -117,7 +112,12 @@ if (dryRun && (!standardFactory || !rewardsFactory)) {
         compiler: `v${versionMatch[1]}`,
         optimizerRuns: 200,
         evmVersion: "shanghai",
-        sources: sourcePaths,
+        verificationBundles: Object.fromEntries(
+          Object.entries(verificationInputs).map(([label, compilerInput]) => [
+            label,
+            Object.keys(compilerInput.sources),
+          ]),
+        ),
       },
       null,
       2,
@@ -218,9 +218,18 @@ async function callApi(parameters) {
   return response.json();
 }
 
-async function verify(address, contractName, constructorArguments) {
+async function verify(
+  address,
+  contractName,
+  constructorArguments,
+  compilerInput,
+  verificationLabel,
+) {
+  validateCompilerInput(verificationLabel, compilerInput);
   if (dryRun) {
-    console.log(`○ ${contractName} ${address}`);
+    console.log(
+      `○ ${verificationLabel} ${contractName} ${address} (${Object.keys(compilerInput.sources).length} sources)`,
+    );
     return;
   }
   const submission = await callApi({
@@ -356,10 +365,12 @@ async function verifyCurve(curve, token, factory) {
       ],
       [token, factory, fee, creator, Number(targetStep), pair, wbnb],
     ),
+    verificationInputs.bondingCurve,
+    "bonding-curve",
   );
 }
 
-async function verifyRewardVault(vault) {
+async function verifyRewardVault(vault, rewardTemplate) {
   await requireCode(vault, "Reward vault");
   const [mode, controller, rewardAsset, minimumShare] = await Promise.all([
     readValue(vault, uintReadAbi("mode", "uint8"), "mode"),
@@ -367,6 +378,11 @@ async function verifyRewardVault(vault) {
     readAddress(vault, "rewardToken"),
     readValue(vault, uintReadAbi("minimumShare"), "minimumShare"),
   ]);
+  if (Number(mode) !== rewardTemplate) {
+    throw new Error(`Reward vault mode mismatch on ${vault}`);
+  }
+  const verificationLabel =
+    rewardTemplate === 0 ? "holder-reward-vault" : "lp-reward-vault";
   await verify(
     vault,
     `${rewardVaultSource}:${rewardVaultContract}`,
@@ -379,6 +395,8 @@ async function verifyRewardVault(vault) {
       ],
       [mode, controller, rewardAsset, minimumShare],
     ),
+    verificationInputs.rewardVault,
+    verificationLabel,
   );
 }
 
@@ -395,6 +413,8 @@ async function verifyStandardToken(token, factory) {
       [{ type: "string" }, { type: "string" }, { type: "address" }],
       [name, symbol, factory],
     ),
+    verificationInputs.standardToken,
+    "zero-tax-token",
   );
 }
 
@@ -429,6 +449,16 @@ async function verifyRewardsToken(token, factory) {
     marketing: values[2],
     rewards: values[3],
   });
+  const rewardTemplate = Number(template);
+  if (rewardTemplate !== 0 && rewardTemplate !== 1) {
+    throw new Error(`Unsupported reward template ${template} on ${token}`);
+  }
+  const tokenCompilerInput =
+    rewardTemplate === 0
+      ? verificationInputs.holderRewardsToken
+      : verificationInputs.lpRewardsToken;
+  const tokenVerificationLabel =
+    rewardTemplate === 0 ? "holder-rewards-token" : "lp-rewards-token";
   const initType = {
     type: "tuple",
     components: [
@@ -487,8 +517,10 @@ async function verifyRewardsToken(token, factory) {
         },
       ],
     ),
+    tokenCompilerInput,
+    tokenVerificationLabel,
   );
-  await verifyRewardVault(vault);
+  await verifyRewardVault(vault, rewardTemplate);
 }
 
 async function verifyLaunched(factory, kind) {
@@ -530,11 +562,15 @@ await verify(
     [{ type: "address" }, { type: "address" }],
     [standardFee, standardRouter],
   ),
+  verificationInputs.standardFactory,
+  "standard-factory",
 );
 await verify(
   tokenDeployer,
   `${tokenDeployerSource}:${tokenDeployerContract}`,
   encodeAbiParameters([{ type: "address" }], [bootstrapOwner]),
+  verificationInputs.tokenDeployer,
+  "advanced-token-deployer",
 );
 await verify(
   rewardsAddress,
@@ -543,6 +579,8 @@ await verify(
     [{ type: "address" }, { type: "address" }, { type: "address" }],
     [rewardsFee, rewardsRouter, tokenDeployer],
   ),
+  verificationInputs.rewardsFactory,
+  "rewards-factory",
 );
 
 let standardTokensVerified = 0n;

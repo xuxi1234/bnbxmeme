@@ -35,6 +35,7 @@ on:
     paths:
       - ".github/workflows/verify-bsc-mainnet.yml"
       - "packages/contracts/scripts/verify-source-mainnet.mjs"
+      - "packages/contracts/scripts/verification-compiler-input.mjs"
 
 permissions:
   contents: read

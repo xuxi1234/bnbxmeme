@@ -88,6 +88,22 @@ three V4 infrastructure contracts to BscScan. With
 BondingCurve, and reward vault registered by those Factories. It is read-only
 and never signs or sends a transaction.
 
+Launched contracts use template-scoped verification inputs instead of the
+infrastructure-wide compilation bundle:
+
+- A standard zero-tax token submits only `BNBXTokenV4.sol`.
+- Holder-reward and LP-reward token addresses are submitted independently
+  after reading their immutable template mode. Each submission contains only
+  `BNBXDividendTokenV4.sol` and its transitive token dependencies.
+- Each reward vault and BondingCurve is submitted separately with only its own
+  transitive dependencies.
+- Factory and advanced-deployer sources are restricted to their infrastructure
+  addresses and are never included in a launched token's verification input.
+
+The repository test suite compiles both the former combined input and every
+minimal input, then requires identical creation and runtime bytecode before a
+verification change can pass.
+
 ## Required secrets and addresses
 
 - `BSC_SCAN_API_KEY`

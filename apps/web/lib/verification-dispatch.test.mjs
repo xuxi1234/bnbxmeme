@@ -31,4 +31,8 @@ test("keeps immediate dispatch best-effort with the scheduled verifier as fallba
   assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/);
   assert.match(workflow, /launch_tx_hash:/);
   assert.match(workflow, /run-name: Verify BNBX contracts/);
+  assert.match(
+    workflow,
+    /packages\/contracts\/scripts\/verification-compiler-input\.mjs/,
+  );
 });
