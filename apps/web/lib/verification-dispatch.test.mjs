@@ -14,12 +14,21 @@ const workflow = await readFile(
   new URL("../../../.github/workflows/verify-bsc-mainnet.yml", import.meta.url),
   "utf8",
 );
+const zeroTaxWorkflow = await readFile(
+  new URL(
+    "../../../.github/workflows/verify-zero-tax-mainnet.yml",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("dispatches verification only after an official recent BNBX launch", () => {
   assert.match(route, /process\.env\.BNBX_GITHUB_ACTIONS_TOKEN/);
   assert.doesNotMatch(createPage, /BNBX_GITHUB_ACTIONS_TOKEN/);
-  assert.match(route, /v4StandardFactoryAddress/);
+  assert.match(route, /zeroTaxFactoryAddress/);
   assert.match(route, /v4RewardsFactoryAddress/);
+  assert.match(route, /zeroTaxFactoryDeploymentAbi/);
+  assert.match(route, /ZERO_TAX_WORKFLOW/);
   assert.match(route, /receipt\.status !== "success"/);
   assert.match(route, /MAX_CONFIRMATION_AGE_BLOCKS/);
   assert.match(route, /decoded\.eventName !== "TokenCreated"/);
@@ -31,6 +40,9 @@ test("keeps immediate dispatch best-effort with the scheduled verifier as fallba
   assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/);
   assert.match(workflow, /launch_tx_hash:/);
   assert.match(workflow, /run-name: Verify BNBX contracts/);
+  assert.match(zeroTaxWorkflow, /cron: "\*\/15 \* \* \* \*"/);
+  assert.match(zeroTaxWorkflow, /launch_tx_hash:/);
+  assert.match(zeroTaxWorkflow, /0xcdb3bb57cb27eab36a7c39685afcb93abfec326f/);
   assert.match(
     workflow,
     /packages\/contracts\/scripts\/verification-compiler-input\.mjs/,

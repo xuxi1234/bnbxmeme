@@ -37,10 +37,16 @@ export const v4RewardsFactoryAddress =
 const deployedV3StandardFactoryAddress =
   "0xc5f6d2b221dfd950f919b82c77d82fc427f31b3d" as const;
 
-// Audited 1% V4 Standard 0-tax Factory deployed by the authorized platform
-// wallet with the production fee recipient and Pancake V2 Router.
+// Superseded 1% V4 Standard 0-tax Factory remains an immutable chain fact for
+// audits, but must never be selected for new launches.
 export const v4StandardFactoryAddress =
   "0x510dbbe270b2f009619bcbcf757ae2e2d48734ad" as const;
+
+// Clean zero-tax Factory deployed from the isolated BNBXZeroTaxFactory source
+// by the authorized platform wallet. Constructor arguments and runtime
+// bytecode were matched against the audited build before activation.
+export const zeroTaxFactoryAddress =
+  "0xcdb3bb57cb27eab36a7c39685afcb93abfec326f" as const;
 
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
@@ -51,9 +57,10 @@ export const v3StandardFactoryAddress =
     legacyStandardFactoryAddress.toLowerCase(),
     deployedV3StandardFactoryAddress.toLowerCase(),
     halfPercentV4StandardFactoryAddress.toLowerCase(),
+    v4StandardFactoryAddress.toLowerCase(),
   ].includes(configuredStandardFactoryAddress.toLowerCase())
     ? configuredStandardFactoryAddress
-    : v4StandardFactoryAddress;
+    : zeroTaxFactoryAddress;
 
 export const standardFactoryAddress =
   v3StandardFactoryAddress ?? legacyStandardFactoryAddress;
