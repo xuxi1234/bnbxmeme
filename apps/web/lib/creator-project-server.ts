@@ -9,6 +9,7 @@ import {
 import { officialFactoryAddresses } from "@/lib/deployments";
 import { buildFactorySlots, chunkItems } from "@/lib/market-data-core";
 import { serverPublicClient } from "@/lib/server-chain";
+import { isHiddenTokenAddress } from "@/lib/hidden-token-addresses";
 
 const TOKEN_READ_BATCH_SIZE = 100;
 const CREATOR_CATALOG_CACHE_MS = 60_000;
@@ -132,7 +133,9 @@ async function readTokenRecords(slots: FactorySlot[]) {
     batch.forEach((slot, position) => {
       const token = successful<string>(results[position]);
       if (token && isAddress(token) && token !== zeroAddress) {
-        records.push({ ...slot, token: getAddress(token) });
+        if (!isHiddenTokenAddress(token)) {
+          records.push({ ...slot, token: getAddress(token) });
+        }
       } else {
         partial = true;
       }

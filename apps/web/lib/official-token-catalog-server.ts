@@ -5,6 +5,7 @@ import { isAddress, zeroAddress } from "viem";
 import { officialFactoryAddresses } from "@/lib/deployments";
 import { buildFactorySlots, chunkItems } from "@/lib/market-data-core";
 import { serverPublicClient } from "@/lib/server-chain";
+import { isHiddenTokenAddress } from "@/lib/hidden-token-addresses";
 
 const TOKEN_READ_BATCH_SIZE = 100;
 const MAX_SITEMAP_URLS = 50_000;
@@ -76,7 +77,12 @@ async function inspectOfficialTokenCatalog() {
 
     for (const result of results) {
       const token = successful<string>(result);
-      if (token && isAddress(token) && token !== zeroAddress) {
+      if (
+        token &&
+        isAddress(token) &&
+        token !== zeroAddress &&
+        !isHiddenTokenAddress(token)
+      ) {
         tokens.push(token.toLowerCase());
       }
     }
