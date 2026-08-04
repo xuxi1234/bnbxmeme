@@ -48,8 +48,10 @@ test("credits only a confirmed direct payment from the connected wallet", () => 
   assert.match(paymentRoute, /transaction\.value < BNBX_AI_PAYMENT_WEI/);
 });
 
-test("makes membership permanent and each unique payment worth 100 USDT", () => {
-  assert.match(membership, /BNBX_AI_CREDIT_MICROUSD = 100_000_000/);
+test("makes membership permanent and each unique payment worth 68 USDT", () => {
+  assert.match(membership, /BNBX_AI_CREDIT_MICROUSD = 68_000_000/);
+  assert.match(component, /68 USDT/);
+  assert.doesNotMatch(component, /100 USDT/);
   assert.match(migration, /permanent_member boolean not null default true/);
   assert.match(migration, /tx_hash text primary key/);
   assert.match(migration, /on conflict \(tx_hash\) do nothing/);
@@ -106,11 +108,15 @@ test("reserves credit before the provider call and settles actual token usage", 
 
 test("gives mobile and desktop the same draggable X-One behavior", () => {
   assert.doesNotMatch(component, /window\.innerWidth < 720\) return/);
-  assert.match(component, /pointermove/);
+  assert.match(component, /onPointerMove/);
   assert.match(component, /POSITION_KEY/);
   assert.match(component, /localStorage\.setItem/);
   assert.match(component, /suppressClick/);
   assert.match(css, /touch-action: none/);
+  assert.match(component, /setPointerCapture/);
+  assert.match(component, /requestAnimationFrame/);
+  assert.match(component, /translate3d/);
+  assert.doesNotMatch(component, /BSC 主网 · 官方收款地址/);
   assert.doesNotMatch(css, /right: 14px !important/);
   assert.doesNotMatch(css, /bottom: 82px !important/);
 });

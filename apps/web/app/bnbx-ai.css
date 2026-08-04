@@ -9,6 +9,15 @@
   box-shadow: 0 12px 38px #0008;
   cursor: grab;
   color: #15100a;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform;
+}
+.bnbx-ai-orb.is-dragging {
+  cursor: grabbing;
 }
 .bnbx-ai-face {
   display: block;

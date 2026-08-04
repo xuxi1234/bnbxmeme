@@ -10,7 +10,7 @@ import {
 export const BNBX_AI_PAYMENT_ADDRESS =
   "0x3c97e99441cf86778d81fd6fef61bda84be9634a" as const;
 export const BNBX_AI_PAYMENT_WEI = 100_000_000_000_000_000n;
-export const BNBX_AI_CREDIT_MICROUSD = 100_000_000;
+export const BNBX_AI_CREDIT_MICROUSD = 68_000_000;
 export const BNBX_AI_RESERVE_MICROUSD = 5_000;
 
 export type AiMemberStatus = {
