@@ -21,3 +21,13 @@ test("keeps platform assurance cards off the home page on every viewport", () =>
   assert.doesNotMatch(homePage, /一币一合约|交易公开可验|超额自动退款/);
   assert.doesNotMatch(styles, /\.assurance-grid/);
 });
+
+test("places the shared home banner above the market on every viewport", () => {
+  const bannerPosition = homePage.indexOf("<HomeBanner />");
+  const marketPosition = homePage.indexOf('<section className="market-section"');
+
+  assert.notEqual(bannerPosition, -1);
+  assert.notEqual(marketPosition, -1);
+  assert.ok(bannerPosition < marketPosition);
+  assert.equal(homePage.match(/<HomeBanner \/>/g)?.length, 1);
+});
