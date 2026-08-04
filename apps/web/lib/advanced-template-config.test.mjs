@@ -175,12 +175,14 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.match(deployments, /0x6012aa2eb5164c8ed31f2a01950c3b5037211181/);
   assert.match(deployments, /0x6c72ece4f7aa05f3b2099ef9dd2d668e7e3f688e/);
   assert.match(deployments, /0x510dbbe270b2f009619bcbcf757ae2e2d48734ad/);
+  assert.match(deployments, /0xcdb3bb57cb27eab36a7c39685afcb93abfec326f/);
   assert.match(deployments, /0x28100dbfa3f1a3d563e1667259433adfa3aac4bb/);
   assert.match(deployments, /halfPercentV4StandardFactoryAddress/);
   assert.match(deployments, /halfPercentV4RewardsFactoryAddress/);
   assert.match(deployments, /preFixV4RewardsFactoryAddress/);
   assert.match(deployments, /cached environment variable/);
   assert.match(deployments, /v3StandardFactoryAddress/);
+  assert.match(deployments, /zeroTaxFactoryAddress/);
   const officialCatalog = deployments.match(
     /export const officialFactoryAddresses = Array\.from\(([\s\S]*?)\n\);/,
   )?.[1];
