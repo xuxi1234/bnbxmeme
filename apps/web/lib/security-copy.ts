@@ -36,10 +36,10 @@ type SecurityCopy = {
 };
 
 export const announcementCopy: Record<Language, string> = {
-  zh: "BNBX.MEME 是 BNB Chain 上的联合曲线代币发射平台，公开展示创建费、模板税费与正式合约，支持创建和交易社区代币。",
-  en: "BNBX.MEME is a bonding-curve token launchpad on BNB Chain. Creation fees, template taxes, and official contracts are published for community token launches and trading.",
-  ko: "BNBX.MEME는 BNB Chain의 본딩 커브 토큰 런치패드입니다. 커뮤니티 토큰 발행과 거래를 위한 생성 수수료, 템플릿 세금 및 공식 컨트랙트를 공개합니다.",
-  ja: "BNBX.MEMEはBNB Chain上のボンディングカーブ型トークンローンチパッドです。コミュニティトークンの発行・取引に関する作成手数料、テンプレート税、公式コントラクトを公開します。",
+  zh: "一个想法，一个社区，一枚代币。在 BNBX.MEME 低门槛启动你的社区代币，费用与规则公开透明，达标后自动进入 PancakeSwap。",
+  en: "One idea, one community, one token. Launch your community token on BNBX.MEME with a low barrier to entry, transparent fees and rules, and automatic migration to PancakeSwap once the target is reached.",
+  ko: "하나의 아이디어, 하나의 커뮤니티, 하나의 토큰. BNBX.MEME에서 낮은 진입 장벽으로 커뮤니티 토큰을 출시하세요. 수수료와 규칙은 투명하게 공개되며, 목표 달성 후 PancakeSwap으로 자동 전환됩니다.",
+  ja: "ひとつのアイデア、ひとつのコミュニティ、ひとつのトークン。BNBX.MEMEなら低い参入障壁でコミュニティトークンを始められます。手数料とルールは透明に公開され、目標達成後はPancakeSwapへ自動移行します。",
 };
 
 export const securityCopy: Record<Language, SecurityCopy> = {

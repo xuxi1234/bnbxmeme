@@ -33,6 +33,18 @@ test("removes return promises and first-choice claims from the announcement", ()
   }
 });
 
+test("publishes the community launch message in every announcement", () => {
+  assert.equal(
+    announcementCopy.zh,
+    "一个想法，一个社区，一枚代币。在 BNBX.MEME 低门槛启动你的社区代币，费用与规则公开透明，达标后自动进入 PancakeSwap。",
+  );
+
+  for (const language of languages) {
+    assert.match(announcementCopy[language], /BNBX\.MEME/);
+    assert.match(announcementCopy[language], /PancakeSwap/);
+  }
+});
+
 test("keeps security disclosures complete in all four languages", () => {
   const expected = shape(securityCopy.zh);
   for (const language of languages) {
