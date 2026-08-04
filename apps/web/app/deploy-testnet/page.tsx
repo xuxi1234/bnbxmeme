@@ -17,9 +17,9 @@ import { WalletButton } from "@/components/wallet-button";
 import { useLanguage } from "@/components/language-provider";
 import { deploymentCopy, interpolate } from "@/lib/localization-copy";
 import {
-  factoryDeploymentAbi,
-  factoryDeploymentBytecode,
-} from "@/lib/factory-deployment";
+  zeroTaxFactoryDeploymentAbi,
+  zeroTaxFactoryDeploymentBytecode,
+} from "@/lib/zero-tax-factory-deployment";
 import {
   advancedTokenDeployerDeploymentAbi,
   advancedTokenDeployerDeploymentBytecode,
@@ -111,8 +111,8 @@ export default function DeployTestnetPage() {
   function deployStandardFactory() {
     if (!address || wrongSigner) return;
     standardDeployment.deployContract({
-      abi: factoryDeploymentAbi,
-      bytecode: factoryDeploymentBytecode,
+      abi: zeroTaxFactoryDeploymentAbi,
+      bytecode: zeroTaxFactoryDeploymentBytecode,
       args: [FEE_RECIPIENT, pancakeRouter],
       chainId: activeChain.id,
       account: address,
@@ -182,8 +182,8 @@ export default function DeployTestnetPage() {
       <section className="form-shell">
         <p className="eyebrow">
           {isMainnet
-            ? "MAINNET / V4 FACTORY DEPLOYMENT"
-            : "TESTNET / FACTORY DEPLOYMENT"}
+            ? "MAINNET / CLEAN ZERO-TAX FACTORY DEPLOYMENT"
+            : "TESTNET / CLEAN ZERO-TAX FACTORY DEPLOYMENT"}
         </p>
         <h1 className="form-title">
           {isMainnet ? copy.titleMainnet : copy.titleTestnet}
