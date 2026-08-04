@@ -10,17 +10,19 @@ import {
 import { bsc } from "viem/chains";
 import { advancedFactoryAbi } from "@/lib/advanced-factory-abi";
 import {
+  zeroTaxFactoryAddress,
   v4RewardsFactoryAddress,
   v4StandardFactoryAddress,
 } from "@/lib/deployments";
-import { factoryDeploymentAbi } from "@/lib/factory-deployment";
+import { zeroTaxFactoryDeploymentAbi } from "@/lib/zero-tax-factory-deployment";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const GITHUB_OWNER = "xuxi1234";
 const GITHUB_REPOSITORY = "bnbxmeme";
-const GITHUB_WORKFLOW = "verify-bsc-mainnet.yml";
+const ADVANCED_WORKFLOW = "verify-bsc-mainnet.yml";
+const ZERO_TAX_WORKFLOW = "verify-zero-tax-mainnet.yml";
 const TOKEN_DEPLOYER_ADDRESS = "0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c";
 const MAX_CONFIRMATION_AGE_BLOCKS = 200n;
 
@@ -47,13 +49,15 @@ function officialCreationFromReceipt(
 ) {
   for (const log of logs) {
     const factory = log.address.toLowerCase();
-    const abi =
-      factory === v4StandardFactoryAddress.toLowerCase()
-        ? factoryDeploymentAbi
+    const kind: "zero-tax" | "advanced" | null =
+      factory === zeroTaxFactoryAddress.toLowerCase()
+        ? "zero-tax"
         : factory === v4RewardsFactoryAddress.toLowerCase()
-          ? advancedFactoryAbi
+          ? "advanced"
           : null;
-    if (!abi) continue;
+    if (!kind) continue;
+    const abi =
+      kind === "zero-tax" ? zeroTaxFactoryDeploymentAbi : advancedFactoryAbi;
 
     try {
       const decoded = decodeEventLog({
@@ -68,7 +72,12 @@ function officialCreationFromReceipt(
       };
       if (!args.token || !args.curve) continue;
       if (!isAddress(args.token) || !isAddress(args.curve)) continue;
-      return { factory: log.address, token: args.token, curve: args.curve };
+      return {
+        kind,
+        factory: log.address,
+        token: args.token,
+        curve: args.curve,
+      };
     } catch {
       // A creation receipt includes child-contract and ERC-20 events too.
     }
@@ -76,9 +85,13 @@ function officialCreationFromReceipt(
   return null;
 }
 
-async function wasAlreadyDispatched(token: string, transactionHash: string) {
+async function wasAlreadyDispatched(
+  token: string,
+  workflow: string,
+  transactionHash: string,
+) {
   const url = new URL(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}/actions/workflows/${GITHUB_WORKFLOW}/runs`,
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs`,
   );
   url.searchParams.set("event", "workflow_dispatch");
   url.searchParams.set("per_page", "100");
@@ -98,22 +111,34 @@ async function wasAlreadyDispatched(token: string, transactionHash: string) {
   );
 }
 
-async function dispatchVerification(token: string, transactionHash: string) {
+async function dispatchVerification(
+  token: string,
+  transactionHash: string,
+  kind: "zero-tax" | "advanced",
+) {
+  const workflow = kind === "zero-tax" ? ZERO_TAX_WORKFLOW : ADVANCED_WORKFLOW;
+  const inputs =
+    kind === "zero-tax"
+      ? {
+          factory_address: zeroTaxFactoryAddress,
+          launch_tx_hash: transactionHash,
+        }
+      : {
+          standard_factory_address: v4StandardFactoryAddress,
+          rewards_factory_address: v4RewardsFactoryAddress,
+          token_deployer_address: TOKEN_DEPLOYER_ADDRESS,
+          verify_launched_tokens: true,
+          launch_tx_hash: transactionHash,
+        };
   const response = await fetch(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`,
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/dispatches`,
     {
       method: "POST",
       headers: githubHeaders(token),
       cache: "no-store",
       body: JSON.stringify({
         ref: "main",
-        inputs: {
-          standard_factory_address: v4StandardFactoryAddress,
-          rewards_factory_address: v4RewardsFactoryAddress,
-          token_deployer_address: TOKEN_DEPLOYER_ADDRESS,
-          verify_launched_tokens: true,
-          launch_tx_hash: transactionHash,
-        },
+        inputs,
       }),
     },
   ).catch(() => null);
@@ -176,7 +201,9 @@ export async function POST(request: Request) {
     );
   }
 
-  if (await wasAlreadyDispatched(githubToken, transactionHash)) {
+  const workflow =
+    creation.kind === "zero-tax" ? ZERO_TAX_WORKFLOW : ADVANCED_WORKFLOW;
+  if (await wasAlreadyDispatched(githubToken, workflow, transactionHash)) {
     return NextResponse.json({
       ok: true,
       alreadyDispatched: true,
@@ -184,7 +211,11 @@ export async function POST(request: Request) {
     });
   }
 
-  const dispatched = await dispatchVerification(githubToken, transactionHash);
+  const dispatched = await dispatchVerification(
+    githubToken,
+    transactionHash,
+    creation.kind,
+  );
   if (!dispatched) {
     return NextResponse.json(
       { error: "Immediate verification could not be queued" },
