@@ -7,13 +7,13 @@ import { TokenMarket } from "@/components/token-market";
 export function HomePage() {
   return (
     <main className="home">
+      <HomeBanner />
+
       <section className="market-section" id="market">
         <Suspense fallback={null}>
           <TokenMarket />
         </Suspense>
       </section>
-
-      <HomeBanner />
     </main>
   );
 }
