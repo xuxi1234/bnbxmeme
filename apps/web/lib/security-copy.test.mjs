@@ -33,7 +33,6 @@ test("removes return promises and first-choice claims from the announcement", ()
   }
 });
 
-
 test("publishes the community launch message in every announcement", () => {
   assert.equal(
     announcementCopy.zh,
