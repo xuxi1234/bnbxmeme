@@ -105,6 +105,38 @@ if (
   throw new Error("Zero-tax Factory source references an advanced template");
 }
 
+const webRoot = resolve(root, "../../apps/web");
+const factoryDeploymentArtifact = readFileSync(
+  resolve(webRoot, "lib/zero-tax-factory-deployment.ts"),
+  "utf8",
+);
+const tokenCreationArtifact = readFileSync(
+  resolve(webRoot, "lib/zero-tax-token-creation-bytecode.ts"),
+  "utf8",
+);
+if (!factoryDeploymentArtifact.includes(`0x${factory.evm.bytecode.object}`)) {
+  throw new Error(
+    "Generated zero-tax Factory bytecode is stale; run export:zero-tax-web-artifact",
+  );
+}
+if (!tokenCreationArtifact.includes(`0x${token.evm.bytecode.object}`)) {
+  throw new Error(
+    "Generated zero-tax token bytecode is stale; run export:zero-tax-web-artifact",
+  );
+}
+const deploymentPage = readFileSync(
+  resolve(webRoot, "app/deploy-testnet/page.tsx"),
+  "utf8",
+);
+if (
+  !deploymentPage.includes("zeroTaxFactoryDeploymentBytecode") ||
+  deploymentPage.includes("factoryDeploymentBytecode")
+) {
+  throw new Error(
+    "Deployment page is not pinned to the clean zero-tax bytecode",
+  );
+}
+
 function byteSizes(artifact) {
   return {
     creation: artifact.evm.bytecode.object.length / 2,
@@ -138,6 +170,7 @@ console.log(
       factoryBytes,
       mutatingTokenFunctions: actualMutatingFunctions,
       forbiddenControls: "none",
+      webDeploymentArtifacts: "exact",
     },
     null,
     2,
