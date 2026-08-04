@@ -102,3 +102,15 @@ export function createMainnetVerificationInputs(root, contractVersion) {
     ]),
   };
 }
+
+export function createZeroTaxVerificationInputs(root) {
+  return {
+    token: createVerificationCompilerInput(root, ["src/BNBXZeroTaxToken.sol"]),
+    factory: createVerificationCompilerInput(root, [
+      "src/BNBXZeroTaxFactory.sol",
+    ]),
+    bondingCurve: createVerificationCompilerInput(root, [
+      "src/BondingCurve.sol",
+    ]),
+  };
+}

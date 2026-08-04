@@ -3,12 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "build": "solcjs --base-path . --include-path . --optimize --bin --abi -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BNBXRewardVault.sol src/BNBXTokenV3.sol src/BNBXDividendTokenV3.sol src/BNBXRewardVaultV3.sol src/BNBXAdvancedTokenDeployer.sol src/BNBXTokenV4.sol src/BNBXDividendTokenV4.sol src/BNBXRewardVaultV4.sol src/BNBXAdvancedTokenDeployerV4.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXRewardsFactoryV3.sol src/BNBXFactoryV4.sol src/BNBXRewardsFactoryV4.sol src/libraries/TemplateConfig.sol src/libraries/TemplateConfigV3.sol src/libraries/TemplateConfigV4.sol",
-    "lint": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BNBXRewardVault.sol src/BNBXTokenV3.sol src/BNBXDividendTokenV3.sol src/BNBXRewardVaultV3.sol src/BNBXAdvancedTokenDeployer.sol src/BNBXTokenV4.sol src/BNBXDividendTokenV4.sol src/BNBXRewardVaultV4.sol src/BNBXAdvancedTokenDeployerV4.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXRewardsFactoryV3.sol src/BNBXFactoryV4.sol src/BNBXRewardsFactoryV4.sol src/libraries/TemplateConfig.sol src/libraries/TemplateConfigV3.sol src/libraries/TemplateConfigV4.sol",
-    "typecheck": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BNBXRewardVault.sol src/BNBXTokenV3.sol src/BNBXDividendTokenV3.sol src/BNBXRewardVaultV3.sol src/BNBXAdvancedTokenDeployer.sol src/BNBXTokenV4.sol src/BNBXDividendTokenV4.sol src/BNBXRewardVaultV4.sol src/BNBXAdvancedTokenDeployerV4.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXRewardsFactoryV3.sol src/BNBXFactoryV4.sol src/BNBXRewardsFactoryV4.sol src/libraries/TemplateConfig.sol src/libraries/TemplateConfigV3.sol src/libraries/TemplateConfigV4.sol",
+    "build": "solcjs --base-path . --include-path . --optimize --bin --abi -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BNBXRewardVault.sol src/BNBXTokenV3.sol src/BNBXDividendTokenV3.sol src/BNBXRewardVaultV3.sol src/BNBXAdvancedTokenDeployer.sol src/BNBXTokenV4.sol src/BNBXZeroTaxToken.sol src/BNBXZeroTaxFactory.sol src/BNBXDividendTokenV4.sol src/BNBXRewardVaultV4.sol src/BNBXAdvancedTokenDeployerV4.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXRewardsFactoryV3.sol src/BNBXFactoryV4.sol src/BNBXRewardsFactoryV4.sol src/libraries/TemplateConfig.sol src/libraries/TemplateConfigV3.sol src/libraries/TemplateConfigV4.sol",
+    "lint": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BNBXRewardVault.sol src/BNBXTokenV3.sol src/BNBXDividendTokenV3.sol src/BNBXRewardVaultV3.sol src/BNBXAdvancedTokenDeployer.sol src/BNBXTokenV4.sol src/BNBXZeroTaxToken.sol src/BNBXZeroTaxFactory.sol src/BNBXDividendTokenV4.sol src/BNBXRewardVaultV4.sol src/BNBXAdvancedTokenDeployerV4.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXRewardsFactoryV3.sol src/BNBXFactoryV4.sol src/BNBXRewardsFactoryV4.sol src/libraries/TemplateConfig.sol src/libraries/TemplateConfigV3.sol src/libraries/TemplateConfigV4.sol",
+    "typecheck": "solcjs --base-path . --include-path . --optimize --bin -o out src/BNBXToken.sol src/BNBXAutoLiquidityToken.sol src/BNBXRewardVault.sol src/BNBXTokenV3.sol src/BNBXDividendTokenV3.sol src/BNBXRewardVaultV3.sol src/BNBXAdvancedTokenDeployer.sol src/BNBXTokenV4.sol src/BNBXZeroTaxToken.sol src/BNBXZeroTaxFactory.sol src/BNBXDividendTokenV4.sol src/BNBXRewardVaultV4.sol src/BNBXAdvancedTokenDeployerV4.sol src/BondingCurve.sol src/BNBXFactory.sol src/BNBXRewardsFactoryV3.sol src/BNBXFactoryV4.sol src/BNBXRewardsFactoryV4.sol src/libraries/TemplateConfig.sol src/libraries/TemplateConfigV3.sol src/libraries/TemplateConfigV4.sol",
     "test": "node --test scripts/verification-compiler-input.test.mjs && node scripts/run-evm-tests.mjs",
     "audit:v3": "node scripts/audit-v3-artifacts.mjs",
     "audit:v4": "node scripts/audit-v4-artifacts.mjs",
+    "audit:zero-tax": "node scripts/audit-zero-tax-template.mjs",
     "export:web-artifact": "node scripts/export-web-artifact.mjs",
     "export:rewards-artifact": "node scripts/export-rewards-deployment-artifact.mjs",
     "preflight:testnet": "node scripts/preflight-testnet.mjs",
@@ -18,6 +19,7 @@
     "verify-launch-source:testnet": "node scripts/verify-launch-source-testnet.mjs",
     "verify-source:mainnet": "node scripts/verify-source-mainnet.mjs",
     "verify-source:mainnet:v4": "BNBX_CONTRACT_VERSION=V4 node scripts/verify-source-mainnet.mjs",
+    "verify-source:zero-tax-mainnet": "node scripts/verify-zero-tax-source-mainnet.mjs",
     "smoke:testnet": "node scripts/smoke-test-testnet.mjs"
   },
   "devDependencies": {

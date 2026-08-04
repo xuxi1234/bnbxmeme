@@ -9,6 +9,7 @@ import {
 } from "@/lib/market-data-core";
 import { serverPublicClient } from "@/lib/server-chain";
 import { validateTokenProject } from "@/lib/token-project-server";
+import { isHiddenTokenAddress } from "@/lib/hidden-token-addresses";
 import type { ProjectValidationResult } from "@/lib/project-validation-core";
 
 export const dynamic = "force-dynamic";
@@ -223,8 +224,9 @@ async function readTokenRecords(slots: FactorySlot[]) {
     });
     batch.forEach((slot, position) => {
       const token = successful<`0x${string}`>(results[position]);
-      if (token && token !== zeroAddress) records.push({ ...slot, token });
-      else partial = true;
+      if (token && token !== zeroAddress) {
+        if (!isHiddenTokenAddress(token)) records.push({ ...slot, token });
+      } else partial = true;
     });
   }
   return { records, partial };

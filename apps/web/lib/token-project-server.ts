@@ -9,6 +9,7 @@ import {
   type ProjectValidationResult,
 } from "@/lib/project-validation-core";
 import { serverPublicClient } from "@/lib/server-chain";
+import { isHiddenTokenAddress } from "@/lib/hidden-token-addresses";
 
 const curveOfAbi = [
   {
@@ -112,6 +113,10 @@ export async function validateTokenProject(
       addressState: "zero",
       bytecodeState: "missing",
     });
+  }
+
+  if (isHiddenTokenAddress(token)) {
+    return { status: "not_found", reason: "not-official" };
   }
 
   try {
