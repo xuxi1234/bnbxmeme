@@ -10,6 +10,8 @@ import {
   useSignMessage,
   useSwitchChain,
 } from "wagmi";
+import { bnbxAiCopy, type BnbxAiCopy } from "@/lib/bnbx-ai-copy";
+import { useLanguage } from "./language-provider";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Membership = {
@@ -18,26 +20,62 @@ type Membership = {
   lifetimeSpentMicrousd: number;
   paymentCount: number;
 };
+type PaymentStage = "idle" | "wallet" | "submitted" | "verifying" | "success";
 
 const PAYMENT_ADDRESS = "0x3c97e99441cf86778d81fd6fef61bda84be9634a";
 const POSITION_KEY = "bnbx-ai-orb-position-v1";
-const copy = {
-  title: "BNBX AI",
-  name: "小壹 · X-One",
-  hello: "你好，我是小壹。可以问我 BNBX 发币、内盘交易、毕业机制和钱包安全。",
-  join: "支付 0.1 BNB，永久开通 BNBX AI，领取专属于您的小壹 / X-One，并获赠 68 USDT 等值 AI 智能算力额度。",
-  active:
-    "您已是 BNBX AI 永久会员。签名即可领取专属于您的小壹 / X-One；签名不消耗 Gas，也不会授权交易。",
-  refill:
-    "小壹永远属于您，本轮 AI 算力已使用完毕。补充 0.1 BNB，即可获得新一轮 68 USDT 等值 AI 智能算力。",
-  unlock: "签名解锁",
-  placeholder: "问问 BNBX AI…",
-  send: "发送",
-  close: "关闭",
-  disclaimer: "AI 可能出错，请独立核实；小壹不能替你交易或操作钱包。",
-};
+
+const paymentStages: Exclude<PaymentStage, "idle">[] = [
+  "wallet",
+  "submitted",
+  "verifying",
+  "success",
+];
+
+function formatUsd(microusd: number) {
+  return `$${(microusd / 1_000_000).toFixed(2)}`;
+}
+
+function MembershipCard({
+  membership,
+  copy,
+}: {
+  membership: Membership;
+  copy: BnbxAiCopy;
+}) {
+  return (
+    <section className="bnbx-ai-membership" aria-label={copy.myXOne}>
+      <div className="bnbx-ai-membership-title">
+        <strong>{copy.myXOne}</strong>
+        <span>{copy.activeStatus}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>{copy.permanentMember}</dt>
+          <dd>✓</dd>
+        </div>
+        <div>
+          <dt>{copy.creditBalance}</dt>
+          <dd>{formatUsd(membership.creditMicrousd)}</dd>
+        </div>
+        <div>
+          <dt>{copy.lifetimeUsage}</dt>
+          <dd>{formatUsd(membership.lifetimeSpentMicrousd)}</dd>
+        </div>
+        <div>
+          <dt>{copy.paymentCount}</dt>
+          <dd>
+            {membership.paymentCount} {copy.times}
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
 
 export function BnbxAiAssistant() {
+  const { language } = useLanguage();
+  const copy = bnbxAiCopy[language];
   const { address, chainId, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { sendTransactionAsync } = useSendTransaction();
@@ -48,6 +86,7 @@ export function BnbxAiAssistant() {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [loadingMembership, setLoadingMembership] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [paymentStage, setPaymentStage] = useState<PaymentStage>("idle");
   const [error, setError] = useState("");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([
@@ -70,6 +109,13 @@ export function BnbxAiAssistant() {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMessages((current) =>
+      current.length === 1 && current[0]?.role === "assistant"
+        ? [{ role: "assistant", content: copy.hello }]
+        : current,
+    );
+  }, [copy.hello]);
+  useEffect(() => {
     setAuthorized(false);
     setMembership(null);
     if (!address) return;
@@ -86,11 +132,11 @@ export function BnbxAiAssistant() {
       })
       .catch((cause) => {
         if (cause instanceof Error && cause.name !== "AbortError")
-          setError(cause.message);
+          setError(copy.membershipLoadFailed);
       })
       .finally(() => setLoadingMembership(false));
     return () => controller.abort();
-  }, [address]);
+  }, [address, copy.membershipLoadFailed]);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy]);
@@ -180,11 +226,12 @@ export function BnbxAiAssistant() {
 
   async function payForMembership() {
     if (!address || !publicClient) {
-      setError("请先连接钱包");
+      setError(copy.connectWalletFirst);
       return;
     }
     setBusy(true);
     setError("");
+    setPaymentStage("wallet");
     try {
       if (chainId !== bsc.id) await switchChainAsync({ chainId: bsc.id });
       const hash = await sendTransactionAsync({
@@ -193,7 +240,9 @@ export function BnbxAiAssistant() {
         to: PAYMENT_ADDRESS,
         value: parseEther("0.1"),
       });
+      setPaymentStage("submitted");
       await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+      setPaymentStage("verifying");
       const response = await fetch("/api/bnbx-ai/payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -202,8 +251,10 @@ export function BnbxAiAssistant() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       setMembership(result as Membership);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "支付验证失败");
+      setPaymentStage("success");
+    } catch {
+      setPaymentStage("idle");
+      setError(copy.paymentFailed);
     } finally {
       setBusy(false);
     }
@@ -211,7 +262,7 @@ export function BnbxAiAssistant() {
 
   async function unlock() {
     if (!address) {
-      setError("请先使用页面顶部按钮连接钱包");
+      setError(copy.connectWalletFirst);
       return;
     }
     setBusy(true);
@@ -237,8 +288,8 @@ export function BnbxAiAssistant() {
       if (!response.ok) throw new Error(result.error);
       setAuthorized(true);
       if (result.membership) setMembership(result.membership as Membership);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "签名验证失败");
+    } catch {
+      setError(copy.signatureFailed);
     } finally {
       setBusy(false);
     }
@@ -256,7 +307,7 @@ export function BnbxAiAssistant() {
       const response = await fetch("/api/bnbx-ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: next, language }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
@@ -271,12 +322,12 @@ export function BnbxAiAssistant() {
             : current,
         );
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "发送失败";
-      setError(message);
+      const message = cause instanceof Error ? cause.message : "";
+      setError(copy.sendFailed);
       if (message.includes("Unauthorized") || message.includes("membership"))
         setAuthorized(false);
       if (message.includes("credit")) {
-        setError("您的永久会员权益已保留，请补充新一轮 AI 智能算力额度。");
+        setError(copy.creditEmpty);
         setAuthorized(false);
         setMembership((current) =>
           current ? { ...current, creditMicrousd: 0 } : current,
@@ -286,6 +337,16 @@ export function BnbxAiAssistant() {
       setBusy(false);
     }
   }
+
+  const currentPaymentStageIndex = paymentStages.findIndex(
+    (stage) => stage === paymentStage,
+  );
+  const paymentStageLabels: Record<Exclude<PaymentStage, "idle">, string> = {
+    wallet: copy.paymentWallet,
+    submitted: copy.paymentSubmitted,
+    verifying: copy.paymentVerifying,
+    success: copy.paymentSuccess,
+  };
 
   return (
     <>
@@ -321,14 +382,14 @@ export function BnbxAiAssistant() {
             }
             setOpen(true);
           }}
-          aria-label="打开 BNBX AI"
+          aria-label={copy.open}
         >
           <span className="bnbx-ai-face" aria-hidden="true" />
           <span className="bnbx-ai-orb-label">AI</span>
         </button>
       )}
       {open && (
-        <section className="bnbx-ai-panel" aria-label="BNBX AI 对话">
+        <section className="bnbx-ai-panel" aria-label={copy.title}>
           <header>
             <div>
               <strong>{copy.title}</strong>
@@ -344,7 +405,7 @@ export function BnbxAiAssistant() {
                 <div
                   className="bnbx-ai-avatar"
                   role="img"
-                  aria-label="小壹 / X-One"
+                  aria-label={copy.name}
                 />
                 <h2>{copy.name}</h2>
                 <p>
@@ -355,29 +416,62 @@ export function BnbxAiAssistant() {
                       : copy.refill}
                 </p>
                 {membership?.member && (
-                  <strong className="bnbx-ai-credit">
-                    永久会员 · AI算力余额：$
-                    {(membership.creditMicrousd / 1_000_000).toFixed(4)}
-                  </strong>
+                  <MembershipCard membership={membership} copy={copy} />
+                )}
+                {paymentStage !== "idle" && (
+                  <section
+                    className="bnbx-ai-payment-progress"
+                    aria-label={copy.paymentProgress}
+                    aria-live="polite"
+                  >
+                    {paymentStages.map((stage, index) => {
+                      return (
+                        <div
+                          key={stage}
+                          className={
+                            index < currentPaymentStageIndex
+                              ? "complete"
+                              : index === currentPaymentStageIndex
+                                ? "current"
+                                : "pending"
+                          }
+                        >
+                          <span>
+                            {index < currentPaymentStageIndex ? "✓" : index + 1}
+                          </span>
+                          <small>{paymentStageLabels[stage]}</small>
+                        </div>
+                      );
+                    })}
+                  </section>
                 )}
                 {!membership?.member || membership.creditMicrousd <= 0 ? (
                   <button
                     disabled={busy || !isConnected || loadingMembership}
                     onClick={payForMembership}
                   >
-                    {busy
-                      ? "等待链上确认…"
-                      : membership?.member
-                        ? "0.1 BNB 立即解锁新一轮"
-                        : "0.1 BNB 永久领取"}
+                    {loadingMembership
+                      ? copy.loadingMembership
+                      : busy
+                        ? paymentStage === "wallet"
+                          ? copy.paymentWallet
+                          : paymentStage === "submitted"
+                            ? copy.paymentSubmitted
+                            : copy.paymentVerifying
+                        : membership?.member
+                          ? copy.refillButton
+                          : copy.permanentClaim}
                   </button>
                 ) : (
                   <button disabled={busy || !isConnected} onClick={unlock}>
-                    {busy ? "验证中…" : copy.unlock}
+                    {busy ? copy.verifyingSignature : copy.unlock}
                   </button>
                 )}
-                {!isConnected && <small>请先连接钱包</small>}
+                {!isConnected && <small>{copy.connectWallet}</small>}
               </div>
+            )}
+            {authorized && membership?.member && (
+              <MembershipCard membership={membership} copy={copy} />
             )}
             {authorized &&
               messages.map((message, index) => (
@@ -386,7 +480,7 @@ export function BnbxAiAssistant() {
                 </div>
               ))}
             {authorized && busy && (
-              <div className="bnbx-ai-message assistant">小壹正在思考…</div>
+              <div className="bnbx-ai-message assistant">{copy.thinking}</div>
             )}
             <div ref={endRef} />
           </div>
@@ -407,12 +501,6 @@ export function BnbxAiAssistant() {
               <button disabled={busy || !input.trim()} onClick={send}>
                 {copy.send}
               </button>
-            </div>
-          )}
-          {authorized && membership && (
-            <div className="bnbx-ai-balance">
-              永久会员 · AI算力余额 $
-              {(membership.creditMicrousd / 1_000_000).toFixed(4)}
             </div>
           )}
           <footer>{copy.disclaimer}</footer>
