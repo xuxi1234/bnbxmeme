@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { parseEther } from "viem";
 import { bsc } from "viem/chains";
 import {
@@ -25,11 +25,11 @@ const copy = {
   title: "BNBX AI",
   name: "小壹 · X-One",
   hello: "你好，我是小壹。可以问我 BNBX 发币、内盘交易、毕业机制和钱包安全。",
-  join: "支付 0.1 BNB，永久开通 BNBX AI，领取专属于您的小壹 / X-One。开通即获 100 USDT 等值 AI 智能算力额度。",
+  join: "支付 0.1 BNB，永久开通 BNBX AI，领取专属于您的小壹 / X-One，并获赠 68 USDT 等值 AI 智能算力额度。",
   active:
     "您已是 BNBX AI 永久会员。签名即可领取专属于您的小壹 / X-One；签名不消耗 Gas，也不会授权交易。",
   refill:
-    "您的 BNBX AI 永久会员身份持续有效。仅需 0.1 BNB，即可解锁新一轮价值 100 USDT 的 AI 智能算力额度。",
+    "小壹永远属于您，本轮 AI 算力已使用完毕。补充 0.1 BNB，即可获得新一轮 68 USDT 等值 AI 智能算力。",
   unlock: "签名解锁",
   placeholder: "问问 BNBX AI…",
   send: "发送",
@@ -54,11 +54,16 @@ export function BnbxAiAssistant() {
     { role: "assistant", content: copy.hello },
   ]);
   const [position, setPosition] = useState({ x: 24, y: 100 });
+  const orbRef = useRef<HTMLButtonElement>(null);
   const drag = useRef<{
-    dx: number;
-    dy: number;
+    pointerId: number;
+    startRight: number;
+    startBottom: number;
     startX: number;
     startY: number;
+    nextRight: number;
+    nextBottom: number;
+    frame: number | null;
     moved: boolean;
   } | null>(null);
   const suppressClick = useRef(false);
@@ -101,54 +106,77 @@ export function BnbxAiAssistant() {
     } catch {
       localStorage.removeItem(POSITION_KEY);
     }
-    const move = (event: PointerEvent) => {
-      if (!drag.current) return;
-      if (
-        Math.hypot(
-          event.clientX - drag.current.startX,
-          event.clientY - drag.current.startY,
-        ) > 6
-      )
-        drag.current.moved = true;
-      setPosition(
-        clamp({
-          x: window.innerWidth - size - (event.clientX - drag.current.dx),
-          y: window.innerHeight - size - (event.clientY - drag.current.dy),
-        }),
-      );
-    };
-    const up = () => {
-      if (drag.current?.moved) {
-        suppressClick.current = true;
-        setPosition((current) => {
-          const snapped = clamp({
-            x:
-              current.x + size / 2 < window.innerWidth / 2
-                ? 12
-                : window.innerWidth - size - 12,
-            y: current.y,
-          });
-          localStorage.setItem(POSITION_KEY, JSON.stringify(snapped));
-          return snapped;
-        });
-      }
-      drag.current = null;
-    };
     const resize = () =>
       setPosition((current) => {
         const next = clamp(current);
         localStorage.setItem(POSITION_KEY, JSON.stringify(next));
         return next;
       });
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
     window.addEventListener("resize", resize);
     return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
       window.removeEventListener("resize", resize);
+      if (drag.current?.frame != null) {
+        cancelAnimationFrame(drag.current.frame);
+      }
     };
   }, []);
+
+  function moveOrb(event: PointerEvent<HTMLButtonElement>) {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const size = window.innerWidth < 720 ? 62 : 72;
+    const clamp = (value: number, limit: number) =>
+      Math.max(12, Math.min(limit - size - 12, value));
+    const deltaX = event.clientX - current.startX;
+    const deltaY = event.clientY - current.startY;
+    if (Math.hypot(deltaX, deltaY) > 6) current.moved = true;
+    current.nextRight = clamp(current.startRight - deltaX, window.innerWidth);
+    current.nextBottom = clamp(
+      current.startBottom - deltaY,
+      window.innerHeight,
+    );
+    if (current.frame !== null) return;
+    current.frame = requestAnimationFrame(() => {
+      const latest = drag.current;
+      const orb = orbRef.current;
+      if (!latest || !orb) return;
+      latest.frame = null;
+      orb.style.transform = `translate3d(${latest.startRight - latest.nextRight}px, ${latest.startBottom - latest.nextBottom}px, 0)`;
+    });
+  }
+
+  function finishOrbDrag(event: PointerEvent<HTMLButtonElement>) {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    if (current.frame !== null) cancelAnimationFrame(current.frame);
+    const orb = orbRef.current;
+    const size = window.innerWidth < 720 ? 62 : 72;
+    if (current.moved) {
+      suppressClick.current = true;
+      const snapped = {
+        x:
+          current.nextRight + size / 2 < window.innerWidth / 2
+            ? 12
+            : window.innerWidth - size - 12,
+        y: current.nextBottom,
+      };
+      if (orb) {
+        orb.style.right = `${snapped.x}px`;
+        orb.style.bottom = `${snapped.y}px`;
+        orb.style.transform = "";
+      }
+      setPosition(snapped);
+      localStorage.setItem(POSITION_KEY, JSON.stringify(snapped));
+    } else if (orb) {
+      orb.style.transform = "";
+    }
+    orb?.classList.remove("is-dragging");
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    drag.current = null;
+  }
 
   async function payForMembership() {
     if (!address || !publicClient) {
@@ -263,19 +291,29 @@ export function BnbxAiAssistant() {
     <>
       {!open && (
         <button
+          ref={orbRef}
           className="bnbx-ai-orb"
           style={{ right: position.x, bottom: position.y }}
           onPointerDown={(e) => {
+            if (!e.isPrimary) return;
             suppressClick.current = false;
-            const size = window.innerWidth < 720 ? 62 : 72;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            e.currentTarget.classList.add("is-dragging");
             drag.current = {
-              dx: e.clientX - (window.innerWidth - position.x - size),
-              dy: e.clientY - (window.innerHeight - position.y - size),
+              pointerId: e.pointerId,
+              startRight: position.x,
+              startBottom: position.y,
               startX: e.clientX,
               startY: e.clientY,
+              nextRight: position.x,
+              nextBottom: position.y,
+              frame: null,
               moved: false,
             };
           }}
+          onPointerMove={moveOrb}
+          onPointerUp={finishOrbDrag}
+          onPointerCancel={finishOrbDrag}
           onClick={() => {
             if (suppressClick.current) {
               suppressClick.current = false;
@@ -339,10 +377,6 @@ export function BnbxAiAssistant() {
                   </button>
                 )}
                 {!isConnected && <small>请先连接钱包</small>}
-                <small title={PAYMENT_ADDRESS}>
-                  BSC 主网 · 官方收款地址 {PAYMENT_ADDRESS.slice(0, 8)}…
-                  {PAYMENT_ADDRESS.slice(-6)}
-                </small>
               </div>
             )}
             {authorized &&
