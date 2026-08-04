@@ -143,7 +143,7 @@ export function BnbxAiAssistant() {
           }}
           aria-label="打开 BNBX AI"
         >
-          <span className="bnbx-ai-face">壹</span>
+          <span className="bnbx-ai-face" aria-hidden="true" />
           <span className="bnbx-ai-orb-label">AI</span>
         </button>
       )}
@@ -161,7 +161,11 @@ export function BnbxAiAssistant() {
           <div className="bnbx-ai-messages">
             {!authorized && (
               <div className="bnbx-ai-gate">
-                <div className="bnbx-ai-avatar">壹</div>
+                <div
+                  className="bnbx-ai-avatar"
+                  role="img"
+                  aria-label="小壹 / X-One"
+                />
                 <h2>{copy.name}</h2>
                 <p>{copy.gate}</p>
                 <button disabled={busy || !isConnected} onClick={unlock}>
