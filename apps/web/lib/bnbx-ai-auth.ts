@@ -4,12 +4,11 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { isAddress, type Address, type Hex } from "viem";
 import { verifyWalletMessage } from "@/lib/comment-signature-server";
-import { serverPublicClient } from "@/lib/server-chain";
+import { assertAiMember } from "@/lib/bnbx-ai-membership";
 
 const COOKIE = "bnbx_ai_session";
 const CHALLENGE_TTL = 5 * 60;
 const SESSION_TTL = 60 * 60;
-const MIN_BALANCE = 10n ** 18n;
 
 type Payload = { address: string; exp: number; nonce?: string; fp?: string };
 
@@ -105,7 +104,7 @@ export async function establishSession(
     signature: input.signature as Hex,
   });
   if (!valid) throw new Error("Invalid wallet signature");
-  await assertBalance(address);
+  const membership = await assertAiMember(address);
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL;
   (await cookies()).set(COOKIE, encode({ address, exp, fp }), {
     httpOnly: true,
@@ -114,7 +113,7 @@ export async function establishSession(
     path: "/",
     maxAge: SESSION_TTL,
   });
-  return { address, expiresAt: exp * 1000 };
+  return { address, expiresAt: exp * 1000, membership };
 }
 
 export async function requireSession(request: Request) {
@@ -125,11 +124,6 @@ export async function requireSession(request: Request) {
     !isAddress(payload.address)
   )
     throw new Error("Unauthorized");
-  await assertBalance(payload.address);
+  await assertAiMember(payload.address);
   return payload.address.toLowerCase();
-}
-
-async function assertBalance(address: Address) {
-  const balance = await serverPublicClient.getBalance({ address });
-  if (balance <= MIN_BALANCE) throw new Error("More than 1 BNB is required");
 }

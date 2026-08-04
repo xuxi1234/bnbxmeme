@@ -1,0 +1,116 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const [component, paymentRoute, chatRoute, auth, membership, migration, css] =
+  await Promise.all([
+    readFile(
+      new URL("../components/bnbx-ai-assistant.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/api/bnbx-ai/payment/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../app/api/bnbx-ai/chat/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("bnbx-ai-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("bnbx-ai-membership.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL(
+        "../../../supabase/migrations/20260805070000_bnbx_ai_permanent_credit.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    readFile(new URL("../app/bnbx-ai.css", import.meta.url), "utf8"),
+  ]);
+
+test("charges exactly 0.1 BNB to the approved BSC recipient", () => {
+  const recipient = "0x3c97e99441cf86778d81fd6fef61bda84be9634a";
+  assert.match(component, new RegExp(recipient));
+  assert.match(component, /value:\s*parseEther\("0\.1"\)/);
+  assert.match(component, /chainId:\s*bsc\.id/);
+  assert.match(membership, new RegExp(recipient));
+  assert.match(membership, /BNBX_AI_PAYMENT_WEI = 100_000_000_000_000_000n/);
+});
+
+test("credits only a confirmed direct payment from the connected wallet", () => {
+  assert.match(paymentRoute, /confirmations:\s*2/);
+  assert.match(paymentRoute, /receipt\.status !== "success"/);
+  assert.match(paymentRoute, /transaction\.from\.toLowerCase\(\) !== wallet/);
+  assert.match(
+    paymentRoute,
+    /transaction\.to\?\.toLowerCase\(\) !== BNBX_AI_PAYMENT_ADDRESS/,
+  );
+  assert.match(paymentRoute, /transaction\.value < BNBX_AI_PAYMENT_WEI/);
+});
+
+test("makes membership permanent and each unique payment worth 100 USDT", () => {
+  assert.match(membership, /BNBX_AI_CREDIT_MICROUSD = 100_000_000/);
+  assert.match(migration, /permanent_member boolean not null default true/);
+  assert.match(migration, /tx_hash text primary key/);
+  assert.match(migration, /on conflict \(tx_hash\) do nothing/);
+  assert.match(
+    migration,
+    /credit_microusd = public\.bnbx_ai_members\.credit_microusd \+ excluded\.credit_microusd/,
+  );
+});
+
+test("keeps paid membership data server-only behind RLS", () => {
+  for (const table of [
+    "bnbx_ai_members",
+    "bnbx_ai_payments",
+    "bnbx_ai_credit_reservations",
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(`alter table public\\.${table} enable row level security`),
+    );
+    assert.match(
+      migration,
+      new RegExp(
+        `revoke all on public\\.${table} from public, anon, authenticated`,
+      ),
+    );
+  }
+  assert.match(
+    migration,
+    /grant execute on function public\.record_bnbx_ai_payment[\s\S]*to service_role/,
+  );
+});
+
+test("replaces the one-BNB balance gate with paid membership plus signature", () => {
+  assert.doesNotMatch(auth, /getBalance|More than 1 BNB|MIN_BALANCE/);
+  assert.match(auth, /await assertAiMember\(address\)/);
+  assert.match(component, /signMessageAsync/);
+  assert.match(component, /永久开通 BNBX AI/);
+  assert.match(component, /领取专属于您的小壹 \/ X-One/);
+});
+
+test("reserves credit before the provider call and settles actual token usage", () => {
+  assert.ok(
+    chatRoute.indexOf("reserveAiCredit") <
+      chatRoute.indexOf("/chat/completions"),
+  );
+  assert.match(
+    chatRoute,
+    /usage\?: \{ prompt_tokens\?: number; completion_tokens\?: number \}/,
+  );
+  assert.match(chatRoute, /aiCostMicrousd/);
+  assert.match(chatRoute, /settleAiCredit\(reservationId, 0, true\)/);
+  assert.match(migration, /status in \('reserved', 'settled', 'released'\)/);
+});
+
+test("gives mobile and desktop the same draggable X-One behavior", () => {
+  assert.doesNotMatch(component, /window\.innerWidth < 720\) return/);
+  assert.match(component, /pointermove/);
+  assert.match(component, /POSITION_KEY/);
+  assert.match(component, /localStorage\.setItem/);
+  assert.match(component, /suppressClick/);
+  assert.match(css, /touch-action: none/);
+  assert.doesNotMatch(css, /right: 14px !important/);
+  assert.doesNotMatch(css, /bottom: 82px !important/);
+});
