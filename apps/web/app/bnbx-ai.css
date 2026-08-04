@@ -91,6 +91,9 @@
 .bnbx-ai-messages {
   flex: 1;
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -156,6 +159,99 @@
   margin-top: 9px;
   color: #948b78;
 }
+.bnbx-ai-membership {
+  width: 100%;
+  margin: 10px 0 14px;
+  padding: 12px;
+  border: 1px solid #5c481c;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #201a0f, #15130f);
+  text-align: left;
+}
+.bnbx-ai-membership-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.bnbx-ai-membership-title strong {
+  color: #f6c84a;
+  font-size: 14px;
+}
+.bnbx-ai-membership-title span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #234f2b;
+  color: #a9efb3;
+  font-size: 10px;
+  font-weight: 700;
+}
+.bnbx-ai-membership dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+}
+.bnbx-ai-membership dl div {
+  min-width: 0;
+  padding: 8px;
+  border-radius: 9px;
+  background: #0e0d0b;
+}
+.bnbx-ai-membership dt {
+  color: #918873;
+  font-size: 10px;
+}
+.bnbx-ai-membership dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  color: #f8f4e8;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bnbx-ai-payment-progress {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #17140e;
+  text-align: left;
+}
+.bnbx-ai-payment-progress div {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 29px;
+  color: #827a69;
+}
+.bnbx-ai-payment-progress div span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid #554b34;
+  border-radius: 50%;
+  font-size: 10px;
+}
+.bnbx-ai-payment-progress div.current {
+  color: #f8f4e8;
+}
+.bnbx-ai-payment-progress div.current span {
+  border-color: #efb82e;
+  background: #efb82e;
+  color: #161006;
+}
+.bnbx-ai-payment-progress div.complete {
+  color: #9ccca5;
+}
+.bnbx-ai-payment-progress div.complete span {
+  border-color: #397b46;
+  background: #234f2b;
+}
 .bnbx-ai-credit {
   display: block;
   margin: 2px 0 12px;
@@ -192,6 +288,7 @@
   color: #fff;
   padding: 11px;
   outline: none;
+  touch-action: manipulation;
 }
 .bnbx-ai-panel footer {
   text-align: center;
@@ -220,6 +317,9 @@
   }
   .bnbx-ai-messages {
     padding: 14px;
+  }
+  .bnbx-ai-membership dl {
+    gap: 6px;
   }
   .bnbx-ai-compose {
     padding: 10px;
