@@ -6,6 +6,10 @@ import {
   sensitiveTopicRefusal,
 } from "@/lib/bnbx-ai-boundary";
 import { consumeAiQuota } from "@/lib/bnbx-ai-quota";
+import {
+  buildChatCompletionBody,
+  extractChatContent,
+} from "@/lib/bnbx-ai-chat-reliability";
 
 export const runtime = "nodejs";
 
@@ -32,6 +36,20 @@ class ChatApiError extends Error {
 
 type ProviderErrorBody = {
   error?: { code?: string; type?: string; message?: string };
+};
+
+type ProviderResult = ProviderErrorBody & {
+  choices?: Array<{
+    finish_reason?: string;
+    message?: {
+      content?: string | Array<{ type?: string; text?: string }>;
+    };
+  }>;
+  usage?: {
+    completion_tokens?: number;
+    total_tokens?: number;
+    completion_tokens_details?: { reasoning_tokens?: number };
+  };
 };
 
 function providerErrorCode(status: number, code: string, type: string) {
@@ -75,15 +93,9 @@ async function requestProvider(
           "Content-Type": "application/json",
         },
         signal: controller.signal,
-        body: JSON.stringify({
-          model,
-          messages,
-          max_completion_tokens: 900,
-        }),
+        body: JSON.stringify(buildChatCompletionBody(model, messages, attempt)),
       });
-      const result = (await response.json().catch(() => ({}))) as
-        | ProviderErrorBody
-        | { choices?: Array<{ message?: { content?: string } }> };
+      const result = (await response.json().catch(() => ({}))) as ProviderResult;
       if (!response.ok) {
         const providerError = (result as ProviderErrorBody).error;
         const code = providerErrorCode(
@@ -107,9 +119,23 @@ async function requestProvider(
           response.status,
         );
       }
-      return result as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
+      const content = extractChatContent(result);
+      if (content) return content;
+      console.error("BNBX_AI_PROVIDER_EMPTY_RESPONSE", {
+        finishReason: result.choices?.[0]?.finish_reason ?? null,
+        completionTokens: result.usage?.completion_tokens ?? null,
+        reasoningTokens:
+          result.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+        totalTokens: result.usage?.total_tokens ?? null,
+        model,
+        attempt: attempt + 1,
+      });
+      if (attempt === 1)
+        throw new ChatApiError(
+          "AI provider returned no answer",
+          "provider_empty_response",
+          503,
+        );
     } catch (error) {
       lastError = error;
       if (error instanceof ChatApiError) {
@@ -189,15 +215,13 @@ export async function POST(request: Request) {
       ? "https://ai-gateway.vercel.sh/v1"
       : "https://api.openai.com/v1";
     const model = process.env.BNBX_AI_MODEL ?? "gpt-5-mini";
-    const result = await requestProvider(base, apiKey, model, [
+    const content = await requestProvider(base, apiKey, model, [
       {
         role: "system",
         content: `${SYSTEM}\nThe interface language is ${interfaceLanguage}. Reply in that language unless the user explicitly requests another language.`,
       },
       ...messages,
     ]);
-    const content = result.choices?.[0]?.message?.content?.trim();
-    if (!content) throw new Error("Empty AI response");
     return NextResponse.json({ content });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed";
