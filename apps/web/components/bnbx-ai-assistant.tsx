@@ -32,10 +32,6 @@ const paymentStages: Exclude<PaymentStage, "idle">[] = [
   "success",
 ];
 
-function formatUsd(microusd: number) {
-  return `$${(microusd / 1_000_000).toFixed(2)}`;
-}
-
 function MembershipCard({
   membership,
   copy,
@@ -56,11 +52,7 @@ function MembershipCard({
         </div>
         <div>
           <dt>{copy.creditBalance}</dt>
-          <dd>{formatUsd(membership.creditMicrousd)}</dd>
-        </div>
-        <div>
-          <dt>{copy.lifetimeUsage}</dt>
-          <dd>{formatUsd(membership.lifetimeSpentMicrousd)}</dd>
+          <dd>{copy.activeStatus}</dd>
         </div>
         <div>
           <dt>{copy.paymentCount}</dt>
@@ -315,24 +307,11 @@ export function BnbxAiAssistant() {
         ...current,
         { role: "assistant", content: result.content },
       ]);
-      if (typeof result.creditMicrousd === "number")
-        setMembership((current) =>
-          current
-            ? { ...current, creditMicrousd: result.creditMicrousd }
-            : current,
-        );
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
       setError(copy.sendFailed);
       if (message.includes("Unauthorized") || message.includes("membership"))
         setAuthorized(false);
-      if (message.includes("credit")) {
-        setError(copy.creditEmpty);
-        setAuthorized(false);
-        setMembership((current) =>
-          current ? { ...current, creditMicrousd: 0 } : current,
-        );
-      }
     } finally {
       setBusy(false);
     }
@@ -408,13 +387,7 @@ export function BnbxAiAssistant() {
                   aria-label={copy.name}
                 />
                 <h2>{copy.name}</h2>
-                <p>
-                  {!membership?.member
-                    ? copy.join
-                    : membership.creditMicrousd > 0
-                      ? copy.active
-                      : copy.refill}
-                </p>
+                <p>{!membership?.member ? copy.join : copy.active}</p>
                 {membership?.member && (
                   <MembershipCard membership={membership} copy={copy} />
                 )}
@@ -445,7 +418,7 @@ export function BnbxAiAssistant() {
                     })}
                   </section>
                 )}
-                {!membership?.member || membership.creditMicrousd <= 0 ? (
+                {!membership?.member ? (
                   <button
                     disabled={busy || !isConnected || loadingMembership}
                     onClick={payForMembership}
