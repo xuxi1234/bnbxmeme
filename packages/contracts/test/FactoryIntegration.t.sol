@@ -296,6 +296,7 @@ contract FactoryIntegrationTest {
 
     function testCreateBuyFillGraduateAndBurnLPAtomically() public {
         uint256 balanceBefore = address(this).balance;
+        uint256 feeBalanceBefore = FEE_RECIPIENT.balance;
 
         (address tokenAddress, address curveAddress, uint256 tokensOut) =
             launchFactory.createVanityTokenAndBuy{ value: 5.5 ether }(
@@ -328,7 +329,7 @@ contract FactoryIntegrationTest {
         require(pair.reserve1() == uint112(0.05 ether), "BNB_RESERVE");
         require(pair.liquidityBalance(DEAD) > 0, "LP_NOT_DEAD");
         require(
-            FEE_RECIPIENT.balance == 0.001505050505050506 ether,
+            FEE_RECIPIENT.balance - feeBalanceBefore == 0.001505050505050506 ether,
             "FEE_BALANCE"
         );
 
