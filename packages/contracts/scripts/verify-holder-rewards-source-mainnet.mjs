@@ -4,6 +4,7 @@ import solc from "solc";
 
 const root = resolve(import.meta.dirname, "..");
 const entry = "src/BNBXHolderRewardsFactory.sol";
+const tokenEntry = "src/BNBXHolderRewardsToken.sol";
 
 function findImports(path) {
   for (const candidate of [path, path.replace(/^\.\//, "src/")]) {
@@ -16,7 +17,12 @@ function findImports(path) {
 
 const compilerInput = {
   language: "Solidity",
-  sources: { [entry]: { content: readFileSync(resolve(root, entry), "utf8") } },
+  sources: {
+    [entry]: { content: readFileSync(resolve(root, entry), "utf8") },
+    [tokenEntry]: {
+      content: readFileSync(resolve(root, tokenEntry), "utf8"),
+    },
+  },
   settings: {
     optimizer: { enabled: true, runs: 200 },
     evmVersion: "shanghai",
