@@ -5,6 +5,12 @@ import solc from "solc";
 const root = resolve(import.meta.dirname, "..");
 const entry = "src/BNBXHolderRewardsFactory.sol";
 const tokenEntry = "src/BNBXHolderRewardsToken.sol";
+const dependencyEntries = [
+  "src/BondingCurve.sol",
+  "src/interfaces/IERC20Minimal.sol",
+  "src/interfaces/IPancakeV2.sol",
+  "src/libraries/FeeMath.sol",
+];
 
 function findImports(path) {
   for (const candidate of [path, path.replace(/^\.\//, "src/")]) {
@@ -22,6 +28,12 @@ const compilerInput = {
     [tokenEntry]: {
       content: readFileSync(resolve(root, tokenEntry), "utf8"),
     },
+    ...Object.fromEntries(
+      dependencyEntries.map((dependency) => [
+        dependency,
+        { content: readFileSync(resolve(root, dependency), "utf8") },
+      ]),
+    ),
   },
   settings: {
     optimizer: { enabled: true, runs: 200 },
