@@ -7,6 +7,7 @@ import { advancedFactoryAbi } from "./advanced-factory-abi";
 import {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  holderRewardsFactoryAddress,
   legacyRewardsFactoryAddress,
   legacyStandardFactoryAddress,
   lpBurnAddress,
@@ -20,6 +21,7 @@ import {
 export {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  holderRewardsFactoryAddress,
   legacyRewardsFactoryAddress,
   legacyStandardFactoryAddress,
   lpBurnAddress,
