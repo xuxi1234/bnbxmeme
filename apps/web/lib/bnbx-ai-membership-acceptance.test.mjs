@@ -57,10 +57,10 @@ test("credits only a confirmed direct payment from the connected wallet", () => 
   assert.match(paymentRoute, /transaction\.value < BNBX_AI_PAYMENT_WEI/);
 });
 
-test("makes membership permanent and each unique payment worth 68 USDT", () => {
+test("makes membership permanent and does not advertise a personal credit cutoff", () => {
   assert.match(membership, /BNBX_AI_CREDIT_MICROUSD = 68_000_000/);
-  assert.match(copy, /68 USDT/);
-  assert.doesNotMatch(copy, /100 USDT/);
+  assert.doesNotMatch(copy, /68 USDT|100 USDT/);
+  assert.match(copy, /正常使用不按个人额度中断/);
   assert.match(migration, /permanent_member boolean not null default true/);
   assert.match(migration, /tx_hash text primary key/);
   assert.match(migration, /on conflict \(tx_hash\) do nothing/);
@@ -117,24 +117,25 @@ test("shows staged payment feedback and a useful My X-One summary", () => {
   assert.match(component, /setPaymentStage\("verifying"\)/);
   assert.match(component, /setPaymentStage\("success"\)/);
   assert.match(component, /className="bnbx-ai-membership"/);
-  assert.match(component, /membership\.lifetimeSpentMicrousd/);
   assert.match(component, /membership\.paymentCount/);
-  assert.match(component, /toFixed\(2\)/);
   assert.match(css, /bnbx-ai-payment-progress/);
 });
 
-test("reserves credit before the provider call and settles actual token usage", () => {
-  assert.ok(
-    chatRoute.indexOf("reserveAiCredit") <
-      chatRoute.indexOf("/chat/completions"),
-  );
-  assert.match(
+test("lets paid members chat without consuming a per-member credit balance", () => {
+  assert.match(chatRoute, /await requireSession\(request\)/);
+  assert.doesNotMatch(
     chatRoute,
-    /usage\?: \{ prompt_tokens\?: number; completion_tokens\?: number \}/,
+    /reserveAiCredit|settleAiCredit|aiCostMicrousd/,
   );
-  assert.match(chatRoute, /aiCostMicrousd/);
-  assert.match(chatRoute, /settleAiCredit\(reservationId, 0, true\)/);
-  assert.match(migration, /status in \('reserved', 'settled', 'released'\)/);
+  assert.doesNotMatch(component, /membership\.creditMicrousd > 0/);
+  assert.doesNotMatch(component, /membership\.creditMicrousd <= 0/);
+});
+
+test("trims old X-One history instead of rejecting a valid later turn", () => {
+  assert.match(chatRoute, /function trimConversationHistory/);
+  assert.match(chatRoute, /trimmed\.length > 1/);
+  assert.match(chatRoute, /trimmed\.shift\(\)/);
+  assert.doesNotMatch(chatRoute, /JSON\.stringify\(messages\)\.length > 8000/);
 });
 
 test("gives mobile and desktop the same draggable X-One behavior", () => {
