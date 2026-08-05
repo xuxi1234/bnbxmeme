@@ -9,6 +9,7 @@ import {
   isAddress,
   parseEther,
   zeroAddress,
+  type Abi,
 } from "viem";
 import {
   useAccount,
@@ -59,6 +60,10 @@ import {
   localizeCreateErrorMessage,
 } from "@/lib/localization-copy";
 import { MAX_TEMPLATE_SIDE_TAX_PERCENT as MAX_SIDE_TAX } from "@/lib/template-rules";
+import {
+  holderRewardsFactoryAbi,
+  holderRewardsFactoryAddress,
+} from "@/lib/holder-rewards-config";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 const VANITY_SEARCH_LIMIT = 500_000;
@@ -284,7 +289,11 @@ export default function CreateTokenPage() {
   } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const factoryAddress =
-    template === "standard" ? v3StandardFactoryAddress : rewardsFactoryAddress;
+    template === "standard"
+      ? v3StandardFactoryAddress
+      : template === "holders"
+        ? holderRewardsFactoryAddress
+        : rewardsFactoryAddress;
   const minimumRewardBalance =
     template === "holders"
       ? minimumRewardBalances.holders
@@ -296,7 +305,12 @@ export default function CreateTokenPage() {
       if (log.address.toLowerCase() !== factoryAddress.toLowerCase()) continue;
       try {
         const decoded = decodeEventLog({
-          abi: template === "standard" ? factoryAbi : rewardsFactoryAbi,
+          abi:
+            template === "standard"
+              ? factoryAbi
+              : template === "holders"
+                ? holderRewardsFactoryAbi
+                : rewardsFactoryAbi,
           data: log.data,
           topics: log.topics,
         });
@@ -438,43 +452,61 @@ export default function CreateTokenPage() {
     }
     const marketingAddress = marketing as `0x${string}`;
     if (template === "holders" || template === "lp") {
-      if (!rewardsFactoryAddress) {
+      const selectedFactory =
+        template === "holders"
+          ? holderRewardsFactoryAddress
+          : rewardsFactoryAddress;
+      const selectedAbi: Abi =
+        template === "holders" ? holderRewardsFactoryAbi : rewardsFactoryAbi;
+      if (!selectedFactory) {
         throw new Error(copy.errors.rewardsFactoryMissing);
       }
-      const templateValue = advancedTemplateValue(template);
       const minimumShare = minimumRewardShareOrThrow(template);
       const rewardTokenAddress = rewardToken.trim();
       if (!isAddress(rewardTokenAddress)) {
         throw new Error(copy.errors.rewardTokenInvalid);
       }
-      const saltRequest = {
-        name: tokenName,
-        symbol: tokenSymbol,
-        graduationTargetBNB: target,
-        metadataURI: "",
-        vanitySalt: ZERO_SALT,
-        marketingWallet: marketingAddress,
-        rewardToken: rewardTokenAddress,
-        taxes: configuredTaxes(),
-        template: templateValue,
-        minimumRewardShare: minimumShare,
-      };
+      const saltRequest =
+        template === "holders"
+          ? {
+              name: tokenName,
+              symbol: tokenSymbol,
+              graduationTargetBNB: target,
+              metadataURI: "",
+              vanitySalt: ZERO_SALT,
+              rewardToken: rewardTokenAddress,
+              buyRewardTaxBps: configuredTaxes().buy.rewards,
+              sellRewardTaxBps: configuredTaxes().sell.rewards,
+              minimumRewardBalance: minimumShare,
+            }
+          : {
+              name: tokenName,
+              symbol: tokenSymbol,
+              graduationTargetBNB: target,
+              metadataURI: "",
+              vanitySalt: ZERO_SALT,
+              marketingWallet: marketingAddress,
+              rewardToken: rewardTokenAddress,
+              taxes: configuredTaxes(),
+              template: advancedTemplateValue(template),
+              minimumRewardShare: minimumShare,
+            };
       setVanityProgress(0);
       for (
         let index = 0;
         index < VANITY_SEARCH_LIMIT;
         index += VANITY_SEARCH_CHUNK_SIZE
       ) {
-        const result = await testnetPublicClient.readContract({
-          address: rewardsFactoryAddress,
-          abi: rewardsFactoryAbi,
+        const result = (await testnetPublicClient.readContract({
+          address: selectedFactory,
+          abi: selectedAbi,
           functionName: "findVanitySalt",
           args: [
             saltRequest,
             start + BigInt(index),
             BigInt(VANITY_SEARCH_CHUNK_SIZE),
           ],
-        });
+        })) as readonly [boolean, `0x${string}`, `0x${string}`];
         if (result[0]) return result[1];
         setVanityProgress(
           Math.round(
@@ -544,8 +576,12 @@ export default function CreateTokenPage() {
       const minimumInitialTokens = quoteFreshCurveBuy(target, initialBuyWei);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
       if (template !== "standard") {
-        const selectedFactory = rewardsFactoryAddress;
-        const selectedAbi = rewardsFactoryAbi;
+        const selectedFactory =
+          template === "holders"
+            ? holderRewardsFactoryAddress
+            : rewardsFactoryAddress;
+        const selectedAbi: Abi =
+          template === "holders" ? holderRewardsFactoryAbi : rewardsFactoryAbi;
         if (!selectedFactory) {
           throw new Error(copy.errors.selectedFactoryMissing);
         }
@@ -558,18 +594,31 @@ export default function CreateTokenPage() {
         if (!isAddress(rewardTokenAddress)) {
           throw new Error(copy.errors.rewardTokenInvalid);
         }
-        const request = {
-          name: name.trim(),
-          symbol: symbol.trim(),
-          graduationTargetBNB: target,
-          metadataURI,
-          vanitySalt,
-          marketingWallet: marketing,
-          rewardToken: rewardTokenAddress,
-          taxes: configuredTaxes(),
-          template: advancedTemplateValue(template),
-          minimumRewardShare: minimumRewardShareOrThrow(template),
-        };
+        const request =
+          template === "holders"
+            ? {
+                name: name.trim(),
+                symbol: symbol.trim(),
+                graduationTargetBNB: target,
+                metadataURI,
+                vanitySalt,
+                rewardToken: rewardTokenAddress,
+                buyRewardTaxBps: configuredTaxes().buy.rewards,
+                sellRewardTaxBps: configuredTaxes().sell.rewards,
+                minimumRewardBalance: minimumRewardShareOrThrow(template),
+              }
+            : {
+                name: name.trim(),
+                symbol: symbol.trim(),
+                graduationTargetBNB: target,
+                metadataURI,
+                vanitySalt,
+                marketingWallet: marketing,
+                rewardToken: rewardTokenAddress,
+                taxes: configuredTaxes(),
+                template: advancedTemplateValue(template),
+                minimumRewardShare: minimumRewardShareOrThrow(template),
+              };
         if (initialBuyWei === 0n) {
           setIsPreflighting(true);
           const estimatedGas = await testnetPublicClient.estimateContractGas({
