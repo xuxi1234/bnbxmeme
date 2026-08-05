@@ -189,6 +189,7 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.ok(officialCatalog);
   assert.match(officialCatalog, /standardFactoryAddress/);
   assert.match(officialCatalog, /rewardsFactoryAddress/);
+  assert.match(officialCatalog, /holderRewardsFactoryAddress/);
   assert.doesNotMatch(officialCatalog, /legacyStandardFactoryAddress/);
   assert.doesNotMatch(officialCatalog, /legacyAutoLiquidityFactoryAddress/);
   assert.doesNotMatch(officialCatalog, /legacyRewardsFactoryAddress/);
