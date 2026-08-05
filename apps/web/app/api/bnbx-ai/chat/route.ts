@@ -17,6 +17,123 @@ const interfaceLanguages = {
   ja: "Japanese",
 } as const;
 const MAX_HISTORY_JSON_CHARS = 7000;
+const PROVIDER_TIMEOUT_MS = 45_000;
+
+class ChatApiError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly status: number,
+    readonly providerStatus = status,
+  ) {
+    super(message);
+  }
+}
+
+type ProviderErrorBody = {
+  error?: { code?: string; type?: string; message?: string };
+};
+
+function providerErrorCode(status: number, code: string, type: string) {
+  const detail = `${code} ${type}`.toLowerCase();
+  if (status === 401 || detail.includes("api_key")) return "provider_auth";
+  if (detail.includes("insufficient_quota") || detail.includes("billing"))
+    return "provider_quota";
+  if (status === 429) return "provider_rate_limit";
+  if (
+    status === 403 ||
+    detail.includes("model_not_found") ||
+    detail.includes("permission")
+  )
+    return "provider_access";
+  return "provider_unavailable";
+}
+
+function isRetryableProviderError(error: unknown) {
+  return (
+    error instanceof ChatApiError &&
+    (error.code === "provider_rate_limit" ||
+      (error.code === "provider_unavailable" && error.providerStatus >= 500))
+  );
+}
+
+async function requestProvider(
+  base: string,
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: "system" | "assistant" | "user"; content: string }>,
+) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model,
+          messages,
+          max_completion_tokens: 900,
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as
+        | ProviderErrorBody
+        | { choices?: Array<{ message?: { content?: string } }> };
+      if (!response.ok) {
+        const providerError = (result as ProviderErrorBody).error;
+        const code = providerErrorCode(
+          response.status,
+          String(providerError?.code ?? ""),
+          String(providerError?.type ?? ""),
+        );
+        console.error("BNBX_AI_PROVIDER_ERROR", {
+          status: response.status,
+          code,
+          providerCode: providerError?.code ?? null,
+          providerType: providerError?.type ?? null,
+          requestId: response.headers.get("x-request-id"),
+          model,
+          attempt: attempt + 1,
+        });
+        throw new ChatApiError(
+          "AI provider unavailable",
+          code,
+          503,
+          response.status,
+        );
+      }
+      return result as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+    } catch (error) {
+      lastError = error;
+      if (error instanceof ChatApiError) {
+        if (!isRetryableProviderError(error) || attempt === 1) throw error;
+      } else {
+        console.error("BNBX_AI_PROVIDER_NETWORK_ERROR", {
+          name: error instanceof Error ? error.name : "UnknownError",
+          model,
+          attempt: attempt + 1,
+        });
+        if (attempt === 1)
+          throw new ChatApiError(
+            "AI provider unavailable",
+            "provider_unavailable",
+            503,
+          );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastError;
+}
 
 function trimConversationHistory(
   messages: Array<{ role: "assistant" | "user"; content: string }>,
@@ -71,39 +188,37 @@ export async function POST(request: Request) {
     const base = process.env.AI_GATEWAY_API_KEY
       ? "https://ai-gateway.vercel.sh/v1"
       : "https://api.openai.com/v1";
-    const response = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const model = process.env.BNBX_AI_MODEL ?? "gpt-5-mini";
+    const result = await requestProvider(base, apiKey, model, [
+      {
+        role: "system",
+        content: `${SYSTEM}\nThe interface language is ${interfaceLanguage}. Reply in that language unless the user explicitly requests another language.`,
       },
-      body: JSON.stringify({
-        model: process.env.BNBX_AI_MODEL ?? "gpt-5-mini",
-        messages: [
-          {
-            role: "system",
-            content: `${SYSTEM}\nThe interface language is ${interfaceLanguage}. Reply in that language unless the user explicitly requests another language.`,
-          },
-          ...messages,
-        ],
-        max_completion_tokens: 900,
-      }),
-    });
-    if (!response.ok) throw new Error("AI provider unavailable");
-    const result = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
+      ...messages,
+    ]);
     const content = result.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error("Empty AI response");
     return NextResponse.json({ content });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed";
-    const status =
-      message === "Unauthorized" || message.includes("membership")
-        ? 401
-        : message.includes("limit") || message.includes("10 seconds")
-          ? 429
-          : 400;
-    return NextResponse.json({ error: message }, { status });
+    if (error instanceof ChatApiError)
+      return NextResponse.json(
+        { error: message, code: error.code },
+        { status: error.status },
+      );
+    const unauthorized =
+      message === "Unauthorized" || message.includes("membership");
+    const limited = message.includes("limit") || message.includes("seconds");
+    return NextResponse.json(
+      {
+        error: message,
+        code: unauthorized
+          ? "session_expired"
+          : limited
+            ? "fair_use_limit"
+            : "invalid_request",
+      },
+      { status: unauthorized ? 401 : limited ? 429 : 400 },
+    );
   }
 }
