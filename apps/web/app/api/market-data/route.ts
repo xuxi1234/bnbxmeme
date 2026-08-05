@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress, zeroAddress } from "viem";
 import { readOfficialCreatorCatalog } from "@/lib/creator-project-server";
-import { officialFactoryAddresses } from "@/lib/deployments";
+import {
+  holderRewardsFactoryAddress,
+  officialFactoryAddresses,
+} from "@/lib/deployments";
 import {
   buildFactorySlots,
   chunkItems,
@@ -97,6 +100,34 @@ const tokenReadAbi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "buyRewardTaxBps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint16" }],
+  },
+  {
+    type: "function",
+    name: "sellRewardTaxBps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint16" }],
+  },
+  {
+    type: "function",
+    name: "minimumRewardBalance",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "rewardToken",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
   },
 ] as const;
 
@@ -407,6 +438,8 @@ async function readCreatorMarket(creator: `0x${string}`) {
 type ValidProject = Extract<ProjectValidationResult, { status: "valid" }>;
 
 async function readToken({ token, factory, curve }: ValidProject) {
+  const isHolderRewards =
+    factory.toLowerCase() === holderRewardsFactoryAddress.toLowerCase();
   const detailResults = await serverPublicClient.multicall({
     allowFailure: true,
     contracts: [
@@ -455,7 +488,28 @@ async function readToken({ token, factory, curve }: ValidProject) {
       },
     ],
   });
+  const holderResults = isHolderRewards
+    ? await serverPublicClient.multicall({
+        allowFailure: true,
+        contracts: [
+          { address: token, abi: tokenReadAbi, functionName: "buyRewardTaxBps" },
+          {
+            address: token,
+            abi: tokenReadAbi,
+            functionName: "sellRewardTaxBps",
+          },
+          {
+            address: token,
+            abi: tokenReadAbi,
+            functionName: "minimumRewardBalance",
+          },
+          { address: token, abi: tokenReadAbi, functionName: "rewardToken" },
+        ],
+      })
+    : [];
   const value = <T>(position: number) => successful<T>(detailResults[position]);
+  const holderValue = <T>(position: number) =>
+    successful<T>(holderResults[position]);
   const detail = {
     token,
     factory,
@@ -473,8 +527,32 @@ async function readToken({ token, factory, curve }: ValidProject) {
     state: value<number>(10) ?? null,
     creator: value<`0x${string}`>(11) ?? null,
     liquidityPair: value<`0x${string}`>(12) ?? null,
+    buyRewardTaxBps: isHolderRewards
+      ? (holderValue<number>(0) ?? null)
+      : null,
+    sellRewardTaxBps: isHolderRewards
+      ? (holderValue<number>(1) ?? null)
+      : null,
+    minimumRewardBalance: isHolderRewards
+      ? (holderValue<bigint>(2)?.toString() ?? null)
+      : null,
+    rewardToken: isHolderRewards
+      ? (holderValue<`0x${string}`>(3) ?? null)
+      : null,
   };
-  const partial = Object.values(detail).some((item) => item === null);
+  const requiredValues = Object.entries(detail)
+    .filter(
+      ([key]) =>
+        isHolderRewards ||
+        ![
+          "buyRewardTaxBps",
+          "sellRewardTaxBps",
+          "minimumRewardBalance",
+          "rewardToken",
+        ].includes(key),
+    )
+    .map(([, item]) => item);
+  const partial = requiredValues.some((item) => item === null);
   return {
     detail,
     dataStatus: partial ? ("partial" as const) : ("fresh" as const),
