@@ -1,0 +1,53 @@
+name: Verify BNBX holder rewards Factory on BscScan
+run-name: Verify BNBX holder rewards Factory ${{ inputs.factory_address || github.event_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      factory_address:
+        description: "Deployed BNBXHolderRewardsFactory address"
+        required: false
+        default: "0xcc1FFcA6985658DE357f3F5763FD1Ff690074625"
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/verify-holder-rewards-mainnet.yml"
+      - "packages/contracts/src/BNBXHolderRewardsToken.sol"
+      - "packages/contracts/src/BNBXHolderRewardsFactory.sol"
+      - "packages/contracts/scripts/verify-holder-rewards-source-mainnet.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-bnbx-holder-rewards-mainnet
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+      BNBX_HOLDER_REWARDS_FACTORY_ADDRESS: ${{ inputs.factory_address || '0xcc1FFcA6985658DE357f3F5763FD1Ff690074625' }}
+      BNBX_HOLDER_REWARDS_CONSTRUCTOR_ARGUMENTS: "000000000000000000000000daf4f62914f7f64c9eabfd473f4db4b7e74048a600000000000000000000000010ed43c718714eb63d5aa57b78b54704e256024e"
+      VERIFY_DRY_RUN: ${{ github.event_name == 'push' && '1' || '0' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit holder rewards template
+        run: pnpm --filter @bnbx/contracts audit:holder-rewards
+      - name: Verify Holder Rewards Factory
+        run: pnpm --filter @bnbx/contracts verify-source:holder-rewards-mainnet
