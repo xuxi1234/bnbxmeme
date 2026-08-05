@@ -15,10 +15,10 @@ export async function consumeAiQuota(wallet: string, client: string) {
     body: JSON.stringify({
       p_wallet: wallet,
       p_client: client,
-      p_wallet_limit: 30,
-      p_client_limit: 60,
-      p_global_limit: 2000,
-      p_min_interval_seconds: 10,
+      p_wallet_limit: 300,
+      p_client_limit: 600,
+      p_global_limit: 10000,
+      p_min_interval_seconds: 2,
     }),
   });
   if (!response.ok) throw new Error("AI quota service unavailable");
@@ -29,7 +29,7 @@ export async function consumeAiQuota(wallet: string, client: string) {
   if (!result?.allowed)
     throw new Error(
       result?.reason === "too_fast"
-        ? "Please wait 10 seconds"
+        ? "Please wait 2 seconds"
         : "Daily AI limit reached",
     );
 }
