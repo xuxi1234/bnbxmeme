@@ -28,6 +28,7 @@ const entrypoints = [
   "test/BNBXRewardVaultV4.t.sol",
   "test/BNBXV4Security.t.sol",
   "test/BNBXZeroTaxTemplate.t.sol",
+  "test/BNBXHolderRewardsTemplate.t.sol",
   "test/DividendTaxProcessingV4.t.sol",
   "test/BNBXRewardVault.t.sol",
 ];
@@ -139,6 +140,17 @@ function check(condition, message) {
 }
 
 const suites = [
+  {
+    source: "test/BNBXHolderRewardsTemplate.t.sol",
+    contract: "BNBXHolderRewardsTemplateTest",
+    tests: [
+      "testFixedSupplyImmutableConfigurationAndNoOwnerSurface",
+      "testRejectsTaxAndMinimumOutsideHardBounds",
+      "testRewardsFollowBalancesWithoutLoopsOrRetroactiveDilution",
+      "testTaxesAreOffBeforeGraduationAndFixedAfterGraduation",
+      "testAllowanceSemanticsAndLaunchRolesAreDestroyed",
+    ],
+  },
   {
     source: "test/BNBXZeroTaxTemplate.t.sol",
     contract: "BNBXZeroTaxTemplateTest",
