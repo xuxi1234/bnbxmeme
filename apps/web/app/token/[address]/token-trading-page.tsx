@@ -24,6 +24,7 @@ import {
   factoryAbi,
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  holderRewardsFactoryAddress,
   legacyRewardsFactoryAddress,
   lpBurnAddress,
   rewardVaultAbi,
@@ -60,6 +61,10 @@ import {
 import { creatorProjectPath } from "@/lib/project-paths";
 import { startVisiblePolling } from "@/lib/visible-polling";
 import { buildTokenSeoTitle } from "@/lib/seo";
+import {
+  isAdvancedTemplateFactory,
+  isRewardsTemplateFactory,
+} from "@/lib/template-identification-core";
 import { ProjectState } from "./project-state";
 
 const SLIPPAGE_BPS = 100n;
@@ -274,6 +279,13 @@ export function TokenTradingPage({
         tokenAddress !== zeroAddress,
     },
   });
+  const holderRewardsCurveQuery = useReadContract({
+    address: holderRewardsFactoryAddress,
+    abi: factoryAbi,
+    functionName: "curveOf",
+    args: [tokenAddress],
+    query: { enabled: tokenAddress !== zeroAddress },
+  });
   const snapshotFactory =
     tokenSnapshot.snapshot?.factory &&
     tokenSnapshot.snapshot.factory !== zeroAddress
@@ -296,6 +308,10 @@ export function TokenTradingPage({
     rewardsCurveQuery.data && rewardsCurveQuery.data !== zeroAddress
       ? rewardsCurveQuery.data
       : zeroAddress;
+  const holderRewardsCurve =
+    holderRewardsCurveQuery.data && holderRewardsCurveQuery.data !== zeroAddress
+      ? holderRewardsCurveQuery.data
+      : zeroAddress;
   const factoryAddress =
     snapshotFactory !== zeroAddress
       ? snapshotFactory
@@ -305,7 +321,9 @@ export function TokenTradingPage({
           ? autoLiquidityFactoryAddress
           : rewardsCurve !== zeroAddress
             ? configuredRewardsFactory
-            : zeroAddress;
+            : holderRewardsCurve !== zeroAddress
+              ? holderRewardsFactoryAddress
+              : zeroAddress;
   const curveAddress =
     snapshotCurve !== zeroAddress
       ? snapshotCurve
@@ -313,19 +331,21 @@ export function TokenTradingPage({
         ? standardCurve
         : autoCurve !== zeroAddress
           ? autoCurve
-          : rewardsCurve;
+          : rewardsCurve !== zeroAddress
+            ? rewardsCurve
+            : holderRewardsCurve;
+  const advancedTemplateFactories = {
+    autoLiquidity: autoLiquidityFactoryAddress,
+    rewards: configuredRewardsFactory,
+    legacyRewards: legacyRewardsFactoryAddress,
+    holderRewards: holderRewardsFactoryAddress,
+  };
   const isAdvancedTemplate =
     factoryAddress !== zeroAddress &&
-    (factoryAddress.toLowerCase() ===
-      autoLiquidityFactoryAddress.toLowerCase() ||
-      factoryAddress.toLowerCase() === configuredRewardsFactory.toLowerCase() ||
-      factoryAddress.toLowerCase() ===
-        legacyRewardsFactoryAddress.toLowerCase());
-  const isLegacyAutoLiquidityFactory =
-    factoryAddress !== zeroAddress &&
-    factoryAddress.toLowerCase() === autoLiquidityFactoryAddress.toLowerCase();
-  const isRewardsTemplateFactory =
-    isAdvancedTemplate && !isLegacyAutoLiquidityFactory;
+    isAdvancedTemplateFactory(factoryAddress, advancedTemplateFactories);
+  const isRewardsTemplate =
+    isAdvancedTemplate &&
+    isRewardsTemplateFactory(factoryAddress, advancedTemplateFactories);
   const metadataURI = useReadContract({
     address: factoryAddress,
     abi: factoryAbi,
@@ -462,7 +482,7 @@ export function TokenTradingPage({
     abi: tokenAbi,
     functionName: "rewardVault",
     query: {
-      enabled: tokenAddress !== zeroAddress && isRewardsTemplateFactory,
+      enabled: tokenAddress !== zeroAddress && isRewardsTemplate,
     },
   });
   const rewardToken = useReadContract({
@@ -470,7 +490,7 @@ export function TokenTradingPage({
     abi: tokenAbi,
     functionName: "rewardToken",
     query: {
-      enabled: tokenAddress !== zeroAddress && isRewardsTemplateFactory,
+      enabled: tokenAddress !== zeroAddress && isRewardsTemplate,
     },
   });
   const rewardTokenSymbol = useReadContract({
@@ -490,7 +510,7 @@ export function TokenTradingPage({
     abi: tokenAbi,
     functionName: "minimumRewardShare",
     query: {
-      enabled: tokenAddress !== zeroAddress && isRewardsTemplateFactory,
+      enabled: tokenAddress !== zeroAddress && isRewardsTemplate,
     },
   });
   const rewardVaultAddress = rewardVault.data ?? zeroAddress;
