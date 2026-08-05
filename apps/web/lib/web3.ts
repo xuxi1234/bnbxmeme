@@ -377,6 +377,27 @@ export const tokenAbi = [
   },
   {
     type: "function",
+    name: "buyRewardTaxBps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint16" }],
+  },
+  {
+    type: "function",
+    name: "sellRewardTaxBps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint16" }],
+  },
+  {
+    type: "function",
+    name: "minimumRewardBalance",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "marketingWallet",
     stateMutability: "view",
     inputs: [],
