@@ -117,6 +117,10 @@ type TokenSnapshot = {
   state: number | null;
   creator: `0x${string}` | null;
   liquidityPair: `0x${string}` | null;
+  buyRewardTaxBps: number | null;
+  sellRewardTaxBps: number | null;
+  minimumRewardBalance: string | null;
+  rewardToken: `0x${string}` | null;
 };
 
 function snapshotBigInt(value: string | null | undefined) {
@@ -513,17 +517,19 @@ export function TokenTradingPage({
       enabled: tokenAddress !== zeroAddress && isRewardsTemplate,
     },
   });
+  const resolvedRewardToken =
+    rewardToken.data ?? tokenSnapshot.snapshot?.rewardToken ?? undefined;
   const rewardTokenSymbol = useReadContract({
-    address: rewardToken.data ?? zeroAddress,
+    address: resolvedRewardToken ?? zeroAddress,
     abi: tokenAbi,
     functionName: "symbol",
-    query: { enabled: Boolean(rewardToken.data) },
+    query: { enabled: Boolean(resolvedRewardToken) },
   });
   const rewardTokenDecimals = useReadContract({
-    address: rewardToken.data ?? zeroAddress,
+    address: resolvedRewardToken ?? zeroAddress,
     abi: tokenAbi,
     functionName: "decimals",
-    query: { enabled: Boolean(rewardToken.data) },
+    query: { enabled: Boolean(resolvedRewardToken) },
   });
   const minimumRewardShare = useReadContract({
     address: tokenAddress,
@@ -542,7 +548,7 @@ export function TokenTradingPage({
     },
   });
   const rewardVaultAddress = rewardVault.data ?? zeroAddress;
-  const isV3Rewards = Boolean(rewardToken.data);
+  const isV3Rewards = Boolean(resolvedRewardToken);
   const templateValue = Number(template.data ?? -1);
   const isHolderRewards =
     isIndependentHolderRewards ||
@@ -599,8 +605,14 @@ export function TokenTradingPage({
     independentHolderRewards: isIndependentHolderRewards,
     buyTaxes: buyTaxes.data,
     sellTaxes: sellTaxes.data,
-    buyRewardTaxBps: holderBuyRewardTax.data,
-    sellRewardTaxBps: holderSellRewardTax.data,
+    buyRewardTaxBps:
+      holderBuyRewardTax.data ??
+      tokenSnapshot.snapshot?.buyRewardTaxBps ??
+      undefined,
+    sellRewardTaxBps:
+      holderSellRewardTax.data ??
+      tokenSnapshot.snapshot?.sellRewardTaxBps ??
+      undefined,
   });
   const buyTaxTotal = displayedTaxes.buy.reduce(
     (sum, value) => sum + value,
@@ -1165,7 +1177,7 @@ export function TokenTradingPage({
             </div>
           </section>
         )}
-        {(isHolderRewards || isLPRewards) && (
+        {(!isIndependentHolderRewards && (isHolderRewards || isLPRewards)) && (
           <section
             className={`tax-template-card${rewardsExpanded ? " mobile-expanded" : ""}`}
           >
@@ -1201,12 +1213,12 @@ export function TokenTradingPage({
                 <span>{advancedCopy.myRewardWeight}</span>
                 <strong>{formatEther(rewardShares.data ?? 0n)}</strong>
               </div>
-              {isV3Rewards && rewardToken.data && (
+              {isV3Rewards && resolvedRewardToken && (
                 <div>
                   <span>{advancedCopy.rewards}</span>
                   <strong>
                     <a
-                      href={`${blockExplorerUrl}/token/${rewardToken.data}`}
+                      href={`${blockExplorerUrl}/token/${resolvedRewardToken}`}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -1221,7 +1233,11 @@ export function TokenTradingPage({
                   <strong>
                     {formatEther(
                       isIndependentHolderRewards
-                        ? (minimumRewardBalance.data ?? 0n)
+                        ? (minimumRewardBalance.data ??
+                          snapshotBigInt(
+                            tokenSnapshot.snapshot?.minimumRewardBalance,
+                          ) ??
+                          0n)
                         : (minimumRewardShare.data ?? 0n),
                     )}{" "}
                     {tokenSymbol ?? "—"}
