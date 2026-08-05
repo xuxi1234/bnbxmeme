@@ -51,4 +51,7 @@ test("shows localized actionable errors instead of one generic failure", () => {
     assert.match(component, new RegExp(`copy\\.${key}`));
   }
   assert.match(component, /result\.code/);
+  assert.match(component, /readChatErrorCode\(result\)/);
+  assert.match(route, /BNBX_AI_PROVIDER_EMPTY_RESPONSE/);
+  assert.match(route, /provider_empty_response/);
 });

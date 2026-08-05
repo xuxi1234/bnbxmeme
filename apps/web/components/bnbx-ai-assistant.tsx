@@ -11,6 +11,7 @@ import {
   useSwitchChain,
 } from "wagmi";
 import { bnbxAiCopy, type BnbxAiCopy } from "@/lib/bnbx-ai-copy";
+import { readChatErrorCode } from "@/lib/bnbx-ai-chat-reliability";
 import { useLanguage } from "./language-provider";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -306,7 +307,11 @@ export function BnbxAiAssistant() {
         body: JSON.stringify({ messages: next, language }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      if (!response.ok) {
+        const requestError = new Error(result.error || "Request failed");
+        requestError.name = readChatErrorCode(result);
+        throw requestError;
+      }
       setMessages((current) => [
         ...current,
         { role: "assistant", content: result.content },
@@ -319,7 +324,9 @@ export function BnbxAiAssistant() {
           ? copy.providerQuota
           : code === "provider_rate_limit" || code === "fair_use_limit"
             ? copy.providerRateLimit
-            : code === "provider_unavailable" || code === "provider_access"
+            : code === "provider_unavailable" ||
+                code === "provider_access" ||
+                code === "provider_empty_response"
               ? copy.providerUnavailable
               : code === "session_expired"
                 ? copy.sessionExpired
