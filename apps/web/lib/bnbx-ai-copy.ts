@@ -44,11 +44,10 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     title: "BNBX AI",
     name: "小壹 · X-One",
     hello: "你好，我是小壹。可以问我 BNBX 发币、内盘交易、毕业机制和钱包安全。",
-    join: "支付 0.1 BNB，永久开通 BNBX AI，领取专属于您的小壹 / X-One，并获赠 68 USDT 等值 AI 智能算力额度。",
+    join: "支付 0.1 BNB，永久开通 BNBX AI，领取专属于您的小壹 / X-One。开通会员可持续畅聊，正常使用不按个人额度中断。",
     active:
       "您已是 BNBX AI 永久会员。签名即可领取专属于您的小壹 / X-One；签名不消耗 Gas，也不会授权交易。",
-    refill:
-      "小壹永远属于您，本轮 AI 算力已使用完毕。补充 0.1 BNB，即可获得新一轮 68 USDT 等值 AI 智能算力。",
+    refill: "您已是永久会员，可以继续与小壹畅聊。",
     unlock: "签名解锁",
     placeholder: "问问 BNBX AI…",
     send: "发送",
@@ -70,7 +69,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     myXOne: "我的 X-One",
     permanentMember: "永久会员",
     activeStatus: "已开通",
-    creditBalance: "AI 算力余额",
+    creditBalance: "畅聊权益",
     lifetimeUsage: "累计使用",
     paymentCount: "开通/补充次数",
     times: "次",
@@ -78,18 +77,17 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     paymentWallet: "请在钱包中确认",
     paymentSubmitted: "交易已提交",
     paymentVerifying: "正在验证链上付款",
-    paymentSuccess: "永久会员已开通 · 68 USDT 算力已到账",
+    paymentSuccess: "永久会员已开通 · 小壹已可持续畅聊",
   },
   en: {
     title: "BNBX AI",
     name: "X-One",
     hello:
       "Hi, I’m X-One. Ask me about BNBX launches, bonding-curve trading, graduation, and wallet safety.",
-    join: "Pay 0.1 BNB to unlock BNBX AI permanently, claim your personal X-One, and receive AI credits worth 68 USDT.",
+    join: "Pay 0.1 BNB to unlock BNBX AI permanently and claim your personal X-One. Members can keep chatting without an individual credit cutoff under normal use.",
     active:
       "You are a permanent BNBX AI member. Sign to access your X-One. Signing costs no gas and authorizes no transaction.",
-    refill:
-      "X-One is permanently yours. This AI credit round is complete. Add 0.1 BNB to receive another 68 USDT worth of AI credits.",
+    refill: "Your permanent membership is active. Keep chatting with X-One.",
     unlock: "Sign to unlock",
     placeholder: "Ask BNBX AI…",
     send: "Send",
@@ -116,7 +114,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     myXOne: "My X-One",
     permanentMember: "Permanent member",
     activeStatus: "Active",
-    creditBalance: "AI credit balance",
+    creditBalance: "Chat access",
     lifetimeUsage: "Lifetime usage",
     paymentCount: "Unlocks/top-ups",
     times: "times",
@@ -124,18 +122,17 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     paymentWallet: "Confirm in your wallet",
     paymentSubmitted: "Transaction submitted",
     paymentVerifying: "Verifying on-chain payment",
-    paymentSuccess: "Permanent membership active · 68 USDT credits added",
+    paymentSuccess: "Permanent membership active · X-One chat unlocked",
   },
   ko: {
     title: "BNBX AI",
     name: "X-One",
     hello:
       "안녕하세요, X-One입니다. BNBX 토큰 출시, 본딩 커브 거래, 졸업 방식과 지갑 보안을 물어보세요.",
-    join: "0.1 BNB를 결제하면 BNBX AI를 영구적으로 이용하고 나만의 X-One과 68 USDT 상당의 AI 크레딧을 받을 수 있습니다.",
+    join: "0.1 BNB를 결제하면 BNBX AI를 영구적으로 이용하고 나만의 X-One을 받을 수 있습니다. 정상적인 이용에는 개인 크레딧 제한 없이 계속 대화할 수 있습니다.",
     active:
       "BNBX AI 영구 회원입니다. 서명하면 나만의 X-One을 이용할 수 있습니다. 서명에는 Gas가 들지 않으며 거래 권한을 부여하지 않습니다.",
-    refill:
-      "X-One은 영원히 회원님의 것입니다. 이번 AI 크레딧을 모두 사용했습니다. 0.1 BNB로 68 USDT 상당의 새 크레딧을 받을 수 있습니다.",
+    refill: "영구 회원 자격이 활성화되어 있습니다. X-One과 계속 대화하세요.",
     unlock: "서명하여 잠금 해제",
     placeholder: "BNBX AI에게 질문하기…",
     send: "보내기",
@@ -161,7 +158,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     myXOne: "나의 X-One",
     permanentMember: "영구 회원",
     activeStatus: "이용 중",
-    creditBalance: "AI 크레딧 잔액",
+    creditBalance: "채팅 이용 권한",
     lifetimeUsage: "누적 사용",
     paymentCount: "개통/충전 횟수",
     times: "회",
@@ -169,18 +166,17 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     paymentWallet: "지갑에서 확인하세요",
     paymentSubmitted: "거래가 제출되었습니다",
     paymentVerifying: "온체인 결제 확인 중",
-    paymentSuccess: "영구 회원 활성화 · 68 USDT 크레딧 지급 완료",
+    paymentSuccess: "영구 회원 활성화 · X-One 채팅 이용 가능",
   },
   ja: {
     title: "BNBX AI",
     name: "X-One",
     hello:
       "こんにちは、X-Oneです。BNBXでのトークン作成、ボンディングカーブ取引、卒業の仕組み、ウォレット安全について質問できます。",
-    join: "0.1 BNBを支払うとBNBX AIを永久に利用でき、あなただけのX-Oneと68 USDT相当のAIクレジットを受け取れます。",
+    join: "0.1 BNBを支払うとBNBX AIを永久に利用でき、あなただけのX-Oneを受け取れます。通常利用では個別クレジット上限なく会話を続けられます。",
     active:
       "BNBX AIの永久会員です。署名すると専用のX-Oneを利用できます。署名にGasはかからず、取引権限も付与しません。",
-    refill:
-      "X-Oneは永久にあなたのものです。今回のAIクレジットを使い切りました。0.1 BNBで新たに68 USDT相当のクレジットを追加できます。",
+    refill: "永久会員資格は有効です。X-Oneとの会話を続けられます。",
     unlock: "署名してロック解除",
     placeholder: "BNBX AIに質問…",
     send: "送信",
@@ -207,7 +203,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     myXOne: "マイ X-One",
     permanentMember: "永久会員",
     activeStatus: "有効",
-    creditBalance: "AIクレジット残高",
+    creditBalance: "チャット利用権",
     lifetimeUsage: "累計使用額",
     paymentCount: "開通・追加回数",
     times: "回",
@@ -215,6 +211,6 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     paymentWallet: "ウォレットで確認",
     paymentSubmitted: "トランザクション送信済み",
     paymentVerifying: "オンチェーン支払いを確認中",
-    paymentSuccess: "永久会員が有効 · 68 USDTクレジット追加済み",
+    paymentSuccess: "永久会員が有効 · X-Oneチャット利用可能",
   },
 };
