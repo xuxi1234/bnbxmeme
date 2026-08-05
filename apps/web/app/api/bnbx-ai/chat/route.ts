@@ -2,12 +2,6 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireSession, fingerprint } from "@/lib/bnbx-ai-auth";
 import { consumeAiQuota } from "@/lib/bnbx-ai-quota";
-import {
-  BNBX_AI_RESERVE_MICROUSD,
-  aiCostMicrousd,
-  reserveAiCredit,
-  settleAiCredit,
-} from "@/lib/bnbx-ai-membership";
 
 export const runtime = "nodejs";
 
@@ -18,12 +12,24 @@ const interfaceLanguages = {
   ko: "Korean",
   ja: "Japanese",
 } as const;
+const MAX_HISTORY_JSON_CHARS = 7000;
+
+function trimConversationHistory(
+  messages: Array<{ role: "assistant" | "user"; content: string }>,
+) {
+  const trimmed = [...messages];
+  while (
+    trimmed.length > 1 &&
+    JSON.stringify(trimmed).length > MAX_HISTORY_JSON_CHARS
+  ) {
+    trimmed.shift();
+  }
+  return trimmed;
+}
 
 export async function POST(request: Request) {
-  let reservationId: string | null = null;
   try {
     const wallet = await requireSession(request);
-    reservationId = await reserveAiCredit(wallet);
     await consumeAiQuota(
       wallet,
       createHash("sha256").update(fingerprint(request)).digest("hex"),
@@ -34,15 +40,19 @@ export async function POST(request: Request) {
     };
     const interfaceLanguage =
       interfaceLanguages[body.language ?? "en"] ?? interfaceLanguages.en;
-    const messages = (body.messages ?? [])
-      .slice(-12)
-      .map((item) => ({
-        role: item.role === "assistant" ? "assistant" : "user",
-        content: String(item.content ?? "").slice(0, 1200),
-      }))
-      .filter((item) => item.content.trim());
-    if (!messages.length || JSON.stringify(messages).length > 8000)
-      throw new Error("Invalid message");
+    const messages = trimConversationHistory(
+      (body.messages ?? [])
+        .slice(-12)
+        .map((item) => ({
+          role:
+            item.role === "assistant"
+              ? ("assistant" as const)
+              : ("user" as const),
+          content: String(item.content ?? "").slice(0, 1200),
+        }))
+        .filter((item) => item.content.trim()),
+    );
+    if (!messages.length) throw new Error("Invalid message");
     const apiKey = process.env.OPENAI_API_KEY ?? process.env.AI_GATEWAY_API_KEY;
     if (!apiKey) throw new Error("AI provider is not configured");
     const base = process.env.AI_GATEWAY_API_KEY
@@ -69,32 +79,18 @@ export async function POST(request: Request) {
     if (!response.ok) throw new Error("AI provider unavailable");
     const result = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     const content = result.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error("Empty AI response");
-    const actualCost = aiCostMicrousd(
-      result.usage?.prompt_tokens ?? BNBX_AI_RESERVE_MICROUSD * 4,
-      result.usage?.completion_tokens ?? 0,
-    );
-    const credit = await settleAiCredit(reservationId, actualCost);
-    reservationId = null;
-    return NextResponse.json({
-      content,
-      creditMicrousd: Number(credit.credit_microusd ?? 0),
-    });
+    return NextResponse.json({ content });
   } catch (error) {
-    if (reservationId)
-      await settleAiCredit(reservationId, 0, true).catch(() => null);
     const message = error instanceof Error ? error.message : "Request failed";
     const status =
       message === "Unauthorized" || message.includes("membership")
         ? 401
         : message.includes("limit") || message.includes("10 seconds")
           ? 429
-          : message.includes("credit")
-            ? 402
-            : 400;
+          : 400;
     return NextResponse.json({ error: message }, { status });
   }
 }
