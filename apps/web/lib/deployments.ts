@@ -48,6 +48,9 @@ export const v4StandardFactoryAddress =
 export const zeroTaxFactoryAddress =
   "0xcdb3bb57cb27eab36a7c39685afcb93abfec326f" as const;
 
+export const holderRewardsFactoryAddress =
+  "0xcc1ffca6985658de357f3f5763fd1ff690074625" as const;
+
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
 
@@ -94,6 +97,7 @@ export const officialFactoryAddresses = Array.from(
   new Set<`0x${string}`>([
     standardFactoryAddress,
     ...(rewardsFactoryAddress ? [rewardsFactoryAddress] : []),
+    holderRewardsFactoryAddress,
   ]),
 );
 
