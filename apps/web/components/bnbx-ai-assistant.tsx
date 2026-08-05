@@ -241,7 +241,11 @@ export function BnbxAiAssistant() {
         body: JSON.stringify({ hash, wallet: address }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      if (!response.ok) {
+        const requestError = new Error(result.error);
+        requestError.name = String(result.code ?? "request_failed");
+        throw requestError;
+      }
       setMembership(result as Membership);
       setPaymentStage("success");
     } catch {
@@ -309,8 +313,23 @@ export function BnbxAiAssistant() {
       ]);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
-      setError(copy.sendFailed);
-      if (message.includes("Unauthorized") || message.includes("membership"))
+      const code = cause instanceof Error ? cause.name : "request_failed";
+      setError(
+        code === "provider_quota"
+          ? copy.providerQuota
+          : code === "provider_rate_limit" || code === "fair_use_limit"
+            ? copy.providerRateLimit
+            : code === "provider_unavailable" || code === "provider_access"
+              ? copy.providerUnavailable
+              : code === "session_expired"
+                ? copy.sessionExpired
+                : copy.sendFailed,
+      );
+      if (
+        code === "session_expired" ||
+        message.includes("Unauthorized") ||
+        message.includes("membership")
+      )
         setAuthorized(false);
     } finally {
       setBusy(false);

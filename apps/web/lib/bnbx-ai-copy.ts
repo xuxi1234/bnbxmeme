@@ -24,6 +24,10 @@ export type BnbxAiCopy = {
   paymentFailed: string;
   signatureFailed: string;
   sendFailed: string;
+  sessionExpired: string;
+  providerQuota: string;
+  providerRateLimit: string;
+  providerUnavailable: string;
   creditEmpty: string;
   myXOne: string;
   permanentMember: string;
@@ -65,6 +69,12 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     paymentFailed: "付款未完成，请检查钱包后重试。",
     signatureFailed: "签名验证失败，请重试。",
     sendFailed: "消息发送失败，请稍后重试。",
+    sessionExpired: "安全会话已过期，请重新签名解锁小壹。签名不消耗 Gas。",
+    providerQuota:
+      "小壹的共享 AI 服务余额暂时不可用，请管理员检查 OpenAI API 账单。您的永久会员资格不受影响。",
+    providerRateLimit: "当前同时聊天人数较多，小壹正在缓冲，请稍等几秒后重试。",
+    providerUnavailable:
+      "小壹的 AI 服务暂时波动，本次未产生有效回答，请稍后重试。",
     creditEmpty: "您的永久会员权益已保留，请补充新一轮 AI 智能算力额度。",
     myXOne: "我的 X-One",
     permanentMember: "永久会员",
@@ -109,6 +119,14 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
       "Payment was not completed. Check your wallet and try again.",
     signatureFailed: "Signature verification failed. Please try again.",
     sendFailed: "Message failed to send. Please try again shortly.",
+    sessionExpired:
+      "Your secure session expired. Sign again to unlock X-One; signing costs no gas.",
+    providerQuota:
+      "X-One’s shared AI balance is temporarily unavailable. The administrator needs to check OpenAI API billing. Your permanent membership is unaffected.",
+    providerRateLimit:
+      "X-One is handling high demand. Please wait a few seconds and try again.",
+    providerUnavailable:
+      "X-One’s AI service is temporarily unstable. No valid answer was produced; please try again shortly.",
     creditEmpty:
       "Your permanent membership remains active. Add a new round of AI credits to continue.",
     myXOne: "My X-One",
@@ -153,6 +171,13 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
       "결제가 완료되지 않았습니다. 지갑을 확인하고 다시 시도하세요.",
     signatureFailed: "서명 확인에 실패했습니다. 다시 시도하세요.",
     sendFailed: "메시지를 보내지 못했습니다. 잠시 후 다시 시도하세요.",
+    sessionExpired:
+      "보안 세션이 만료되었습니다. X-One을 다시 잠금 해제하려면 서명하세요. 서명에는 Gas가 들지 않습니다.",
+    providerQuota:
+      "X-One의 공유 AI 잔액을 현재 사용할 수 없습니다. 관리자가 OpenAI API 결제를 확인해야 합니다. 영구 회원 자격은 유지됩니다.",
+    providerRateLimit: "현재 이용자가 많습니다. 몇 초 후 다시 시도해 주세요.",
+    providerUnavailable:
+      "X-One AI 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해 주세요.",
     creditEmpty:
       "영구 회원 자격은 유지됩니다. 계속하려면 새 AI 크레딧을 충전하세요.",
     myXOne: "나의 X-One",
@@ -198,6 +223,14 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     signatureFailed: "署名の確認に失敗しました。もう一度お試しください。",
     sendFailed:
       "メッセージを送信できませんでした。しばらくしてから再試行してください。",
+    sessionExpired:
+      "セキュアセッションの有効期限が切れました。再度署名してX-Oneを解除してください。署名にGasはかかりません。",
+    providerQuota:
+      "X-Oneの共有AI残高を現在利用できません。管理者によるOpenAI API請求の確認が必要です。永久会員資格には影響しません。",
+    providerRateLimit:
+      "現在アクセスが集中しています。数秒待ってから再試行してください。",
+    providerUnavailable:
+      "X-OneのAIサービスが一時的に不安定です。しばらくしてから再試行してください。",
     creditEmpty:
       "永久会員資格は継続します。新しいAIクレジットを追加して続行できます。",
     myXOne: "マイ X-One",
