@@ -26,6 +26,10 @@ import {
   rewardsFactoryDeploymentAbi,
   rewardsFactoryDeploymentBytecode,
 } from "@/lib/rewards-factory-deployment";
+import {
+  holderRewardsFactoryAbi,
+  holderRewardsFactoryBytecode,
+} from "@/lib/holder-rewards-factory-deployment";
 
 const FEE_RECIPIENT = "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6";
 const AUTHORIZED_DEPLOYER = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
@@ -60,9 +64,9 @@ export default function DeployTestnetPage() {
   const pancakeRouter = isMainnet
     ? PANCAKE_V2_MAINNET_ROUTER
     : PANCAKE_V2_TESTNET_ROUTER;
-  const [factoryType, setFactoryType] = useState<"standard" | "rewards">(
-    "rewards",
-  );
+  const [factoryType, setFactoryType] = useState<
+    "standard" | "rewards" | "holderRewards"
+  >("holderRewards");
   const [resumedTokenDeployer, setResumedTokenDeployer] = useState<
     `0x${string}` | null
   >(null);
@@ -73,11 +77,15 @@ export default function DeployTestnetPage() {
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const standardDeployment = useDeployContract();
+  const holderRewardsDeployment = useDeployContract();
   const tokenDeployerDeployment = useDeployContract();
   const rewardsFactoryDeployment = useDeployContract();
   const managerConfiguration = useWriteContract();
   const standardReceipt = useWaitForTransactionReceipt({
     hash: standardDeployment.data,
+  });
+  const holderRewardsReceipt = useWaitForTransactionReceipt({
+    hash: holderRewardsDeployment.data,
   });
   const tokenDeployerReceipt = useWaitForTransactionReceipt({
     hash: tokenDeployerDeployment.data,
@@ -113,6 +121,18 @@ export default function DeployTestnetPage() {
     standardDeployment.deployContract({
       abi: zeroTaxFactoryDeploymentAbi,
       bytecode: zeroTaxFactoryDeploymentBytecode,
+      args: [FEE_RECIPIENT, pancakeRouter],
+      chainId: activeChain.id,
+      account: address,
+      gas: DEPLOYMENT_GAS_LIMIT,
+    });
+  }
+
+  function deployHolderRewardsFactory() {
+    if (!address || wrongSigner) return;
+    holderRewardsDeployment.deployContract({
+      abi: holderRewardsFactoryAbi,
+      bytecode: holderRewardsFactoryBytecode,
       args: [FEE_RECIPIENT, pancakeRouter],
       chainId: activeChain.id,
       account: address,
@@ -165,7 +185,9 @@ export default function DeployTestnetPage() {
   }
 
   const currentError =
-    factoryType !== "standard" && rewardsFactoryAddress
+    factoryType === "holderRewards"
+      ? holderRewardsDeployment.error
+      : factoryType !== "standard" && rewardsFactoryAddress
       ? managerConfiguration.error
       : (standardDeployment.error ??
         tokenDeployerDeployment.error ??
@@ -197,9 +219,17 @@ export default function DeployTestnetPage() {
             <select
               value={factoryType}
               onChange={(event) =>
-                setFactoryType(event.target.value as "standard" | "rewards")
+                setFactoryType(
+                  event.target.value as
+                    | "standard"
+                    | "rewards"
+                    | "holderRewards",
+                )
               }
             >
+              <option value="holderRewards">
+                Independent Holder Rewards Factory
+              </option>
               <option value="rewards">{copy.rewardsOption}</option>
               <option value="standard">{copy.standardOption}</option>
             </select>
@@ -225,7 +255,25 @@ export default function DeployTestnetPage() {
             >
               {isMainnet ? copy.switchMainnet : copy.switchTestnet}
             </button>
-          ) : factoryType !== "standard" ? (
+          ) : factoryType === "holderRewards" ? (
+            <button
+              className="button wide"
+              type="button"
+              disabled={
+                holderRewardsDeployment.isPending ||
+                holderRewardsReceipt.isLoading
+              }
+              onClick={deployHolderRewardsFactory}
+            >
+              {holderRewardsDeployment.isPending
+                ? copy.confirmDeploy
+                : holderRewardsReceipt.isLoading
+                  ? isMainnet
+                    ? copy.waitMainnet
+                    : copy.waitTestnet
+                  : "Deploy Independent Holder Rewards Factory"}
+            </button>
+          ) : factoryType === "rewards" ? (
             <div className="stack">
               <p className="notice">{copy.advancedStepsHelp}</p>
               <button
@@ -311,6 +359,17 @@ export default function DeployTestnetPage() {
           {standardReceipt.data?.contractAddress && (
             <p className="success">
               {copy.factoryDeployed}：{standardReceipt.data.contractAddress}
+            </p>
+          )}
+          {holderRewardsDeployment.data && (
+            <p className="notice">
+              {copy.deploymentTransaction}：{holderRewardsDeployment.data}
+            </p>
+          )}
+          {holderRewardsReceipt.data?.contractAddress && (
+            <p className="success">
+              Independent Holder Rewards Factory：
+              {holderRewardsReceipt.data.contractAddress}
             </p>
           )}
           {tokenDeployerAddress && (
