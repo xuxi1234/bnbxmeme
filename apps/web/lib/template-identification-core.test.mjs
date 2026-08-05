@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  resolveTemplateTaxes,
   isAdvancedTemplateFactory,
   isRewardsTemplateFactory,
 } from "./template-identification-core.ts";
@@ -23,6 +24,20 @@ test("classifies the independent Holder Factory as an advanced rewards template"
   assert.equal(
     isRewardsTemplateFactory(mixedCaseHolderFactory, factories),
     true,
+  );
+});
+
+test("maps an independent Holder token's reward-only tax into the public allocation", () => {
+  assert.deepEqual(
+    resolveTemplateTaxes({
+      independentHolderRewards: true,
+      buyRewardTaxBps: 300,
+      sellRewardTaxBps: 500,
+    }),
+    {
+      buy: [0, 0, 0, 300],
+      sell: [0, 0, 0, 500],
+    },
   );
 });
 

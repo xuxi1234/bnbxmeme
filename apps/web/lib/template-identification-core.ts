@@ -28,3 +28,31 @@ export function isRewardsTemplateFactory(
     factories.holderRewards,
   ].some((candidate) => matchesFactory(factory, candidate));
 }
+
+type TaxTuple = readonly [number, number, number, number];
+
+export function resolveTemplateTaxes({
+  independentHolderRewards,
+  buyTaxes,
+  sellTaxes,
+  buyRewardTaxBps,
+  sellRewardTaxBps,
+}: {
+  independentHolderRewards: boolean;
+  buyTaxes?: TaxTuple;
+  sellTaxes?: TaxTuple;
+  buyRewardTaxBps?: number;
+  sellRewardTaxBps?: number;
+}) {
+  if (independentHolderRewards) {
+    return {
+      buy: [0, 0, 0, buyRewardTaxBps ?? 0] as TaxTuple,
+      sell: [0, 0, 0, sellRewardTaxBps ?? 0] as TaxTuple,
+    };
+  }
+
+  return {
+    buy: buyTaxes ?? ([0, 0, 0, 0] as TaxTuple),
+    sell: sellTaxes ?? ([0, 0, 0, 0] as TaxTuple),
+  };
+}

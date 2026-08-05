@@ -64,6 +64,7 @@ import { buildTokenSeoTitle } from "@/lib/seo";
 import {
   isAdvancedTemplateFactory,
   isRewardsTemplateFactory,
+  resolveTemplateTaxes,
 } from "@/lib/template-identification-core";
 import { ProjectState } from "./project-state";
 
@@ -346,6 +347,9 @@ export function TokenTradingPage({
   const isRewardsTemplate =
     isAdvancedTemplate &&
     isRewardsTemplateFactory(factoryAddress, advancedTemplateFactories);
+  const isIndependentHolderRewards =
+    factoryAddress !== zeroAddress &&
+    factoryAddress.toLowerCase() === holderRewardsFactoryAddress.toLowerCase();
   const metadataURI = useReadContract({
     address: factoryAddress,
     abi: factoryAbi,
@@ -465,6 +469,22 @@ export function TokenTradingPage({
     functionName: "sellTaxes",
     query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
+  const holderBuyRewardTax = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "buyRewardTaxBps",
+    query: {
+      enabled: tokenAddress !== zeroAddress && isIndependentHolderRewards,
+    },
+  });
+  const holderSellRewardTax = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "sellRewardTaxBps",
+    query: {
+      enabled: tokenAddress !== zeroAddress && isIndependentHolderRewards,
+    },
+  });
   const marketingWallet = useReadContract({
     address: tokenAddress,
     abi: tokenAbi,
@@ -513,12 +533,20 @@ export function TokenTradingPage({
       enabled: tokenAddress !== zeroAddress && isRewardsTemplate,
     },
   });
+  const minimumRewardBalance = useReadContract({
+    address: tokenAddress,
+    abi: tokenAbi,
+    functionName: "minimumRewardBalance",
+    query: {
+      enabled: tokenAddress !== zeroAddress && isIndependentHolderRewards,
+    },
+  });
   const rewardVaultAddress = rewardVault.data ?? zeroAddress;
   const isV3Rewards = Boolean(rewardToken.data);
   const templateValue = Number(template.data ?? -1);
-  const isHolderRewards = isV3Rewards
-    ? templateValue === 0
-    : templateValue === 2;
+  const isHolderRewards =
+    isIndependentHolderRewards ||
+    (isV3Rewards ? templateValue === 0 : templateValue === 2);
   const isLPRewards = isV3Rewards ? templateValue === 1 : templateValue === 3;
   const rewardUnit = isV3Rewards
     ? (rewardTokenSymbol.data ?? advancedCopy.rewards)
@@ -567,12 +595,21 @@ export function TokenTradingPage({
   });
   const taxPercent = (value: number | undefined) =>
     `${((value ?? 0) / 100).toFixed(2)}%`;
-  const buyTaxTotal = buyTaxes.data
-    ? buyTaxes.data.reduce((sum, value) => sum + value, 0)
-    : 0;
-  const sellTaxTotal = sellTaxes.data
-    ? sellTaxes.data.reduce((sum, value) => sum + value, 0)
-    : 0;
+  const displayedTaxes = resolveTemplateTaxes({
+    independentHolderRewards: isIndependentHolderRewards,
+    buyTaxes: buyTaxes.data,
+    sellTaxes: sellTaxes.data,
+    buyRewardTaxBps: holderBuyRewardTax.data,
+    sellRewardTaxBps: holderSellRewardTax.data,
+  });
+  const buyTaxTotal = displayedTaxes.buy.reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const sellTaxTotal = displayedTaxes.sell.reduce(
+    (sum, value) => sum + value,
+    0,
+  );
   const tokenName = name.data ?? tokenSnapshot.snapshot?.name ?? undefined;
   const tokenSymbol =
     symbol.data ?? tokenSnapshot.snapshot?.symbol ?? undefined;
@@ -1104,25 +1141,27 @@ export function TokenTradingPage({
               <div>
                 <span>{advancedCopy.buyAllocation}</span>
                 <strong>
-                  {advancedCopy.burn} {taxPercent(buyTaxes.data?.[0])} ·{" "}
-                  {advancedCopy.liquidity} {taxPercent(buyTaxes.data?.[1])} ·{" "}
-                  {advancedCopy.marketing} {taxPercent(buyTaxes.data?.[2])} ·{" "}
-                  {advancedCopy.rewards} {taxPercent(buyTaxes.data?.[3])}
+                  {advancedCopy.burn} {taxPercent(displayedTaxes.buy[0])} ·{" "}
+                  {advancedCopy.liquidity} {taxPercent(displayedTaxes.buy[1])} ·{" "}
+                  {advancedCopy.marketing} {taxPercent(displayedTaxes.buy[2])} ·{" "}
+                  {advancedCopy.rewards} {taxPercent(displayedTaxes.buy[3])}
                 </strong>
               </div>
               <div>
                 <span>{advancedCopy.sellAllocation}</span>
                 <strong>
-                  {advancedCopy.burn} {taxPercent(sellTaxes.data?.[0])} ·{" "}
-                  {advancedCopy.liquidity} {taxPercent(sellTaxes.data?.[1])} ·{" "}
-                  {advancedCopy.marketing} {taxPercent(sellTaxes.data?.[2])} ·{" "}
-                  {advancedCopy.rewards} {taxPercent(sellTaxes.data?.[3])}
+                  {advancedCopy.burn} {taxPercent(displayedTaxes.sell[0])} ·{" "}
+                  {advancedCopy.liquidity} {taxPercent(displayedTaxes.sell[1])} ·{" "}
+                  {advancedCopy.marketing} {taxPercent(displayedTaxes.sell[2])} ·{" "}
+                  {advancedCopy.rewards} {taxPercent(displayedTaxes.sell[3])}
                 </strong>
               </div>
-              <div>
-                <span>{advancedCopy.marketingWallet}</span>
-                <strong>{marketingWallet.data ?? t("loading")}</strong>
-              </div>
+              {!isIndependentHolderRewards && (
+                <div>
+                  <span>{advancedCopy.marketingWallet}</span>
+                  <strong>{marketingWallet.data ?? t("loading")}</strong>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -1180,7 +1219,11 @@ export function TokenTradingPage({
                 <div>
                   <span>{advancedCopy.minimumHolderBalance}</span>
                   <strong>
-                    {formatEther(minimumRewardShare.data ?? 0n)}{" "}
+                    {formatEther(
+                      isIndependentHolderRewards
+                        ? (minimumRewardBalance.data ?? 0n)
+                        : (minimumRewardShare.data ?? 0n),
+                    )}{" "}
                     {tokenSymbol ?? "—"}
                   </strong>
                 </div>
