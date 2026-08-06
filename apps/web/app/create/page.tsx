@@ -621,7 +621,7 @@ export default function CreateTokenPage() {
             args: [request],
             value: CREATION_FEE_WEI,
           });
-          const gas = advancedCreateGasLimit(estimatedGas);
+          const gas = advancedCreateGasLimit(estimatedGas, template);
           setIsPreflighting(false);
           await writeContractAsync({
             address: selectedFactory,
@@ -648,7 +648,7 @@ export default function CreateTokenPage() {
             args: [request, buyRequest],
             value: CREATION_FEE_WEI + initialBuyWei,
           });
-          const gas = advancedCreateGasLimit(estimatedGas);
+          const gas = advancedCreateGasLimit(estimatedGas, template);
           setIsPreflighting(false);
           await writeContractAsync({
             address: selectedFactory,
