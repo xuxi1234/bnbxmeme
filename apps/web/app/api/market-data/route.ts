@@ -131,6 +131,38 @@ const tokenReadAbi = [
   },
 ] as const;
 
+const holderV2TaxReadAbi = [
+  {
+    type: "function",
+    name: "taxesEnabled",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "buyTaxes",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "liquidity", type: "uint16" },
+      { name: "rewards", type: "uint16" },
+      { name: "burn", type: "uint16" },
+    ],
+  },
+  {
+    type: "function",
+    name: "sellTaxes",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "liquidity", type: "uint16" },
+      { name: "rewards", type: "uint16" },
+      { name: "burn", type: "uint16" },
+    ],
+  },
+] as const;
+
 const curveReadAbi = [
   {
     type: "function",
@@ -454,8 +486,10 @@ async function readToken({ token, factory, curve }: ValidProject) {
       },
       {
         address: token,
-        abi: tokenReadAbi,
-        functionName: "liquidityPairUnlocked",
+        abi: isHolderRewards ? holderV2TaxReadAbi : tokenReadAbi,
+        functionName: isHolderRewards
+          ? ("taxesEnabled" as const)
+          : ("liquidityPairUnlocked" as const),
       },
       {
         address: token,
@@ -492,6 +526,12 @@ async function readToken({ token, factory, curve }: ValidProject) {
     ? await serverPublicClient.multicall({
         allowFailure: true,
         contracts: [
+          { address: token, abi: holderV2TaxReadAbi, functionName: "buyTaxes" },
+          {
+            address: token,
+            abi: holderV2TaxReadAbi,
+            functionName: "sellTaxes",
+          },
           { address: token, abi: tokenReadAbi, functionName: "buyRewardTaxBps" },
           {
             address: token,
@@ -510,6 +550,8 @@ async function readToken({ token, factory, curve }: ValidProject) {
   const value = <T>(position: number) => successful<T>(detailResults[position]);
   const holderValue = <T>(position: number) =>
     successful<T>(holderResults[position]);
+  const holderV2Buy = holderValue<readonly [number, number, number]>(0);
+  const holderV2Sell = holderValue<readonly [number, number, number]>(1);
   const detail = {
     token,
     factory,
@@ -528,16 +570,16 @@ async function readToken({ token, factory, curve }: ValidProject) {
     creator: value<`0x${string}`>(11) ?? null,
     liquidityPair: value<`0x${string}`>(12) ?? null,
     buyRewardTaxBps: isHolderRewards
-      ? (holderValue<number>(0) ?? null)
+      ? (holderV2Buy?.[1] ?? holderValue<number>(2) ?? null)
       : null,
     sellRewardTaxBps: isHolderRewards
-      ? (holderValue<number>(1) ?? null)
+      ? (holderV2Sell?.[1] ?? holderValue<number>(3) ?? null)
       : null,
     minimumRewardBalance: isHolderRewards
-      ? (holderValue<bigint>(2)?.toString() ?? null)
+      ? (holderValue<bigint>(4)?.toString() ?? null)
       : null,
     rewardToken: isHolderRewards
-      ? (holderValue<`0x${string}`>(3) ?? null)
+      ? (holderValue<`0x${string}`>(5) ?? null)
       : null,
   };
   const requiredValues = Object.entries(detail)

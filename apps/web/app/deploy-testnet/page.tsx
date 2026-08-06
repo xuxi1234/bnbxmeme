@@ -35,6 +35,8 @@ const FEE_RECIPIENT = "0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6";
 const AUTHORIZED_DEPLOYER = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
 const PANCAKE_V2_TESTNET_ROUTER = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1";
 const PANCAKE_V2_MAINNET_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
+const TESTNET_BUSD = "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7";
+const MAINNET_USDT = "0x55d398326f99059ff775485246999027b3197955";
 const DEPLOYMENT_GAS_LIMIT = 8_000_000n;
 
 function deploymentErrorMessage(
@@ -133,7 +135,11 @@ export default function DeployTestnetPage() {
     holderRewardsDeployment.deployContract({
       abi: holderRewardsFactoryAbi,
       bytecode: holderRewardsFactoryBytecode,
-      args: [FEE_RECIPIENT, pancakeRouter],
+      args: [
+        FEE_RECIPIENT,
+        pancakeRouter,
+        isMainnet ? MAINNET_USDT : TESTNET_BUSD,
+      ],
       chainId: activeChain.id,
       account: address,
       gas: DEPLOYMENT_GAS_LIMIT,

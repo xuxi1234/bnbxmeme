@@ -49,7 +49,7 @@ export const zeroTaxFactoryAddress =
   "0xcdb3bb57cb27eab36a7c39685afcb93abfec326f" as const;
 
 export const holderRewardsFactoryAddress =
-  "0xcc1ffca6985658de357f3f5763fd1ff690074625" as const;
+  "0xb814fde8835e9081698d997609ce47031a3ca294" as const;
 
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
