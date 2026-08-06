@@ -258,3 +258,47 @@ test("holder rewards V2 verification bundles reproduce the deployed source closu
     );
   }
 });
+
+test("LP rewards V2 verification bundles reproduce the independent source closure", () => {
+  assert.equal(
+    typeof verificationCompilerInput.createLPRewardsVerificationInputs,
+    "function",
+  );
+  const lpInputs =
+    verificationCompilerInput.createLPRewardsVerificationInputs(root);
+  const fullInput = createVerificationCompilerInput(root, [
+    "src/BNBXLPRewardsFactory.sol",
+    "src/BNBXLPRewardsToken.sol",
+    "src/BNBXLPRewardsTokenDeployer.sol",
+    "src/BNBXLPRewardsVault.sol",
+    "src/BondingCurve.sol",
+  ]);
+  const fullCompilation = compile(fullInput);
+  const targets = [
+    [lpInputs.factory, "src/BNBXLPRewardsFactory.sol", "BNBXLPRewardsFactory"],
+    [lpInputs.token, "src/BNBXLPRewardsToken.sol", "BNBXLPRewardsToken"],
+    [
+      lpInputs.tokenDeployer,
+      "src/BNBXLPRewardsTokenDeployer.sol",
+      "BNBXLPRewardsTokenDeployer",
+    ],
+    [lpInputs.rewardVault, "src/BNBXLPRewardsVault.sol", "BNBXLPRewardsVault"],
+    [lpInputs.bondingCurve, "src/BondingCurve.sol", "BondingCurve"],
+  ];
+
+  for (const [compilerInput, sourcePath, contractName] of targets) {
+    const isolatedCompilation = compile(compilerInput);
+    assert.deepEqual(
+      bytecodes(isolatedCompilation, sourcePath, contractName),
+      bytecodes(fullCompilation, sourcePath, contractName),
+      `${contractName} bytecode changed in its LP-only verification bundle`,
+    );
+    assert.equal(
+      Object.keys(compilerInput.sources).some((path) =>
+        path.includes("BNBXHolderRewards"),
+      ),
+      false,
+      `${contractName} closure must not include Holder Rewards V2`,
+    );
+  }
+});

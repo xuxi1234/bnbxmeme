@@ -24,8 +24,6 @@ import {
   factoryAbi,
   pancakeFactoryAddress,
   pancakeRouterAddress,
-  rewardsFactoryAbi,
-  rewardsFactoryAddress,
   testnetPublicClient,
   v3StandardFactoryAddress,
 } from "@/lib/web3";
@@ -39,11 +37,9 @@ import { resolveCreateSubmitBlocker } from "@/lib/create-validation-core";
 import { tokenProjectPath } from "@/lib/project-paths";
 import {
   DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE,
-  DEFAULT_LP_MINIMUM_REWARD_BALANCE,
   DEFAULT_REWARD_TOKEN_ADDRESS,
   STANDARD_CREATE_GAS_LIMIT,
   advancedCreateGasLimit,
-  advancedTemplateValue,
   emptyTaxSide,
   holderRewardTokenAddress,
   holderTaxSideToBps,
@@ -51,7 +47,6 @@ import {
   parseMinimumRewardShare,
   parseTaxPercent,
   parseTaxSide,
-  taxSideToBps,
   type TaxKey,
   type TaxSide,
   type TemplateId,
@@ -66,6 +61,14 @@ import {
   holderRewardsFactoryAbi,
   holderRewardsFactoryAddress,
 } from "@/lib/holder-rewards-config";
+import {
+  buildLPRewardsCreateRequest,
+  lpRewardTokenAddress,
+} from "@/lib/lp-rewards-config";
+import {
+  lpRewardsFactoryAbi,
+  lpRewardsFactoryAddress,
+} from "@/lib/lp-rewards-deployment";
 
 const CREATION_FEE_WEI = parseEther("0.001");
 const VANITY_SEARCH_LIMIT = 500_000;
@@ -267,11 +270,9 @@ export default function CreateTokenPage() {
   const [template, setTemplate] = useState<TemplateId>("standard");
   const [buyTaxes, setBuyTaxes] = useState<TaxSide>(emptyTaxSide);
   const [sellTaxes, setSellTaxes] = useState<TaxSide>(emptyTaxSide);
-  const [marketingWallet, setMarketingWallet] = useState("");
   const [rewardToken, setRewardToken] = useState("");
   const [minimumRewardBalances, setMinimumRewardBalances] = useState({
     holders: DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE,
-    lp: DEFAULT_LP_MINIMUM_REWARD_BALANCE,
   });
   const [uploadError, setUploadError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -295,11 +296,8 @@ export default function CreateTokenPage() {
       ? v3StandardFactoryAddress
       : template === "holders"
         ? holderRewardsFactoryAddress
-        : rewardsFactoryAddress;
-  const minimumRewardBalance =
-    template === "holders"
-      ? minimumRewardBalances.holders
-      : minimumRewardBalances.lp;
+        : lpRewardsFactoryAddress;
+  const minimumRewardBalance = minimumRewardBalances.holders;
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data || !factoryAddress) return;
@@ -312,7 +310,7 @@ export default function CreateTokenPage() {
               ? factoryAbi
               : template === "holders"
                 ? holderRewardsFactoryAbi
-                : rewardsFactoryAbi,
+                : lpRewardsFactoryAbi,
           data: log.data,
           topics: log.topics,
         });
@@ -339,13 +337,6 @@ export default function CreateTokenPage() {
       }
     }
   }, [factoryAddress, receipt.data, receipt.isSuccess, router, template]);
-
-  function configuredTaxes() {
-    return {
-      buy: taxSideToBps(buyTaxes),
-      sell: taxSideToBps(sellTaxes),
-    };
-  }
 
   function minimumRewardShareOrThrow(
     selectedTemplate: Exclude<TemplateId, "standard">,
@@ -447,28 +438,21 @@ export default function CreateTokenPage() {
     const tokenName = name.trim();
     const tokenSymbol = symbol.trim();
     const start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
-    const marketing =
-      marketingWallet.trim() === "" ? address : marketingWallet.trim();
-    if (template === "lp" && (!marketing || !isAddress(marketing))) {
-      throw new Error(copy.errors.marketingWalletInvalid);
-    }
-    const marketingAddress = marketing as `0x${string}`;
     if (template === "holders" || template === "lp") {
       const selectedFactory =
         template === "holders"
           ? holderRewardsFactoryAddress
-          : rewardsFactoryAddress;
+          : lpRewardsFactoryAddress;
       const selectedAbi: Abi =
-        template === "holders" ? holderRewardsFactoryAbi : rewardsFactoryAbi;
+        template === "holders" ? holderRewardsFactoryAbi : lpRewardsFactoryAbi;
       if (!selectedFactory) {
         throw new Error(copy.errors.rewardsFactoryMissing);
       }
-      const minimumShare = minimumRewardShareOrThrow(template);
       const rewardTokenAddress =
         template === "holders"
           ? holderRewardTokenAddress(rewardToken)
-          : rewardToken.trim();
-      if (template !== "holders" && !isAddress(rewardTokenAddress)) {
+          : lpRewardTokenAddress(rewardToken);
+      if (rewardTokenAddress !== zeroAddress && !isAddress(rewardTokenAddress)) {
         throw new Error(copy.errors.rewardTokenInvalid);
       }
       const saltRequest =
@@ -484,20 +468,18 @@ export default function CreateTokenPage() {
                 buy: holderTaxSideToBps(buyTaxes),
                 sell: holderTaxSideToBps(sellTaxes),
               },
-              minimumRewardBalance: minimumShare,
+              minimumRewardBalance: minimumRewardShareOrThrow("holders"),
             }
-          : {
+          : buildLPRewardsCreateRequest({
               name: tokenName,
               symbol: tokenSymbol,
               graduationTargetBNB: target,
               metadataURI: "",
               vanitySalt: ZERO_SALT,
-              marketingWallet: marketingAddress,
-              rewardToken: rewardTokenAddress,
-              taxes: configuredTaxes(),
-              template: advancedTemplateValue(template),
-              minimumRewardShare: minimumShare,
-            };
+              rewardToken,
+              buyTaxes,
+              sellTaxes,
+            });
       setVanityProgress(0);
       for (
         let index = 0;
@@ -569,8 +551,8 @@ export default function CreateTokenPage() {
         const rewardTokenAddress =
           template === "holders"
             ? holderRewardTokenAddress(rewardToken)
-            : rewardToken.trim();
-        if (template !== "holders" && !isAddress(rewardTokenAddress)) {
+            : lpRewardTokenAddress(rewardToken);
+        if (rewardTokenAddress !== zeroAddress && !isAddress(rewardTokenAddress)) {
           throw new Error(copy.errors.rewardTokenInvalid);
         }
         if (rewardTokenAddress !== zeroAddress) {
@@ -591,22 +573,17 @@ export default function CreateTokenPage() {
         const selectedFactory =
           template === "holders"
             ? holderRewardsFactoryAddress
-            : rewardsFactoryAddress;
+            : lpRewardsFactoryAddress;
         const selectedAbi: Abi =
-          template === "holders" ? holderRewardsFactoryAbi : rewardsFactoryAbi;
+          template === "holders" ? holderRewardsFactoryAbi : lpRewardsFactoryAbi;
         if (!selectedFactory) {
           throw new Error(copy.errors.selectedFactoryMissing);
-        }
-        const marketing =
-          marketingWallet.trim() === "" ? address : marketingWallet.trim();
-        if (template === "lp" && !isAddress(marketing)) {
-          throw new Error(copy.errors.marketingWalletInvalid);
         }
         const rewardTokenAddress =
           template === "holders"
             ? holderRewardTokenAddress(rewardToken)
-            : rewardToken.trim();
-        if (template !== "holders" && !isAddress(rewardTokenAddress)) {
+            : lpRewardTokenAddress(rewardToken);
+        if (rewardTokenAddress !== zeroAddress && !isAddress(rewardTokenAddress)) {
           throw new Error(copy.errors.rewardTokenInvalid);
         }
         const request =
@@ -622,20 +599,18 @@ export default function CreateTokenPage() {
                   buy: holderTaxSideToBps(buyTaxes),
                   sell: holderTaxSideToBps(sellTaxes),
                 },
-                minimumRewardBalance: minimumRewardShareOrThrow(template),
+                minimumRewardBalance: minimumRewardShareOrThrow("holders"),
               }
-            : {
-                name: name.trim(),
-                symbol: symbol.trim(),
+            : buildLPRewardsCreateRequest({
+                name,
+                symbol,
                 graduationTargetBNB: target,
                 metadataURI,
                 vanitySalt,
-                marketingWallet: marketing,
-                rewardToken: rewardTokenAddress,
-                taxes: configuredTaxes(),
-                template: advancedTemplateValue(template),
-                minimumRewardShare: minimumRewardShareOrThrow(template),
-              };
+                rewardToken,
+                buyTaxes,
+                sellTaxes,
+              });
         if (initialBuyWei === 0n) {
           setIsPreflighting(true);
           const estimatedGas = await testnetPublicClient.estimateContractGas({
@@ -746,7 +721,12 @@ export default function CreateTokenPage() {
 
   const wrongChain = isConnected && chainId !== bsc.id;
   const advancedTemplate = template !== "standard";
-  const unavailableTemplate = advancedTemplate && !rewardsFactoryAddress;
+  const unavailableTemplate =
+    template === "holders"
+      ? !holderRewardsFactoryAddress
+      : template === "lp"
+        ? lpRewardsFactoryAddress === zeroAddress
+        : false;
   const parsedBuyTaxes = parseTaxSide(buyTaxes);
   const parsedSellTaxes = parseTaxSide(sellTaxes);
   const buyTaxTotal = parsedBuyTaxes
@@ -782,8 +762,9 @@ export default function CreateTokenPage() {
   const previewTotalValue = CREATION_FEE_WEI + previewInitialBuyWei;
   const rewardsValid =
     !advancedTemplate ||
-    ((template === "holders" || isAddress(rewardToken.trim())) &&
-      parseMinimumRewardShare(template, minimumRewardBalance) !== null);
+    ((rewardToken.trim() === "" || isAddress(rewardToken.trim())) &&
+      (template !== "holders" ||
+        parseMinimumRewardShare("holders", minimumRewardBalance) !== null));
   const submitBlocker = resolveCreateSubmitBlocker({
     isConnected,
     factoryAvailable: Boolean(factoryAddress),
@@ -823,7 +804,9 @@ export default function CreateTokenPage() {
                 const enabled =
                   id === "standard"
                     ? Boolean(v3StandardFactoryAddress)
-                    : Boolean(rewardsFactoryAddress);
+                    : id === "holders"
+                      ? Boolean(holderRewardsFactoryAddress)
+                      : lpRewardsFactoryAddress !== zeroAddress;
                 return (
                   <button
                     aria-pressed={template === id}
@@ -887,7 +870,7 @@ export default function CreateTokenPage() {
                       {(Object.keys(values) as TaxKey[])
                         .filter(
                           (key) =>
-                            template !== "holders" || key !== "marketing",
+                            key !== "marketing",
                         )
                         .map((key) => {
                         const labels = copy.taxLabels;
@@ -932,13 +915,13 @@ export default function CreateTokenPage() {
               <label>
                 {copy.rewardToken}
                 <input
-                  required={template !== "holders"}
+                  required={false}
                   aria-invalid={
                     rewardToken.trim() !== "" && !isAddress(rewardToken.trim())
                   }
                   value={rewardToken}
                   placeholder={
-                    template === "holders"
+                    template === "holders" || template === "lp"
                       ? DEFAULT_REWARD_TOKEN_ADDRESS
                       : "0x..."
                   }
@@ -946,56 +929,41 @@ export default function CreateTokenPage() {
                 />
                 <span className="field-help">{copy.rewardTokenHelp}</span>
               </label>
-              {template === "lp" && (
-                <label>
-                  {copy.marketingWallet}
-                  <input
-                    value={marketingWallet}
-                    placeholder={
-                      address ? `${address} (${copy.creatorDefault})` : "0x..."
-                    }
-                    onChange={(event) => setMarketingWallet(event.target.value)}
-                  />
-                </label>
-              )}
+              {template === "holders" ? (
               <label>
-                {template === "holders"
-                  ? copy.minimumHolderBalance
-                  : copy.minimumLpBalance}
+                {copy.minimumHolderBalance}
                 <input
                   required
                   aria-invalid={
-                    parseMinimumRewardShare(template, minimumRewardBalance) ===
+                    parseMinimumRewardShare("holders", minimumRewardBalance) ===
                     null
                   }
                   inputMode="decimal"
-                  min={template === "holders" ? "1000" : "0"}
+                  min="1000"
                   step="any"
                   type="number"
                   value={minimumRewardBalance}
                   placeholder={
-                    template === "holders"
-                      ? DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE
-                      : DEFAULT_LP_MINIMUM_REWARD_BALANCE
+                    DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE
                   }
                   onChange={(event) => {
-                    const key = template === "holders" ? "holders" : "lp";
                     setMinimumRewardBalances((current) => ({
                       ...current,
-                      [key]: event.target.value,
+                      holders: event.target.value,
                     }));
                   }}
                 />
-                {parseMinimumRewardShare(template, minimumRewardBalance) ===
+                {parseMinimumRewardShare("holders", minimumRewardBalance) ===
                   null && (
                   <small className="field-error">
-                    {template === "holders"
-                      ? copy.errors.minimumHolderBalanceInvalid
-                      : copy.errors.minimumLpBalanceInvalid}
+                    {copy.errors.minimumHolderBalanceInvalid}
                   </small>
                 )}
                 <span className="field-help">{copy.rewardsHelp}</span>
               </label>
+              ) : (
+                <p className="field-help">{copy.lpThresholdHelp}</p>
+              )}
               {unavailableTemplate && (
                 <p className="preview-lock">{copy.factorySafetyLock}</p>
               )}

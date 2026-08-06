@@ -1,0 +1,65 @@
+name: Verify BNBX LP rewards contracts on BscScan
+run-name: Verify BNBX LP rewards contracts ${{ inputs.launch_tx_hash || inputs.factory_address || github.event_name }}
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      factory_address:
+        description: "Deployed BNBXLPRewardsFactory address"
+        required: false
+        type: string
+      launch_tx_hash:
+        description: "Optional confirmed LP Rewards launch transaction"
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/verify-lp-rewards-mainnet.yml"
+      - "packages/contracts/src/BNBXLPRewardsToken.sol"
+      - "packages/contracts/src/BNBXLPRewardsTokenDeployer.sol"
+      - "packages/contracts/src/BNBXLPRewardsVault.sol"
+      - "packages/contracts/src/BNBXLPRewardsFactory.sol"
+      - "packages/contracts/scripts/verify-lp-rewards-source-mainnet.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-bnbx-lp-rewards-mainnet
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+      BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
+      BNBX_LP_REWARDS_FACTORY_ADDRESS: ${{ inputs.factory_address || vars.BNBX_LP_REWARDS_V2_FACTORY_ADDRESS }}
+      VERIFY_DRY_RUN: ${{ github.event_name == 'push' && '1' || '0' }}
+      VERIFY_LAUNCHED_TOKENS: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit LP rewards template
+        run: pnpm --filter @bnbx/contracts audit:lp-rewards
+      - name: Verify LP Rewards Factory, tokens, and Curves
+        run: |
+          if [ -z "$BNBX_LP_REWARDS_FACTORY_ADDRESS" ]; then
+            export VERIFY_DRY_RUN=1
+          fi
+          pnpm --filter @bnbx/contracts verify-source:lp-rewards-mainnet

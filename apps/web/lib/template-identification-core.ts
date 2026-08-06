@@ -3,6 +3,7 @@ type AdvancedTemplateFactories = {
   rewards: string;
   legacyRewards: string;
   holderRewards: string;
+  lpRewards: string;
 };
 
 function matchesFactory(factory: string, candidate: string) {
@@ -26,6 +27,7 @@ export function isRewardsTemplateFactory(
     factories.rewards,
     factories.legacyRewards,
     factories.holderRewards,
+    factories.lpRewards,
   ].some((candidate) => matchesFactory(factory, candidate));
 }
 

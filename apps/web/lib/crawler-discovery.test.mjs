@@ -14,6 +14,7 @@ test("publishes crawler rules without exposing private application surfaces", as
   for (const path of [
     "/admin/",
     "/api/",
+    "/deploy-lp-rewards-mainnet",
     "/deploy-mainnet",
     "/deploy-testnet",
   ]) {
@@ -24,6 +25,7 @@ test("publishes crawler rules without exposing private application surfaces", as
 test("marks internal application pages as noindex and nofollow", async () => {
   for (const path of [
     "../app/admin/moderation/layout.tsx",
+    "../app/deploy-lp-rewards-mainnet/layout.tsx",
     "../app/deploy-mainnet/layout.tsx",
     "../app/deploy-testnet/layout.tsx",
   ]) {

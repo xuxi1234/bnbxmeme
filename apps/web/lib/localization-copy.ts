@@ -127,6 +127,7 @@ type CreateCopy = {
   creatorDefault: string;
   minimumHolderBalance: string;
   minimumLpBalance: string;
+  lpThresholdHelp: string;
   rewardsHelp: string;
   factorySafetyLock: string;
   taxInvalid: string;
@@ -176,6 +177,8 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "默认创建者",
     minimumHolderBalance: "最低参与分红持币量",
     minimumLpBalance: "最低参与分红 LP 数量",
+    lpThresholdHelp:
+      "仅质押到专属 Vault、且 LP 份额对应至少 0.01 WBNB 的地址参与分红。该门槛由链上合约固定执行。",
     rewardsHelp:
       "持币分红的最低余额必须大于 1,000，默认 1,000,000；黑洞、曲线和交易对不参与。符合条件的持币地址会自动到账。LP 分红需先质押 LP，质押后自动到账；自动派发失败时仍可手动领取。",
     factorySafetyLock:
@@ -263,6 +266,8 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "creator default",
     minimumHolderBalance: "Minimum token balance for rewards",
     minimumLpBalance: "Minimum LP balance for rewards",
+    lpThresholdHelp:
+      "Only LP staked in the dedicated Vault with at least 0.01 WBNB of pool value earns rewards. The contract enforces this fixed threshold onchain.",
     rewardsHelp:
       "The holder-reward minimum must be above 1,000 and defaults to 1,000,000. Eligible holders receive automatic payouts. LP rewards require staking LP, then pay automatically. Manual claiming remains available if an automatic transfer fails.",
     factorySafetyLock:
@@ -359,6 +364,8 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "생성자 기본값",
     minimumHolderBalance: "보상 최소 토큰 보유량",
     minimumLpBalance: "보상 최소 LP 보유량",
+    lpThresholdHelp:
+      "전용 Vault에 스테이킹되고 풀 가치가 최소 0.01 WBNB인 LP만 보상을 받습니다. 이 기준은 온체인 계약에서 고정 적용됩니다.",
     rewardsHelp:
       "보유자 보상 최소 잔액은 1,000보다 커야 하며 기본값은 1,000,000입니다. 조건을 충족한 홀더에게 자동 지급됩니다. LP는 먼저 스테이킹해야 하며 이후 자동 지급됩니다. 자동 지급 실패 시 수동 청구도 가능합니다.",
     factorySafetyLock:
@@ -452,6 +459,8 @@ export const createCopy: Record<Language, CreateCopy> = {
     creatorDefault: "作成者を初期値に使用",
     minimumHolderBalance: "報酬対象の最低トークン保有量",
     minimumLpBalance: "報酬対象の最低 LP 保有量",
+    lpThresholdHelp:
+      "専用Vaultへステーキングし、プール価値が0.01 WBNB以上のLPのみ報酬対象です。この基準はコントラクトで固定されています。",
     rewardsHelp:
       "保有者報酬の最低残高は1,000を超える必要があり、初期値は1,000,000です。対象ホルダーには自動送付されます。LPは先にステークし、その後は自動送付されます。自動送付に失敗した場合も手動請求できます。",
     factorySafetyLock:
@@ -1053,6 +1062,7 @@ type AdvancedTokenCopy = {
   claimable: string;
   myRewardWeight: string;
   minimumHolderBalance: string;
+  minimumLpValue: string;
   walletLp: string;
   lpAmount: string;
   allAvailableLp: string;
@@ -1083,6 +1093,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     claimable: "可领取",
     myRewardWeight: "我的分红权重",
     minimumHolderBalance: "最低持币门槛",
+    minimumLpValue: "最低有效 LP 价值",
     walletLp: "钱包可用 LP",
     lpAmount: "质押或取回 LP 数量",
     allAvailableLp: "全部可用 LP",
@@ -1111,6 +1122,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     claimable: "Claimable",
     myRewardWeight: "My reward weight",
     minimumHolderBalance: "Minimum holder balance",
+    minimumLpValue: "Minimum eligible LP value",
     walletLp: "Available LP in wallet",
     lpAmount: "LP amount to stake or withdraw",
     allAvailableLp: "All available LP",
@@ -1140,6 +1152,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     claimable: "청구 가능",
     myRewardWeight: "내 보상 지분",
     minimumHolderBalance: "최소 토큰 보유량",
+    minimumLpValue: "최소 유효 LP 가치",
     walletLp: "지갑의 사용 가능 LP",
     lpAmount: "스테이킹 또는 출금할 LP 수량",
     allAvailableLp: "사용 가능한 LP 전체",
@@ -1169,6 +1182,7 @@ export const advancedTokenCopy: Record<Language, AdvancedTokenCopy> = {
     claimable: "請求可能",
     myRewardWeight: "自分の報酬持分",
     minimumHolderBalance: "最低トークン保有量",
+    minimumLpValue: "最低有効LP価値",
     walletLp: "ウォレットの利用可能 LP",
     lpAmount: "ステークまたは引き出す LP 数量",
     allAvailableLp: "利用可能な LP 全額",

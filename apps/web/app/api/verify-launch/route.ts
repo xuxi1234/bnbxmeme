@@ -11,11 +11,13 @@ import { bsc } from "viem/chains";
 import { advancedFactoryAbi } from "@/lib/advanced-factory-abi";
 import {
   holderRewardsFactoryAddress,
+  lpRewardsFactoryAddress,
   zeroTaxFactoryAddress,
   v4RewardsFactoryAddress,
   v4StandardFactoryAddress,
 } from "@/lib/deployments";
 import { holderRewardsFactoryAbi } from "@/lib/holder-rewards-factory-deployment";
+import { lpRewardsFactoryAbi } from "@/lib/lp-rewards-factory-deployment";
 import { zeroTaxFactoryDeploymentAbi } from "@/lib/zero-tax-factory-deployment";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +28,7 @@ const GITHUB_REPOSITORY = "bnbxmeme";
 const ADVANCED_WORKFLOW = "verify-bsc-mainnet.yml";
 const ZERO_TAX_WORKFLOW = "verify-zero-tax-mainnet.yml";
 const HOLDER_REWARDS_WORKFLOW = "verify-holder-rewards-mainnet.yml";
+const LP_REWARDS_WORKFLOW = "verify-lp-rewards-mainnet.yml";
 const TOKEN_DEPLOYER_ADDRESS = "0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c";
 const MAX_CONFIRMATION_AGE_BLOCKS = 200n;
 
@@ -52,11 +55,18 @@ function officialCreationFromReceipt(
 ) {
   for (const log of logs) {
     const factory = log.address.toLowerCase();
-    const kind: "zero-tax" | "advanced" | "holder-rewards" | null =
+    const kind:
+      | "zero-tax"
+      | "advanced"
+      | "holder-rewards"
+      | "lp-rewards"
+      | null =
       factory === zeroTaxFactoryAddress.toLowerCase()
         ? "zero-tax"
         : factory === holderRewardsFactoryAddress.toLowerCase()
           ? "holder-rewards"
+          : factory === lpRewardsFactoryAddress.toLowerCase()
+            ? "lp-rewards"
           : factory === v4RewardsFactoryAddress.toLowerCase()
             ? "advanced"
             : null;
@@ -66,6 +76,8 @@ function officialCreationFromReceipt(
         ? zeroTaxFactoryDeploymentAbi
         : kind === "holder-rewards"
           ? holderRewardsFactoryAbi
+          : kind === "lp-rewards"
+            ? lpRewardsFactoryAbi
           : advancedFactoryAbi;
 
     try {
@@ -123,13 +135,15 @@ async function wasAlreadyDispatched(
 async function dispatchVerification(
   token: string,
   transactionHash: string,
-  kind: "zero-tax" | "advanced" | "holder-rewards",
+  kind: "zero-tax" | "advanced" | "holder-rewards" | "lp-rewards",
 ) {
   const workflow =
     kind === "zero-tax"
       ? ZERO_TAX_WORKFLOW
       : kind === "holder-rewards"
         ? HOLDER_REWARDS_WORKFLOW
+        : kind === "lp-rewards"
+          ? LP_REWARDS_WORKFLOW
         : ADVANCED_WORKFLOW;
   const inputs =
     kind === "zero-tax"
@@ -142,6 +156,11 @@ async function dispatchVerification(
             factory_address: holderRewardsFactoryAddress,
             launch_tx_hash: transactionHash,
           }
+        : kind === "lp-rewards"
+          ? {
+              factory_address: lpRewardsFactoryAddress,
+              launch_tx_hash: transactionHash,
+            }
         : {
             standard_factory_address: v4StandardFactoryAddress,
             rewards_factory_address: v4RewardsFactoryAddress,
@@ -225,6 +244,8 @@ export async function POST(request: Request) {
       ? ZERO_TAX_WORKFLOW
       : creation.kind === "holder-rewards"
         ? HOLDER_REWARDS_WORKFLOW
+        : creation.kind === "lp-rewards"
+          ? LP_REWARDS_WORKFLOW
         : ADVANCED_WORKFLOW;
   if (await wasAlreadyDispatched(githubToken, workflow, transactionHash)) {
     return NextResponse.json({
