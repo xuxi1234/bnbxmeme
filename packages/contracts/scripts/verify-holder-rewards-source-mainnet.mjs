@@ -418,7 +418,7 @@ if (verifyLaunchedTokens) {
       ],
     );
     requireAddress(curveFee, feeRecipient, "Curve fee recipient");
-    const graduationUnit = 10_000_000_000_000_000n;
+    const graduationUnit = 1_000_000_000_000_000_000n;
     if (graduationTarget % graduationUnit !== 0n) {
       throw new Error(`Unexpected graduation target on ${curve}`);
     }
