@@ -8,7 +8,7 @@ export const HOLDER_REWARDS_MAINNET_ROUTER =
   "0x10ED43C718714eb63d5aA57B78B54704E256024E" as const;
 export const HOLDER_REWARDS_DEFAULT_USDT =
   "0x55d398326f99059ff775485246999027b3197955" as const;
-export const HOLDER_REWARDS_DEPLOYMENT_GAS_LIMIT = 8_000_000n;
+export const HOLDER_REWARDS_DEPLOYMENT_GAS_LIMIT = 10_000_000n;
 
 export function buildHolderRewardsMainnetDeployment<
   TAbi extends Abi,

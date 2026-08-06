@@ -10,6 +10,7 @@ import {
 import {
   AUTHORIZED_HOLDER_REWARDS_DEPLOYER,
   HOLDER_REWARDS_DEFAULT_USDT,
+  HOLDER_REWARDS_DEPLOYMENT_GAS_LIMIT,
   HOLDER_REWARDS_FEE_RECIPIENT,
   HOLDER_REWARDS_MAINNET_ROUTER,
   buildHolderRewardsMainnetDeployment,
@@ -28,6 +29,14 @@ const deploymentPage = await readFile(
   new URL("../app/deploy-mainnet/page.tsx", import.meta.url),
   "utf8",
 );
+
+test("mainnet deployment gas limit exceeds the measured Holder V2 requirement", () => {
+  const measuredDeploymentEstimate = 8_151_233n;
+  assert.ok(
+    HOLDER_REWARDS_DEPLOYMENT_GAS_LIMIT > measuredDeploymentEstimate,
+    `deployment gas limit ${HOLDER_REWARDS_DEPLOYMENT_GAS_LIMIT} must exceed measured estimate ${measuredDeploymentEstimate}`,
+  );
+});
 
 test("exposes one Holder V2 mainnet deployment action and no legacy choices", () => {
   assert.match(deploymentPage, /holderRewardsMainnetDeployment/);
