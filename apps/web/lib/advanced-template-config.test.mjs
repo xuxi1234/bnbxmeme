@@ -164,9 +164,23 @@ test("accepts typed zero taxes and rejects malformed values", () => {
 
 test("reserves enough gas for advanced create-and-buy", () => {
   assert.ok(ADVANCED_CREATE_GAS_LIMIT > 8_002_720n);
-  assert.equal(advancedCreateGasLimit(7_980_245n), 8_977_776n);
-  assert.ok(advancedCreateGasLimit(7_980_245n) < ADVANCED_CREATE_GAS_LIMIT);
-  assert.throws(() => advancedCreateGasLimit(11_000_000n), /safety limit/);
+  assert.equal(advancedCreateGasLimit(7_980_245n, "holders"), 8_977_776n);
+  assert.ok(
+    advancedCreateGasLimit(7_980_245n, "holders") <
+      ADVANCED_CREATE_GAS_LIMIT,
+  );
+  assert.throws(
+    () => advancedCreateGasLimit(11_000_000n, "holders"),
+    /safety limit/,
+  );
+});
+
+test("allows the independent LP V2 estimate without weakening holder limits", () => {
+  assert.equal(advancedCreateGasLimit(11_000_000n, "lp"), 12_375_000n);
+  assert.throws(
+    () => advancedCreateGasLimit(14_500_000n, "lp"),
+    /safety limit/,
+  );
 });
 
 test("wires the canonical ABI and advanced gas policy into creation", async () => {
@@ -179,7 +193,7 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.match(page, /lpRewardsFactoryAddress/);
   assert.match(page, /lpRewardsFactoryAbi/);
   assert.match(page, /estimateContractGas/);
-  assert.match(page, /advancedCreateGasLimit/);
+  assert.match(page, /advancedCreateGasLimit\(estimatedGas, template\)/);
   assert.match(page, /writeContractAsync/);
   assert.match(page, /normalizeTaxesForTemplate/);
   assert.match(page, /type="number"/);
