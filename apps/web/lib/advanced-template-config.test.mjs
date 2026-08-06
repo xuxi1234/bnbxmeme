@@ -12,6 +12,8 @@ import {
   advancedTemplateValue,
   emptyTaxSide,
   normalizeTaxesForTemplate,
+  holderRewardTokenAddress,
+  holderTaxSideToBps,
   parseMinimumRewardShare,
   parseTaxPercent,
   taxSideToBps,
@@ -109,6 +111,8 @@ test("keeps template taxes deployable when switching templates", () => {
   const rewards = normalizeTaxesForTemplate("holders", empty, empty);
   assert.equal(rewards.buy.rewards, "0");
   assert.equal(rewards.sell.rewards, "0");
+  assert.equal(rewards.buy.marketing, "0");
+  assert.equal(rewards.sell.marketing, "0");
 
   const standard = normalizeTaxesForTemplate(
     "standard",
@@ -116,6 +120,29 @@ test("keeps template taxes deployable when switching templates", () => {
     { ...empty, marketing: "3" },
   );
   assert.deepEqual(standard, { buy: emptyTaxSide(), sell: emptyTaxSide() });
+});
+
+test("encodes blank Holder reward assets for immutable onchain USDT defaulting", () => {
+  assert.equal(
+    holderRewardTokenAddress(""),
+    "0x0000000000000000000000000000000000000000",
+  );
+  assert.equal(
+    holderRewardTokenAddress("  0x55d398326f99059ff775485246999027b3197955  "),
+    "0x55d398326f99059ff775485246999027b3197955",
+  );
+});
+
+test("builds Holder V2 tax sides without a marketing field", () => {
+  assert.deepEqual(
+    holderTaxSideToBps({
+      burn: "1",
+      liquidity: "2.5",
+      marketing: "9",
+      rewards: "3.25",
+    }),
+    { liquidity: 250, rewards: 325, burn: 100 },
+  );
 });
 
 test("accepts typed zero taxes and rejects malformed values", () => {
@@ -157,7 +184,9 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.doesNotMatch(page, /tax-slider-control/);
   assert.match(page, /tax-number-control/);
   assert.match(page, /rewardToken/);
-  assert.match(page, /useState\(DEFAULT_REWARD_TOKEN_ADDRESS\)/);
+  assert.match(page, /useState\(""\)/);
+  assert.match(page, /holderRewardTokenAddress/);
+  assert.match(page, /holderTaxSideToBps/);
   assert.match(page, /holders: DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE/);
   assert.match(page, /parseMinimumRewardShare/);
   assert.match(page, /validateRewardPool/);

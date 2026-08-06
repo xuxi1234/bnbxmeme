@@ -6,6 +6,8 @@ export const STANDARD_CREATE_GAS_LIMIT = 8_000_000n;
 export const ADVANCED_CREATE_GAS_LIMIT = 12_000_000n;
 export const DEFAULT_REWARD_TOKEN_ADDRESS =
   "0x55d398326f99059ff775485246999027b3197955";
+export const ZERO_REWARD_TOKEN_ADDRESS =
+  "0x0000000000000000000000000000000000000000";
 export const DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE = "1000000";
 export const DEFAULT_LP_MINIMUM_REWARD_BALANCE = "10000";
 
@@ -66,6 +68,12 @@ export function normalizeTaxesForTemplate(
   if (template === "standard") {
     return { buy: emptyTaxSide(), sell: emptyTaxSide() };
   }
+  if (template === "holders") {
+    return {
+      buy: { ...buy, marketing: "0" },
+      sell: { ...sell, marketing: "0" },
+    };
+  }
   return { buy: { ...buy }, sell: { ...sell } };
 }
 
@@ -95,4 +103,18 @@ export function taxSideToBps(side: TaxSide) {
       Math.round(value * 100),
     ]),
   ) as Record<TaxKey, number>;
+}
+
+export function holderRewardTokenAddress(value: string) {
+  const normalized = value.trim();
+  return normalized === "" ? ZERO_REWARD_TOKEN_ADDRESS : normalized;
+}
+
+export function holderTaxSideToBps(side: TaxSide) {
+  const parsed = taxSideToBps(side);
+  return {
+    liquidity: parsed.liquidity,
+    rewards: parsed.rewards,
+    burn: parsed.burn,
+  };
 }

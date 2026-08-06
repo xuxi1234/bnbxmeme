@@ -41,6 +41,22 @@ test("maps an independent Holder token's reward-only tax into the public allocat
   );
 });
 
+test("prefers Holder V2 liquidity rewards and burn triples", () => {
+  assert.deepEqual(
+    resolveTemplateTaxes({
+      independentHolderRewards: true,
+      holderBuyTaxes: [200, 300, 100],
+      holderSellTaxes: [250, 350, 150],
+      buyRewardTaxBps: 999,
+      sellRewardTaxBps: 999,
+    }),
+    {
+      buy: [100, 200, 0, 300],
+      sell: [150, 250, 0, 350],
+    },
+  );
+});
+
 test("does not classify the zero-tax Factory as a taxed template", () => {
   const zeroTaxFactory = "0x0000000000000000000000000000000000000004";
 
