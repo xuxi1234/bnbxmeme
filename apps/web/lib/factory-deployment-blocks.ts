@@ -10,12 +10,14 @@ const MAINNET_FACTORY_DEPLOYMENT_BLOCKS = new Map<string, bigint>([
   ["0x510dbbe270b2f009619bcbcf757ae2e2d48734ad", 113_806_641n],
   ["0x28100dbfa3f1a3d563e1667259433adfa3aac4bb", 113_806_761n],
   ["0xcdb3bb57cb27eab36a7c39685afcb93abfec326f", 113_963_878n],
-  ["0xcc1ffca6985658de357f3f5763fd1ff690074625", 114_097_606n],
+  ["0xb814fde8835e9081698d997609ce47031a3ca294", 114_270_472n],
 ]);
+
 
 function parseConfiguredBlock(value: string | undefined) {
   return value && /^\d+$/.test(value) ? BigInt(value) : null;
 }
+
 
 export function resolveFactoryDeploymentBlock(
   factory: `0x${string}`,
@@ -26,8 +28,10 @@ export function resolveFactoryDeploymentBlock(
   );
   if (mainnetBlock !== undefined) return mainnetBlock;
 
+
   // Environment overrides are intentionally limited to unknown/test
   // factories. Production Factory origins are immutable chain facts
   // and must not silently regress to a recent-block window.
   return parseConfiguredBlock(configuredFallback);
 }
+
