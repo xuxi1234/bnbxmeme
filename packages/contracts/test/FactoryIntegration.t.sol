@@ -319,22 +319,22 @@ contract FactoryIntegrationTest {
         );
         require(token.balanceOf(address(this)) == 800_000_000 ether, "USER_BALANCE");
         require(token.balanceOf(pairAddress) == 200_000_000 ether, "PAIR_BALANCE");
-        require(curve.realBNBPrincipal() == 0.05 ether, "PRINCIPAL");
+        require(curve.realBNBPrincipal() == 5 ether, "PRINCIPAL");
         require(
             uint256(curve.state()) == uint256(BondingCurve.State.Graduated),
             "STATE"
         );
         require(pair.reserve0() == uint112(200_000_000 ether), "TOKEN_RESERVE");
-        require(pair.reserve1() == uint112(0.05 ether), "BNB_RESERVE");
+        require(pair.reserve1() == uint112(5 ether), "BNB_RESERVE");
         require(pair.liquidityBalance(DEAD) > 0, "LP_NOT_DEAD");
         require(
-            FEE_RECIPIENT.balance == 0.001505050505050506 ether,
+            FEE_RECIPIENT.balance == 0.051505050505050506 ether,
             "FEE_BALANCE"
         );
 
-        // Net cost is creation fee + the exact gross amount needed for 0.05 BNB
+        // Net cost is creation fee + the exact gross amount needed for 5 BNB
         // principal. The rest of the supplied 5.5 BNB is refunded.
-        uint256 expectedCost = 0.051505050505050506 ether;
+        uint256 expectedCost = 5.051505050505050506 ether;
         require(balanceBefore - address(this).balance == expectedCost, "NET_COST");
     }
 
@@ -355,7 +355,7 @@ contract FactoryIntegrationTest {
         assert(launchFactory.curveOf(tokenAddress) == curveAddress);
         assert(token.balanceOf(curveAddress) == 1_000_000_000 ether);
         assert(curve.realBNBPrincipal() == 0);
-        assert(curve.graduationTarget() == 0.01 ether);
+        assert(curve.graduationTarget() == 1 ether);
         assert(curve.TRADE_FEE_BPS() == 100);
         assert(uint256(curve.state()) == uint256(BondingCurve.State.Trading));
         assert(FEE_RECIPIENT.balance - feeBalanceBefore == 0.001 ether);
@@ -370,9 +370,9 @@ contract FactoryIntegrationTest {
                 vanityRequest("Eighteen", "EIGHTEEN", 18, "")
             );
 
-        assert(BondingCurve(payable(oneBNBCurve)).graduationTarget() == 0.01 ether);
+        assert(BondingCurve(payable(oneBNBCurve)).graduationTarget() == 1 ether);
         assert(
-            BondingCurve(payable(eighteenBNBCurve)).graduationTarget() == 0.18 ether
+            BondingCurve(payable(eighteenBNBCurve)).graduationTarget() == 18 ether
         );
 
         (bool belowSuccess,) = address(launchFactory).call{ value: 0.001 ether }(
@@ -473,7 +473,7 @@ contract FactoryIntegrationTest {
         assert(token.liquidityPairUnlocked());
         assert(token.graduationAuthority() == DEAD);
         assert(token.balanceOf(pairAddress) == 200_000_000 ether);
-        assert(wbnb.balanceOf(pairAddress) == 0.051 ether);
+        assert(wbnb.balanceOf(pairAddress) == 5.001 ether);
         assert(pair.liquidityBalance(DEAD) > 0);
     }
 
