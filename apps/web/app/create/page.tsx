@@ -45,6 +45,8 @@ import {
   advancedCreateGasLimit,
   advancedTemplateValue,
   emptyTaxSide,
+  holderRewardTokenAddress,
+  holderTaxSideToBps,
   normalizeTaxesForTemplate,
   parseMinimumRewardShare,
   parseTaxPercent,
@@ -266,7 +268,7 @@ export default function CreateTokenPage() {
   const [buyTaxes, setBuyTaxes] = useState<TaxSide>(emptyTaxSide);
   const [sellTaxes, setSellTaxes] = useState<TaxSide>(emptyTaxSide);
   const [marketingWallet, setMarketingWallet] = useState("");
-  const [rewardToken, setRewardToken] = useState(DEFAULT_REWARD_TOKEN_ADDRESS);
+  const [rewardToken, setRewardToken] = useState("");
   const [minimumRewardBalances, setMinimumRewardBalances] = useState({
     holders: DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE,
     lp: DEFAULT_LP_MINIMUM_REWARD_BALANCE,
@@ -447,7 +449,7 @@ export default function CreateTokenPage() {
     const start = (BigInt(Date.now()) << 160n) | BigInt(address ?? 0);
     const marketing =
       marketingWallet.trim() === "" ? address : marketingWallet.trim();
-    if (template !== "standard" && (!marketing || !isAddress(marketing))) {
+    if (template === "lp" && (!marketing || !isAddress(marketing))) {
       throw new Error(copy.errors.marketingWalletInvalid);
     }
     const marketingAddress = marketing as `0x${string}`;
@@ -462,8 +464,11 @@ export default function CreateTokenPage() {
         throw new Error(copy.errors.rewardsFactoryMissing);
       }
       const minimumShare = minimumRewardShareOrThrow(template);
-      const rewardTokenAddress = rewardToken.trim();
-      if (!isAddress(rewardTokenAddress)) {
+      const rewardTokenAddress =
+        template === "holders"
+          ? holderRewardTokenAddress(rewardToken)
+          : rewardToken.trim();
+      if (template !== "holders" && !isAddress(rewardTokenAddress)) {
         throw new Error(copy.errors.rewardTokenInvalid);
       }
       const saltRequest =
@@ -475,8 +480,10 @@ export default function CreateTokenPage() {
               metadataURI: "",
               vanitySalt: ZERO_SALT,
               rewardToken: rewardTokenAddress,
-              buyRewardTaxBps: configuredTaxes().buy.rewards,
-              sellRewardTaxBps: configuredTaxes().sell.rewards,
+              taxes: {
+                buy: holderTaxSideToBps(buyTaxes),
+                sell: holderTaxSideToBps(sellTaxes),
+              },
               minimumRewardBalance: minimumShare,
             }
           : {
@@ -559,11 +566,16 @@ export default function CreateTokenPage() {
     setIsUploading(true);
     try {
       if (advancedTemplate) {
-        const rewardTokenAddress = rewardToken.trim();
-        if (!isAddress(rewardTokenAddress)) {
+        const rewardTokenAddress =
+          template === "holders"
+            ? holderRewardTokenAddress(rewardToken)
+            : rewardToken.trim();
+        if (template !== "holders" && !isAddress(rewardTokenAddress)) {
           throw new Error(copy.errors.rewardTokenInvalid);
         }
-        await validateRewardPool(rewardTokenAddress);
+        if (rewardTokenAddress !== zeroAddress) {
+          await validateRewardPool(rewardTokenAddress as `0x${string}`);
+        }
       }
       const metadataURI = await uploadMetadata();
       setIsUploading(false);
@@ -587,11 +599,14 @@ export default function CreateTokenPage() {
         }
         const marketing =
           marketingWallet.trim() === "" ? address : marketingWallet.trim();
-        if (!isAddress(marketing)) {
+        if (template === "lp" && !isAddress(marketing)) {
           throw new Error(copy.errors.marketingWalletInvalid);
         }
-        const rewardTokenAddress = rewardToken.trim();
-        if (!isAddress(rewardTokenAddress)) {
+        const rewardTokenAddress =
+          template === "holders"
+            ? holderRewardTokenAddress(rewardToken)
+            : rewardToken.trim();
+        if (template !== "holders" && !isAddress(rewardTokenAddress)) {
           throw new Error(copy.errors.rewardTokenInvalid);
         }
         const request =
@@ -603,8 +618,10 @@ export default function CreateTokenPage() {
                 metadataURI,
                 vanitySalt,
                 rewardToken: rewardTokenAddress,
-                buyRewardTaxBps: configuredTaxes().buy.rewards,
-                sellRewardTaxBps: configuredTaxes().sell.rewards,
+                taxes: {
+                  buy: holderTaxSideToBps(buyTaxes),
+                  sell: holderTaxSideToBps(sellTaxes),
+                },
                 minimumRewardBalance: minimumRewardShareOrThrow(template),
               }
             : {
@@ -765,7 +782,7 @@ export default function CreateTokenPage() {
   const previewTotalValue = CREATION_FEE_WEI + previewInitialBuyWei;
   const rewardsValid =
     !advancedTemplate ||
-    (isAddress(rewardToken.trim()) &&
+    ((template === "holders" || isAddress(rewardToken.trim())) &&
       parseMinimumRewardShare(template, minimumRewardBalance) !== null);
   const submitBlocker = resolveCreateSubmitBlocker({
     isConnected,
@@ -867,7 +884,12 @@ export default function CreateTokenPage() {
                       </b>
                     </div>
                     <div className="tax-grid">
-                      {(Object.keys(values) as TaxKey[]).map((key) => {
+                      {(Object.keys(values) as TaxKey[])
+                        .filter(
+                          (key) =>
+                            template !== "holders" || key !== "marketing",
+                        )
+                        .map((key) => {
                         const labels = copy.taxLabels;
                         const invalid = parseTaxPercent(values[key]) === null;
                         return (
@@ -899,7 +921,7 @@ export default function CreateTokenPage() {
                             )}
                           </label>
                         );
-                      })}
+                        })}
                     </div>
                     {(!Number.isFinite(total) || total > MAX_SIDE_TAX) && (
                       <p className="field-error">{copy.taxInvalid}</p>
@@ -910,26 +932,32 @@ export default function CreateTokenPage() {
               <label>
                 {copy.rewardToken}
                 <input
-                  required
+                  required={template !== "holders"}
                   aria-invalid={
                     rewardToken.trim() !== "" && !isAddress(rewardToken.trim())
                   }
                   value={rewardToken}
-                  placeholder="0x..."
+                  placeholder={
+                    template === "holders"
+                      ? DEFAULT_REWARD_TOKEN_ADDRESS
+                      : "0x..."
+                  }
                   onChange={(event) => setRewardToken(event.target.value)}
                 />
                 <span className="field-help">{copy.rewardTokenHelp}</span>
               </label>
-              <label>
-                {copy.marketingWallet}
-                <input
-                  value={marketingWallet}
-                  placeholder={
-                    address ? `${address} (${copy.creatorDefault})` : "0x..."
-                  }
-                  onChange={(event) => setMarketingWallet(event.target.value)}
-                />
-              </label>
+              {template === "lp" && (
+                <label>
+                  {copy.marketingWallet}
+                  <input
+                    value={marketingWallet}
+                    placeholder={
+                      address ? `${address} (${copy.creatorDefault})` : "0x..."
+                    }
+                    onChange={(event) => setMarketingWallet(event.target.value)}
+                  />
+                </label>
+              )}
               <label>
                 {template === "holders"
                   ? copy.minimumHolderBalance
