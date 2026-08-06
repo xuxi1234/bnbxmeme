@@ -4,6 +4,7 @@ export type TaxSide = Record<TaxKey, string>;
 
 export const STANDARD_CREATE_GAS_LIMIT = 8_000_000n;
 export const ADVANCED_CREATE_GAS_LIMIT = 12_000_000n;
+export const LP_REWARDS_CREATE_GAS_LIMIT = 16_000_000n;
 export const DEFAULT_REWARD_TOKEN_ADDRESS =
   "0x55d398326f99059ff775485246999027b3197955";
 export const ZERO_REWARD_TOKEN_ADDRESS =
@@ -21,12 +22,19 @@ function ceilDiv(value: bigint, divisor: bigint) {
   return (value - 1n) / divisor + 1n;
 }
 
-export function advancedCreateGasLimit(estimatedGas: bigint) {
+export function advancedCreateGasLimit(
+  estimatedGas: bigint,
+  template: Exclude<TemplateId, "standard">,
+) {
   if (estimatedGas <= 0n) {
     throw new Error("Advanced template gas estimate must be positive");
   }
   const withMargin = estimatedGas + ceilDiv(estimatedGas, 8n);
-  if (withMargin > ADVANCED_CREATE_GAS_LIMIT) {
+  const safetyLimit =
+    template === "lp"
+      ? LP_REWARDS_CREATE_GAS_LIMIT
+      : ADVANCED_CREATE_GAS_LIMIT;
+  if (withMargin > safetyLimit) {
     throw new Error("Advanced template gas estimate exceeds the safety limit");
   }
   return withMargin;
