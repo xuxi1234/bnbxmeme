@@ -67,6 +67,7 @@ import {
   resolveTemplateTaxes,
 } from "@/lib/template-identification-core";
 import { ProjectState } from "./project-state";
+import { holderRewardsTokenAbi } from "@/lib/holder-rewards-config";
 
 const SLIPPAGE_BPS = 100n;
 const BPS = 10_000n;
@@ -420,8 +421,10 @@ export function TokenTradingPage({
   });
   const pairUnlocked = useReadContract({
     address: tokenAddress,
-    abi: tokenAbi,
-    functionName: "liquidityPairUnlocked",
+    abi: isIndependentHolderRewards ? holderRewardsTokenAbi : tokenAbi,
+    functionName: isIndependentHolderRewards
+      ? "taxesEnabled"
+      : "liquidityPairUnlocked",
     query: { enabled: tokenAddress !== zeroAddress },
   });
   const allowance = useReadContract({
@@ -463,13 +466,13 @@ export function TokenTradingPage({
   });
   const buyTaxes = useReadContract({
     address: tokenAddress,
-    abi: tokenAbi,
+    abi: isIndependentHolderRewards ? holderRewardsTokenAbi : tokenAbi,
     functionName: "buyTaxes",
     query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
   const sellTaxes = useReadContract({
     address: tokenAddress,
-    abi: tokenAbi,
+    abi: isIndependentHolderRewards ? holderRewardsTokenAbi : tokenAbi,
     functionName: "sellTaxes",
     query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
@@ -603,8 +606,22 @@ export function TokenTradingPage({
     `${((value ?? 0) / 100).toFixed(2)}%`;
   const displayedTaxes = resolveTemplateTaxes({
     independentHolderRewards: isIndependentHolderRewards,
-    buyTaxes: buyTaxes.data,
-    sellTaxes: sellTaxes.data,
+    buyTaxes: isIndependentHolderRewards
+      ? undefined
+      : (buyTaxes.data as
+          | readonly [number, number, number, number]
+          | undefined),
+    sellTaxes: isIndependentHolderRewards
+      ? undefined
+      : (sellTaxes.data as
+          | readonly [number, number, number, number]
+          | undefined),
+    holderBuyTaxes: isIndependentHolderRewards
+      ? (buyTaxes.data as readonly [number, number, number] | undefined)
+      : undefined,
+    holderSellTaxes: isIndependentHolderRewards
+      ? (sellTaxes.data as readonly [number, number, number] | undefined)
+      : undefined,
     buyRewardTaxBps:
       holderBuyRewardTax.data ??
       tokenSnapshot.snapshot?.buyRewardTaxBps ??
