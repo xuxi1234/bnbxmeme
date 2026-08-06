@@ -3,11 +3,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 import solc from "solc";
-import {
+import * as verificationCompilerInput from "./verification-compiler-input.mjs";
+
+const {
   createMainnetVerificationInputs,
   createVerificationCompilerInput,
   createZeroTaxVerificationInputs,
-} from "./verification-compiler-input.mjs";
+} = verificationCompilerInput;
 
 const root = resolve(import.meta.dirname, "..");
 const inputs = createMainnetVerificationInputs(root, "V4");
@@ -185,4 +187,74 @@ test("keeps zero-tax source publication read-only and scheduled", () => {
   assert.match(workflow, /cron:\s*"\*\/15 \* \* \* \*"/);
   assert.match(workflow, /audit:zero-tax/);
   assert.match(workflow, /verify-source:zero-tax-mainnet/);
+});
+
+test("keeps holder rewards V2 verification independent from the legacy address", () => {
+  const verifier = readFileSync(
+    resolve(root, "scripts/verify-holder-rewards-source-mainnet.mjs"),
+    "utf8",
+  );
+  const workflow = readFileSync(
+    resolve(root, "../../.github/workflows/verify-holder-rewards-mainnet.yml"),
+    "utf8",
+  );
+  assert.doesNotMatch(workflow, /0xcc1FFcA6985658DE357f3F5763FD1Ff690074625/i);
+  assert.match(workflow, /BNBX_HOLDER_REWARDS_V2_FACTORY_ADDRESS/);
+  assert.match(verifier, /defaultRewardToken/);
+  assert.match(verifier, /tokenDeployer/);
+  assert.match(verifier, /BNBXHolderRewardsVault/);
+  assert.doesNotMatch(verifier, /buyRewardTaxBps|sellRewardTaxBps/);
+});
+
+test("holder rewards V2 verification bundles reproduce the deployed source closure", () => {
+  assert.equal(
+    typeof verificationCompilerInput.createHolderRewardsVerificationInputs,
+    "function",
+  );
+  const holderRewardsInputs =
+    verificationCompilerInput.createHolderRewardsVerificationInputs(root);
+  const fullInput = createVerificationCompilerInput(root, [
+    "src/BNBXHolderRewardsFactory.sol",
+    "src/BNBXHolderRewardsToken.sol",
+    "src/BNBXHolderRewardsTokenDeployer.sol",
+    "src/BNBXHolderRewardsVault.sol",
+    "src/BondingCurve.sol",
+  ]);
+  const fullCompilation = compile(fullInput);
+  const targets = [
+    [
+      holderRewardsInputs.factory,
+      "src/BNBXHolderRewardsFactory.sol",
+      "BNBXHolderRewardsFactory",
+    ],
+    [
+      holderRewardsInputs.token,
+      "src/BNBXHolderRewardsToken.sol",
+      "BNBXHolderRewardsToken",
+    ],
+    [
+      holderRewardsInputs.tokenDeployer,
+      "src/BNBXHolderRewardsTokenDeployer.sol",
+      "BNBXHolderRewardsTokenDeployer",
+    ],
+    [
+      holderRewardsInputs.rewardVault,
+      "src/BNBXHolderRewardsVault.sol",
+      "BNBXHolderRewardsVault",
+    ],
+    [
+      holderRewardsInputs.bondingCurve,
+      "src/BondingCurve.sol",
+      "BondingCurve",
+    ],
+  ];
+
+  for (const [compilerInput, sourcePath, contractName] of targets) {
+    const isolatedCompilation = compile(compilerInput);
+    assert.deepEqual(
+      bytecodes(isolatedCompilation, sourcePath, contractName),
+      bytecodes(fullCompilation, sourcePath, contractName),
+      `${contractName} bytecode changed in its verification bundle`,
+    );
+  }
 });

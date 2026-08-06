@@ -35,6 +35,11 @@ if (errors.length)
 const factory = output.contracts[entry].BNBXHolderRewardsFactory;
 const token =
   output.contracts["src/BNBXHolderRewardsToken.sol"].BNBXHolderRewardsToken;
+const deployer =
+  output.contracts["src/BNBXHolderRewardsTokenDeployer.sol"]
+    .BNBXHolderRewardsTokenDeployer;
+const vault =
+  output.contracts["src/BNBXHolderRewardsVault.sol"].BNBXHolderRewardsVault;
 const forbidden = [
   "BNBXDividendTokenV4",
   "BNBXRewardVaultV4",
@@ -47,13 +52,84 @@ for (const name of forbidden)
     throw new Error(`Legacy dependency detected: ${name}`);
 const factoryRuntime = factory.evm.deployedBytecode.object.length / 2;
 const tokenRuntime = token.evm.deployedBytecode.object.length / 2;
-if (factoryRuntime > 24_576 || tokenRuntime > 24_576)
+const deployerRuntime = deployer.evm.deployedBytecode.object.length / 2;
+const vaultRuntime = vault.evm.deployedBytecode.object.length / 2;
+const factoryInitCode = factory.evm.bytecode.object.length / 2;
+if (
+  factoryRuntime > 24_576 ||
+  tokenRuntime > 24_576 ||
+  deployerRuntime > 24_576 ||
+  vaultRuntime > 24_576
+)
   throw new Error("EIP-170 runtime limit exceeded");
+if (factoryInitCode > 49_152)
+  throw new Error(`EIP-3860 Factory init-code limit exceeded: ${factoryInitCode}`);
+
+const factoryConstructor = factory.abi.find((item) => item.type === "constructor");
+const constructorNames = (factoryConstructor?.inputs ?? []).map(
+  (input) => input.name,
+);
+if (
+  JSON.stringify(constructorNames) !==
+  JSON.stringify(["feeRecipient_", "router_", "defaultRewardToken_"])
+) {
+  throw new Error(`Unexpected Factory constructor: ${constructorNames.join(",")}`);
+}
+
+const factoryFunctions = new Set(
+  factory.abi.filter((item) => item.type === "function").map((item) => item.name),
+);
+const tokenFunctions = new Set(
+  token.abi.filter((item) => item.type === "function").map((item) => item.name),
+);
+for (const required of ["defaultRewardToken", "tokenDeployer", "predictTokenAddress"]) {
+  if (!factoryFunctions.has(required))
+    throw new Error(`Missing required Factory interface: ${required}`);
+}
+for (const required of [
+  "buyTaxes",
+  "sellTaxes",
+  "processTaxes",
+  "processRewards",
+  "claimRewards",
+  "rewardVault",
+]) {
+  if (!tokenFunctions.has(required))
+    throw new Error(`Missing required token interface: ${required}`);
+}
+
+const forbiddenInterfaces = [
+  "owner",
+  "mint",
+  "setTax",
+  "setTaxes",
+  "setBlacklist",
+  "blacklist",
+  "withdraw",
+  "withdrawToken",
+  "marketingWallet",
+  "claimMarketingBNB",
+  "referrer",
+  "referral",
+  "upgradeTo",
+  "upgradeToAndCall",
+];
+for (const name of forbiddenInterfaces) {
+  if (factoryFunctions.has(name) || tokenFunctions.has(name)) {
+    throw new Error(`Forbidden privileged interface detected: ${name}`);
+  }
+}
+if (JSON.stringify(factory.abi).toLowerCase().includes("marketing")) {
+  throw new Error("Marketing field leaked into Holder V2 Factory ABI");
+}
 console.log(
   JSON.stringify(
     {
       factoryRuntime,
       tokenRuntime,
+      deployerRuntime,
+      vaultRuntime,
+      factoryInitCode,
       sources,
       factoryCreationHash: await import("viem").then(({ keccak256 }) =>
         keccak256(`0x${factory.evm.bytecode.object}`),

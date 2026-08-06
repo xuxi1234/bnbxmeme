@@ -114,3 +114,23 @@ export function createZeroTaxVerificationInputs(root) {
     ]),
   };
 }
+
+export function createHolderRewardsVerificationInputs(root) {
+  return {
+    factory: createVerificationCompilerInput(root, [
+      "src/BNBXHolderRewardsFactory.sol",
+    ]),
+    token: createVerificationCompilerInput(root, [
+      "src/BNBXHolderRewardsToken.sol",
+    ]),
+    tokenDeployer: createVerificationCompilerInput(root, [
+      "src/BNBXHolderRewardsTokenDeployer.sol",
+    ]),
+    rewardVault: createVerificationCompilerInput(root, [
+      "src/BNBXHolderRewardsVault.sol",
+    ]),
+    bondingCurve: createVerificationCompilerInput(root, [
+      "src/BondingCurve.sol",
+    ]),
+  };
+}

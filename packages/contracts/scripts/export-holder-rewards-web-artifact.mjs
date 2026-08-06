@@ -37,8 +37,11 @@ const factory = output.contracts[entry].BNBXHolderRewardsFactory;
 const token =
   output.contracts["src/BNBXHolderRewardsToken.sol"].BNBXHolderRewardsToken;
 const runtimeBytes = factory.evm.deployedBytecode.object.length / 2;
+const initCodeBytes = factory.evm.bytecode.object.length / 2;
 if (runtimeBytes > 24_576)
   throw new Error(`Factory runtime exceeds EIP-170: ${runtimeBytes}`);
+if (initCodeBytes > 49_152)
+  throw new Error(`Factory init code exceeds EIP-3860: ${initCodeBytes}`);
 const lib = resolve(workspace, "apps/web/lib");
 mkdirSync(lib, { recursive: true });
 writeFileSync(
@@ -54,4 +57,6 @@ writeFileSync(
     `export const holderRewardsTokenAbi = ${JSON.stringify(token.abi)} as const;\n` +
     `export const holderRewardsTokenCreationBytecode = "0x${token.evm.bytecode.object}" as const;\n`,
 );
-console.log(`Holder-rewards Factory runtime: ${runtimeBytes} bytes`);
+console.log(
+  `Holder-rewards Factory runtime: ${runtimeBytes} bytes; init code: ${initCodeBytes} bytes`,
+);
