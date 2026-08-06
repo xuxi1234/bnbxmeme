@@ -9,7 +9,6 @@ on:
       factory_address:
         description: "Deployed BNBXHolderRewardsFactory address"
         required: false
-        default: "0xcc1FFcA6985658DE357f3F5763FD1Ff690074625"
         type: string
       launch_tx_hash:
         description: "Optional confirmed Holder Rewards launch transaction"
@@ -21,6 +20,8 @@ on:
     paths:
       - ".github/workflows/verify-holder-rewards-mainnet.yml"
       - "packages/contracts/src/BNBXHolderRewardsToken.sol"
+      - "packages/contracts/src/BNBXHolderRewardsTokenDeployer.sol"
+      - "packages/contracts/src/BNBXHolderRewardsVault.sol"
       - "packages/contracts/src/BNBXHolderRewardsFactory.sol"
       - "packages/contracts/scripts/verify-holder-rewards-source-mainnet.mjs"
 
@@ -39,7 +40,7 @@ jobs:
     env:
       BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
       BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
-      BNBX_HOLDER_REWARDS_FACTORY_ADDRESS: ${{ inputs.factory_address || '0xcc1FFcA6985658DE357f3F5763FD1Ff690074625' }}
+      BNBX_HOLDER_REWARDS_FACTORY_ADDRESS: ${{ inputs.factory_address || vars.BNBX_HOLDER_REWARDS_V2_FACTORY_ADDRESS }}
       VERIFY_DRY_RUN: ${{ github.event_name == 'push' && '1' || '0' }}
       VERIFY_LAUNCHED_TOKENS: "1"
     steps:
@@ -57,4 +58,8 @@ jobs:
       - name: Audit holder rewards template
         run: pnpm --filter @bnbx/contracts audit:holder-rewards
       - name: Verify Holder Rewards Factory, tokens, and Curves
-        run: pnpm --filter @bnbx/contracts verify-source:holder-rewards-mainnet
+        run: |
+          if [ -z "$BNBX_HOLDER_REWARDS_FACTORY_ADDRESS" ]; then
+            export VERIFY_DRY_RUN=1
+          fi
+          pnpm --filter @bnbx/contracts verify-source:holder-rewards-mainnet
