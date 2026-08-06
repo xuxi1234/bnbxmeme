@@ -82,33 +82,43 @@ if (errors.length > 0) {
   throw new Error(errors.map((error) => error.formattedMessage).join("\n"));
 }
 
-const provider = ganache.provider({
-  logging: { quiet: true },
-  wallet: { totalAccounts: 2, defaultBalance: 1000 },
-  miner: { blockGasLimit: 120_000_000 },
-  chain: {
-    chainId: 31_337,
-    allowUnlimitedContractSize: true,
-    allowUnlimitedInitCodeSize: true,
-  },
-});
-const accounts = await provider.request({ method: "eth_accounts", params: [] });
-const account = accounts[0];
 const localChain = defineChain({
   id: 31_337,
   name: "BNBX Local",
   nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
   rpcUrls: { default: { http: ["http://127.0.0.1"] } },
 });
-const publicClient = createPublicClient({
-  chain: localChain,
-  transport: custom(provider),
-});
-const walletClient = createWalletClient({
-  account,
-  chain: localChain,
-  transport: custom(provider),
-});
+let provider;
+let accounts;
+let account;
+let publicClient;
+let walletClient;
+
+async function resetLocalChain() {
+  provider = ganache.provider({
+    logging: { quiet: true },
+    wallet: { totalAccounts: 2, defaultBalance: 1000 },
+    miner: { blockGasLimit: 120_000_000 },
+    chain: {
+      chainId: 31_337,
+      allowUnlimitedContractSize: true,
+      allowUnlimitedInitCodeSize: true,
+    },
+  });
+  accounts = await provider.request({ method: "eth_accounts", params: [] });
+  account = accounts[0];
+  publicClient = createPublicClient({
+    chain: localChain,
+    transport: custom(provider),
+  });
+  walletClient = createWalletClient({
+    account,
+    chain: localChain,
+    transport: custom(provider),
+  });
+}
+
+await resetLocalChain();
 
 async function deploy(artifact, args = []) {
   const hash = await walletClient.deployContract({
@@ -144,11 +154,16 @@ const suites = [
     source: "test/BNBXHolderRewardsTemplate.t.sol",
     contract: "BNBXHolderRewardsTemplateTest",
     tests: [
-      "testFixedSupplyImmutableConfigurationAndNoOwnerSurface",
-      "testRejectsTaxAndMinimumOutsideHardBounds",
-      "testRewardsFollowBalancesWithoutLoopsOrRetroactiveDilution",
-      "testTaxesAreOffBeforeGraduationAndFixedAfterGraduation",
-      "testAllowanceSemanticsAndLaunchRolesAreDestroyed",
+      "testFactoryUsesThreeImmutableConstructorValuesAndPrivateDeployer",
+      "testBlankAndExplicitDefaultRewardPredictTheSameAddress",
+      "testRejectsCustomRewardWithoutLiveWbnbPool",
+      "testDedicatedDeployerAuthorizationAndCreate2Parity",
+      "testFixedThreeWayTaxesAndNoOwnerSurface",
+      "testBuyAndSellAccountLiquidityRewardsAndBurnIndependently",
+      "testRejectsAnySideTotalAboveTenPercent",
+      "testLaunchRolesAreSingleUseAndDestroyed",
+      "testBoundedAutomaticRewardsPayAndIsolateFailedRecipients",
+      "testProcessesLiquidityAndRewardsAndBurnsAutomaticLp",
     ],
   },
   {
@@ -321,7 +336,11 @@ if (selectedSuites.length === 0) {
   throw new Error(`Unknown TEST_SUITE: ${suiteFilter}`);
 }
 
-for (const suite of selectedSuites) {
+for (const [suiteIndex, suite] of selectedSuites.entries()) {
+  // Preserve the historical deployment nonce used by the early V4 vanity
+  // fixture, then isolate every later suite so Ganache cannot accumulate a
+  // stale transaction/RPC state across the long-running integration matrix.
+  if (suiteIndex > 3) await resetLocalChain();
   const artifact = output.contracts[suite.source][suite.contract];
   const deploymentHash = await walletClient.deployContract({
     abi: artifact.abi,
@@ -338,7 +357,8 @@ for (const suite of selectedSuites) {
   if (
     suite.contract.endsWith("IntegrationTest") ||
     suite.contract.startsWith("DividendTaxProcessing") ||
-    suite.contract === "BNBXZeroTaxTemplateTest"
+    suite.contract === "BNBXZeroTaxTemplateTest" ||
+    suite.contract === "BNBXHolderRewardsTemplateTest"
   ) {
     const fundingHash = await walletClient.sendTransaction({
       to: expectedAddress,
@@ -411,6 +431,36 @@ for (const suite of selectedSuites) {
     });
     if (saltReceipt.status !== "success") {
       throw new Error("Failed to configure dividend test salts");
+    }
+  }
+
+  if (suite.contract === "BNBXV4SecurityTest") {
+    let foundSalt;
+    for (let start = 0; start < 500_000; start += 10_000) {
+      const result = await publicClient.readContract({
+        address: expectedAddress,
+        abi: artifact.abi,
+        functionName: "findSecuritySalt",
+        args: [BigInt(start), 10_000n],
+      });
+      if (result[0]) {
+        foundSalt = result[1];
+        break;
+      }
+    }
+    if (!foundSalt) throw new Error("No V4 security vanity salt found");
+    const saltHash = await walletClient.writeContract({
+      address: expectedAddress,
+      abi: artifact.abi,
+      functionName: "setSecuritySalt",
+      args: [foundSalt],
+      gas: 150_000n,
+    });
+    const saltReceipt = await publicClient.waitForTransactionReceipt({
+      hash: saltHash,
+    });
+    if (saltReceipt.status !== "success") {
+      throw new Error("Failed to configure V4 security vanity salt");
     }
   }
 

@@ -8,27 +8,21 @@ import {
   http,
 } from "viem";
 import { bsc } from "viem/chains";
-import { createVerificationCompilerInput } from "./verification-compiler-input.mjs";
+import { createHolderRewardsVerificationInputs } from "./verification-compiler-input.mjs";
 
 const CHAIN_ID = "56";
 const API_URL = "https://api.etherscan.io/v2/api";
 const EXPECTED_FEE_RECIPIENT = "0xDAF4f62914f7F64c9eabFd473F4dB4b7e74048A6";
 const EXPECTED_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
+const EXPECTED_DEFAULT_REWARD_TOKEN =
+  "0x55d398326f99059fF775485246999027B3197955";
 const dryRun = process.env.VERIFY_DRY_RUN === "1";
 const apiKey = process.env.BSC_SCAN_API_KEY;
 const factoryInput = process.env.BNBX_HOLDER_REWARDS_FACTORY_ADDRESS;
 const verifyLaunchedTokens = process.env.VERIFY_LAUNCHED_TOKENS !== "0";
 const root = resolve(import.meta.dirname, "..");
 
-const verificationInputs = {
-  factory: createVerificationCompilerInput(root, [
-    "src/BNBXHolderRewardsFactory.sol",
-  ]),
-  token: createVerificationCompilerInput(root, [
-    "src/BNBXHolderRewardsToken.sol",
-  ]),
-  bondingCurve: createVerificationCompilerInput(root, ["src/BondingCurve.sol"]),
-};
+const verificationInputs = createHolderRewardsVerificationInputs(root);
 
 const versionMatch = solc
   .version()
@@ -54,7 +48,7 @@ function validateCompilerInput(label, compilerInput) {
   validatedCompilerInputs.add(serialized);
 }
 
-if (dryRun && !factoryInput) {
+if (dryRun) {
   for (const [label, input] of Object.entries(verificationInputs)) {
     validateCompilerInput(label, input);
   }
@@ -143,6 +137,19 @@ const mappedAddressReadAbi = (name) => [
     outputs: [{ type: "address" }],
   },
 ];
+const sideTaxesReadAbi = (name) => [
+  {
+    type: "function",
+    name,
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "liquidity", type: "uint16" },
+      { name: "rewards", type: "uint16" },
+      { name: "burn", type: "uint16" },
+    ],
+  },
+];
 const readValue = (address, abi, functionName, args = []) =>
   client.readContract({ address, abi, functionName, args });
 const readAddress = (address, name) =>
@@ -229,26 +236,42 @@ async function verify(
   throw new Error(`Verification timed out for ${address}`);
 }
 
-const [chainId, feeRecipient, router] = await Promise.all([
-  client.getChainId(),
-  readAddress(factory, "feeRecipient"),
-  readAddress(factory, "pancakeV2Router"),
-]);
+const [chainId, feeRecipient, router, defaultRewardToken, tokenDeployer] =
+  await Promise.all([
+    client.getChainId(),
+    readAddress(factory, "feeRecipient"),
+    readAddress(factory, "pancakeV2Router"),
+    readAddress(factory, "defaultRewardToken"),
+    readAddress(factory, "tokenDeployer"),
+  ]);
 if (chainId !== 56)
   throw new Error(`Refusing verification on chain ${chainId}`);
 await requireCode(factory, "Holder Rewards Factory");
 requireAddress(feeRecipient, EXPECTED_FEE_RECIPIENT, "Fee recipient");
 requireAddress(router, EXPECTED_ROUTER, "Pancake V2 Router");
+requireAddress(
+  defaultRewardToken,
+  EXPECTED_DEFAULT_REWARD_TOKEN,
+  "Default reward token",
+);
+await requireCode(tokenDeployer, "Holder Rewards Token Deployer");
 
 await verify(
   factory,
   "src/BNBXHolderRewardsFactory.sol:BNBXHolderRewardsFactory",
   encodeAbiParameters(
-    [{ type: "address" }, { type: "address" }],
-    [feeRecipient, router],
+    [{ type: "address" }, { type: "address" }, { type: "address" }],
+    [feeRecipient, router, defaultRewardToken],
   ),
   verificationInputs.factory,
   "holder-rewards-factory",
+);
+await verify(
+  tokenDeployer,
+  "src/BNBXHolderRewardsTokenDeployer.sol:BNBXHolderRewardsTokenDeployer",
+  "0x",
+  verificationInputs.tokenDeployer,
+  "holder-rewards-token-deployer",
 );
 
 let tokenCount = 0n;
@@ -287,29 +310,25 @@ if (verifyLaunchedTokens) {
       name,
       symbol,
       rewardToken,
-      buyRewardTaxBps,
-      sellRewardTaxBps,
+      buyTaxes,
+      sellTaxes,
       minimumRewardBalance,
+      rewardVault,
     ] = await Promise.all([
       readValue(token, stringReadAbi("name"), "name"),
       readValue(token, stringReadAbi("symbol"), "symbol"),
       readAddress(token, "rewardToken"),
-      readValue(
-        token,
-        uintReadAbi("buyRewardTaxBps", "uint16"),
-        "buyRewardTaxBps",
-      ),
-      readValue(
-        token,
-        uintReadAbi("sellRewardTaxBps", "uint16"),
-        "sellRewardTaxBps",
-      ),
+      readValue(token, sideTaxesReadAbi("buyTaxes"), "buyTaxes"),
+      readValue(token, sideTaxesReadAbi("sellTaxes"), "sellTaxes"),
       readValue(
         token,
         uintReadAbi("minimumRewardBalance"),
         "minimumRewardBalance",
       ),
+      readAddress(token, "rewardVault"),
     ]);
+
+    await requireCode(rewardVault, "Holder Rewards Vault");
 
     await verify(
       token,
@@ -324,8 +343,30 @@ if (verifyLaunchedTokens) {
               { name: "launchManager", type: "address" },
               { name: "router", type: "address" },
               { name: "rewardToken", type: "address" },
-              { name: "buyRewardTaxBps", type: "uint16" },
-              { name: "sellRewardTaxBps", type: "uint16" },
+              {
+                name: "taxes",
+                type: "tuple",
+                components: [
+                  {
+                    name: "buy",
+                    type: "tuple",
+                    components: [
+                      { name: "liquidity", type: "uint16" },
+                      { name: "rewards", type: "uint16" },
+                      { name: "burn", type: "uint16" },
+                    ],
+                  },
+                  {
+                    name: "sell",
+                    type: "tuple",
+                    components: [
+                      { name: "liquidity", type: "uint16" },
+                      { name: "rewards", type: "uint16" },
+                      { name: "burn", type: "uint16" },
+                    ],
+                  },
+                ],
+              },
               { name: "minimumRewardBalance", type: "uint256" },
             ],
           },
@@ -337,14 +378,34 @@ if (verifyLaunchedTokens) {
             launchManager: factory,
             router,
             rewardToken,
-            buyRewardTaxBps,
-            sellRewardTaxBps,
+            taxes: {
+              buy: {
+                liquidity: buyTaxes[0],
+                rewards: buyTaxes[1],
+                burn: buyTaxes[2],
+              },
+              sell: {
+                liquidity: sellTaxes[0],
+                rewards: sellTaxes[1],
+                burn: sellTaxes[2],
+              },
+            },
             minimumRewardBalance,
           },
         ],
       ),
       verificationInputs.token,
       "holder-rewards-token",
+    );
+    await verify(
+      rewardVault,
+      "src/BNBXHolderRewardsVault.sol:BNBXHolderRewardsVault",
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "address" }, { type: "uint256" }],
+        [token, rewardToken, minimumRewardBalance],
+      ),
+      verificationInputs.rewardVault,
+      "holder-rewards-vault",
     );
 
     const [curveFee, creator, pair, wbnb, graduationTarget] = await Promise.all(
@@ -393,6 +454,8 @@ console.log(
       factory,
       feeRecipient,
       router,
+      defaultRewardToken,
+      tokenDeployer,
       launchedTokens: verifyLaunchedTokens ? tokenCount.toString() : "skipped",
     },
     null,

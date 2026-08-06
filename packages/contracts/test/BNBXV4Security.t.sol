@@ -48,6 +48,9 @@ contract BNBXV4SecurityTest {
     MockPancakeRouter internal router;
     MockWBNB internal wbnb;
     RewardAssetMock internal rewardToken;
+    BNBXAdvancedTokenDeployerV4 internal securityDeployer;
+    RewardsFactoryV4Harness internal securityFactory;
+    bytes32 internal securitySalt;
 
     function setUp() public {
         pancakeFactory = new MockPancakeFactory();
@@ -57,6 +60,27 @@ contract BNBXV4SecurityTest {
         address rewardPair =
             pancakeFactory.createPair(address(rewardToken), address(wbnb));
         MockPair(rewardPair).seed(1 ether, 1 ether, DEAD, 1 ether);
+        securityDeployer = new BNBXAdvancedTokenDeployerV4(address(this));
+        securityFactory = new RewardsFactoryV4Harness(
+            address(this), address(router), address(securityDeployer)
+        );
+        securityDeployer.configureManager(address(securityFactory));
+    }
+
+    function findSecuritySalt(uint256 start, uint256 count)
+        external
+        view
+        returns (bool found, bytes32 salt, address predicted)
+    {
+        return securityFactory.findVanitySalt(
+            _request(TemplateConfigV4.Template.HolderRewards, 1_000_000 ether),
+            start,
+            count
+        );
+    }
+
+    function setSecuritySalt(bytes32 salt) external {
+        securitySalt = salt;
     }
 
     function testZeroTaxV4HasNoOwnerMintBlacklistOrTaxSetter() public {
@@ -170,31 +194,19 @@ contract BNBXV4SecurityTest {
     function testRewardsFactoryCreatesConfiguredV4TokenAndDestroysSetupRole()
         public
     {
-        BNBXAdvancedTokenDeployerV4 deployer =
-            new BNBXAdvancedTokenDeployerV4(address(this));
-        RewardsFactoryV4Harness factory = new RewardsFactoryV4Harness(
-            address(this), address(router), address(deployer)
-        );
-        deployer.configureManager(address(factory));
-
         BNBXRewardsFactoryV4.CreateRequest memory request =
             _request(TemplateConfigV4.Template.HolderRewards, 1_000_000 ether);
-        uint256 start;
-        bool found;
-        address predicted;
-        for (uint256 round; round < 12 && !found; ++round) {
-            (found, request.vanitySalt, predicted) =
-                factory.findVanitySalt(request, start, 20_000);
-            start += 20_000;
-        }
-        assert(found && uint16(uint160(predicted)) == 0x1111);
+        request.vanitySalt = securitySalt;
+        address predicted = securityFactory.predictTokenAddress(request);
+        assert(securitySalt != bytes32(0));
+        assert(uint16(uint160(predicted)) == 0x1111);
 
         (address tokenAddress, address curveAddress) =
-            factory.createForTest(request, address(this));
+            securityFactory.createForTest(request, address(this));
         BNBXDividendTokenV4 token =
             BNBXDividendTokenV4(payable(tokenAddress));
         assert(tokenAddress == predicted);
-        assert(factory.curveOf(tokenAddress) == curveAddress);
+        assert(securityFactory.curveOf(tokenAddress) == curveAddress);
         assert(token.launchManager() == DEAD);
         assert(token.minimumRewardShare() == 1_000_000 ether);
         assert(address(token.rewardToken()) == address(rewardToken));
