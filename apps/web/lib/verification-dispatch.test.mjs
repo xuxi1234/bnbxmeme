@@ -85,6 +85,10 @@ test("keeps immediate dispatch best-effort with the scheduled verifier as fallba
   assert.match(lpRewardsWorkflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(lpRewardsWorkflow, /launch_tx_hash:/);
   assert.match(lpRewardsWorkflow, /VERIFY_LAUNCHED_TOKENS: "1"/);
+  assert.match(
+    lpRewardsWorkflow,
+    /group: verify-bnbx-lp-rewards-mainnet-\$\{\{ github\.event_name \}\}-\$\{\{ inputs\.launch_tx_hash \|\| 'scheduled' \}\}/,
+  );
   assert.match(lpRewardsWorkflow, /cancel-in-progress: false/);
   assert.match(lpRewardsVerifier, /BNBXLPRewardsToken/);
   assert.match(lpRewardsVerifier, /BNBXLPRewardsVault/);
