@@ -55,7 +55,7 @@ export const holderRewardsFactoryAddress =
 // an explicit zero address before activation prevents legacy rewards factories
 // from being selected for new LP-rewards launches.
 export const lpRewardsFactoryAddress: `0x${string}` =
-  "0x0000000000000000000000000000000000000000";
+  "0x33aa029dffbb8e5c4c039ac4af7da61e019f7122";
 
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
