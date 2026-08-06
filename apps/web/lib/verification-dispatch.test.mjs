@@ -74,10 +74,11 @@ test("keeps immediate dispatch best-effort with the scheduled verifier as fallba
   assert.match(workflow, /run-name: Verify BNBX contracts/);
   assert.match(zeroTaxWorkflow, /cron: "\*\/15 \* \* \* \*"/);
   assert.match(zeroTaxWorkflow, /launch_tx_hash:/);
-  assert.match(zeroTaxWorkflow, /0xcdb3bb57cb27eab36a7c39685afcb93abfec326f/);
+  assert.match(zeroTaxWorkflow, /0x26f43d62e1cfadc3d89ff0ffe58375ecbded7330/);
   assert.match(holderRewardsWorkflow, /cron: "\*\/15 \* \* \* \*"/);
   assert.match(holderRewardsWorkflow, /launch_tx_hash:/);
   assert.match(holderRewardsWorkflow, /VERIFY_LAUNCHED_TOKENS: "1"/);
+  assert.match(holderRewardsWorkflow, /0x31ce11e80875e1d698089f71f06acbb27726db95/);
   assert.match(holderRewardsVerifier, /tokenCount/);
   assert.match(holderRewardsVerifier, /allTokens/);
   assert.match(holderRewardsVerifier, /BNBXHolderRewardsToken/);
@@ -85,6 +86,7 @@ test("keeps immediate dispatch best-effort with the scheduled verifier as fallba
   assert.match(lpRewardsWorkflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(lpRewardsWorkflow, /launch_tx_hash:/);
   assert.match(lpRewardsWorkflow, /VERIFY_LAUNCHED_TOKENS: "1"/);
+  assert.match(lpRewardsWorkflow, /0xa887212925aaa9dee93c1379f7a8119384cf9157/);
   assert.match(
     lpRewardsWorkflow,
     /group: verify-bnbx-lp-rewards-mainnet-\$\{\{ github\.event_name \}\}-\$\{\{ inputs\.launch_tx_hash \|\| 'scheduled' \}\}/,
