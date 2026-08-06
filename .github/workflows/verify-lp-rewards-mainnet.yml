@@ -29,7 +29,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-bnbx-lp-rewards-mainnet
+  # A scheduled full scan must never block an immediate launch verification.
+  # Transaction-scoped dispatches can run independently while scheduled scans
+  # still serialize behind their shared `scheduled` key.
+  group: verify-bnbx-lp-rewards-mainnet-${{ github.event_name }}-${{ inputs.launch_tx_hash || 'scheduled' }}
   cancel-in-progress: false
 
 jobs:
