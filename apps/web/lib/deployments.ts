@@ -46,16 +46,19 @@ export const v4StandardFactoryAddress =
 // by the authorized platform wallet. Constructor arguments and runtime
 // bytecode were matched against the audited build before activation.
 export const zeroTaxFactoryAddress =
+  "0x26f43d62e1cfadc3d89ff0ffe58375ecbded7330" as const;
+
+export const supersededZeroTaxFactoryAddress =
   "0xcdb3bb57cb27eab36a7c39685afcb93abfec326f" as const;
 
 export const holderRewardsFactoryAddress =
-  "0xb814fde8835e9081698d997609ce47031a3ca294" as const;
+  "0x31ce11e80875e1d698089f71f06acbb27726db95" as const;
 
 // Set to the audited LP Rewards V2 Factory after Mainnet deployment. Keeping
 // an explicit zero address before activation prevents legacy rewards factories
 // from being selected for new LP-rewards launches.
 export const lpRewardsFactoryAddress: `0x${string}` =
-  "0x33aa029dffbb8e5c4c039ac4af7da61e019f7122";
+  "0xa887212925aaa9dee93c1379f7a8119384cf9157";
 
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
@@ -67,6 +70,7 @@ export const v3StandardFactoryAddress =
     deployedV3StandardFactoryAddress.toLowerCase(),
     halfPercentV4StandardFactoryAddress.toLowerCase(),
     v4StandardFactoryAddress.toLowerCase(),
+    supersededZeroTaxFactoryAddress.toLowerCase(),
   ].includes(configuredStandardFactoryAddress.toLowerCase())
     ? configuredStandardFactoryAddress
     : zeroTaxFactoryAddress;
@@ -102,7 +106,6 @@ export const rewardsFactoryAddress =
 export const officialFactoryAddresses = Array.from(
   new Set<`0x${string}`>([
     standardFactoryAddress,
-    ...(rewardsFactoryAddress ? [rewardsFactoryAddress] : []),
     holderRewardsFactoryAddress,
     ...(lpRewardsFactoryAddress !==
     "0x0000000000000000000000000000000000000000"
