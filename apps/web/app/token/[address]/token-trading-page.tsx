@@ -68,6 +68,11 @@ import {
 } from "@/lib/template-identification-core";
 import { ProjectState } from "./project-state";
 import { holderRewardsTokenAbi } from "@/lib/holder-rewards-config";
+import {
+  lpRewardsFactoryAddress,
+  lpRewardsTokenAbi,
+  lpRewardsVaultAbi,
+} from "@/lib/lp-rewards-deployment";
 
 const SLIPPAGE_BPS = 100n;
 const BPS = 10_000n;
@@ -292,6 +297,16 @@ export function TokenTradingPage({
     args: [tokenAddress],
     query: { enabled: tokenAddress !== zeroAddress },
   });
+  const lpRewardsCurveQuery = useReadContract({
+    address: lpRewardsFactoryAddress,
+    abi: factoryAbi,
+    functionName: "curveOf",
+    args: [tokenAddress],
+    query: {
+      enabled:
+        lpRewardsFactoryAddress !== zeroAddress && tokenAddress !== zeroAddress,
+    },
+  });
   const snapshotFactory =
     tokenSnapshot.snapshot?.factory &&
     tokenSnapshot.snapshot.factory !== zeroAddress
@@ -318,6 +333,10 @@ export function TokenTradingPage({
     holderRewardsCurveQuery.data && holderRewardsCurveQuery.data !== zeroAddress
       ? holderRewardsCurveQuery.data
       : zeroAddress;
+  const lpRewardsCurve =
+    lpRewardsCurveQuery.data && lpRewardsCurveQuery.data !== zeroAddress
+      ? lpRewardsCurveQuery.data
+      : zeroAddress;
   const factoryAddress =
     snapshotFactory !== zeroAddress
       ? snapshotFactory
@@ -329,6 +348,8 @@ export function TokenTradingPage({
             ? configuredRewardsFactory
             : holderRewardsCurve !== zeroAddress
               ? holderRewardsFactoryAddress
+              : lpRewardsCurve !== zeroAddress
+                ? lpRewardsFactoryAddress
               : zeroAddress;
   const curveAddress =
     snapshotCurve !== zeroAddress
@@ -339,12 +360,15 @@ export function TokenTradingPage({
           ? autoCurve
           : rewardsCurve !== zeroAddress
             ? rewardsCurve
-            : holderRewardsCurve;
+            : holderRewardsCurve !== zeroAddress
+              ? holderRewardsCurve
+              : lpRewardsCurve;
   const advancedTemplateFactories = {
     autoLiquidity: autoLiquidityFactoryAddress,
     rewards: configuredRewardsFactory,
     legacyRewards: legacyRewardsFactoryAddress,
     holderRewards: holderRewardsFactoryAddress,
+    lpRewards: lpRewardsFactoryAddress,
   };
   const isAdvancedTemplate =
     factoryAddress !== zeroAddress &&
@@ -355,6 +379,15 @@ export function TokenTradingPage({
   const isIndependentHolderRewards =
     factoryAddress !== zeroAddress &&
     factoryAddress.toLowerCase() === holderRewardsFactoryAddress.toLowerCase();
+  const isIndependentLPRewards =
+    factoryAddress !== zeroAddress &&
+    lpRewardsFactoryAddress !== zeroAddress &&
+    factoryAddress.toLowerCase() === lpRewardsFactoryAddress.toLowerCase();
+  const independentRewardsTokenAbi = isIndependentHolderRewards
+    ? holderRewardsTokenAbi
+    : isIndependentLPRewards
+      ? lpRewardsTokenAbi
+      : tokenAbi;
   const metadataURI = useReadContract({
     address: factoryAddress,
     abi: factoryAbi,
@@ -421,8 +454,8 @@ export function TokenTradingPage({
   });
   const pairUnlocked = useReadContract({
     address: tokenAddress,
-    abi: isIndependentHolderRewards ? holderRewardsTokenAbi : tokenAbi,
-    functionName: isIndependentHolderRewards
+    abi: independentRewardsTokenAbi,
+    functionName: isIndependentHolderRewards || isIndependentLPRewards
       ? "taxesEnabled"
       : "liquidityPairUnlocked",
     query: { enabled: tokenAddress !== zeroAddress },
@@ -466,13 +499,13 @@ export function TokenTradingPage({
   });
   const buyTaxes = useReadContract({
     address: tokenAddress,
-    abi: isIndependentHolderRewards ? holderRewardsTokenAbi : tokenAbi,
+    abi: independentRewardsTokenAbi,
     functionName: "buyTaxes",
     query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
   const sellTaxes = useReadContract({
     address: tokenAddress,
-    abi: isIndependentHolderRewards ? holderRewardsTokenAbi : tokenAbi,
+    abi: independentRewardsTokenAbi,
     functionName: "sellTaxes",
     query: { enabled: tokenAddress !== zeroAddress && isAdvancedTemplate },
   });
@@ -550,19 +583,32 @@ export function TokenTradingPage({
       enabled: tokenAddress !== zeroAddress && isIndependentHolderRewards,
     },
   });
+  const minimumWbnbValue = useReadContract({
+    address: tokenAddress,
+    abi: lpRewardsTokenAbi,
+    functionName: "minimumWbnbValue",
+    query: {
+      enabled: tokenAddress !== zeroAddress && isIndependentLPRewards,
+    },
+  });
   const rewardVaultAddress = rewardVault.data ?? zeroAddress;
   const isV3Rewards = Boolean(resolvedRewardToken);
   const templateValue = Number(template.data ?? -1);
   const isHolderRewards =
     isIndependentHolderRewards ||
     (isV3Rewards ? templateValue === 0 : templateValue === 2);
-  const isLPRewards = isV3Rewards ? templateValue === 1 : templateValue === 3;
+  const isLPRewards =
+    isIndependentLPRewards ||
+    (isV3Rewards ? templateValue === 1 : templateValue === 3);
+  const selectedRewardVaultAbi = isIndependentLPRewards
+    ? lpRewardsVaultAbi
+    : rewardVaultAbi;
   const rewardUnit = isV3Rewards
     ? (rewardTokenSymbol.data ?? advancedCopy.rewards)
     : "BNB";
   const claimableRewards = useReadContract({
     address: rewardVaultAddress,
-    abi: rewardVaultAbi,
+    abi: selectedRewardVaultAbi,
     functionName: "claimable",
     args: [user ?? zeroAddress],
     query: { enabled: Boolean(user) && rewardVaultAddress !== zeroAddress },
@@ -573,15 +619,15 @@ export function TokenTradingPage({
   );
   const rewardShares = useReadContract({
     address: rewardVaultAddress,
-    abi: rewardVaultAbi,
-    functionName: "shares",
+    abi: selectedRewardVaultAbi,
+    functionName: isIndependentLPRewards ? "stakedLP" : "shares",
     args: [user ?? zeroAddress],
     query: { enabled: Boolean(user) && rewardVaultAddress !== zeroAddress },
   });
   const lpTokenAddress = useReadContract({
     address: rewardVaultAddress,
-    abi: rewardVaultAbi,
-    functionName: "shareAsset",
+    abi: selectedRewardVaultAbi,
+    functionName: isIndependentLPRewards ? "pair" : "shareAsset",
     query: { enabled: isLPRewards && rewardVaultAddress !== zeroAddress },
   });
   const lpBalance = useReadContract({
@@ -605,21 +651,22 @@ export function TokenTradingPage({
   const taxPercent = (value: number | undefined) =>
     `${((value ?? 0) / 100).toFixed(2)}%`;
   const displayedTaxes = resolveTemplateTaxes({
-    independentHolderRewards: isIndependentHolderRewards,
-    buyTaxes: isIndependentHolderRewards
+    independentHolderRewards:
+      isIndependentHolderRewards || isIndependentLPRewards,
+    buyTaxes: isIndependentHolderRewards || isIndependentLPRewards
       ? undefined
       : (buyTaxes.data as
           | readonly [number, number, number, number]
           | undefined),
-    sellTaxes: isIndependentHolderRewards
+    sellTaxes: isIndependentHolderRewards || isIndependentLPRewards
       ? undefined
       : (sellTaxes.data as
           | readonly [number, number, number, number]
           | undefined),
-    holderBuyTaxes: isIndependentHolderRewards
+    holderBuyTaxes: isIndependentHolderRewards || isIndependentLPRewards
       ? (buyTaxes.data as readonly [number, number, number] | undefined)
       : undefined,
-    holderSellTaxes: isIndependentHolderRewards
+    holderSellTaxes: isIndependentHolderRewards || isIndependentLPRewards
       ? (sellTaxes.data as readonly [number, number, number] | undefined)
       : undefined,
     buyRewardTaxBps:
@@ -910,7 +957,7 @@ export function TokenTradingPage({
     if (!user || rewardVaultAddress === zeroAddress) return;
     rewardWrite.writeContract({
       address: rewardVaultAddress,
-      abi: rewardVaultAbi,
+      abi: selectedRewardVaultAbi,
       functionName: "claim",
       args: [user],
     });
@@ -929,7 +976,7 @@ export function TokenTradingPage({
   function stakeLP() {
     rewardWrite.writeContract({
       address: rewardVaultAddress,
-      abi: rewardVaultAbi,
+      abi: selectedRewardVaultAbi,
       functionName: "stakeLP",
       args: [lpWei],
     });
@@ -939,7 +986,7 @@ export function TokenTradingPage({
     if (!user) return;
     rewardWrite.writeContract({
       address: rewardVaultAddress,
-      abi: rewardVaultAbi,
+      abi: selectedRewardVaultAbi,
       functionName: "withdrawLP",
       args: [lpWei, user],
     });
@@ -1185,7 +1232,7 @@ export function TokenTradingPage({
                   {advancedCopy.rewards} {taxPercent(displayedTaxes.sell[3])}
                 </strong>
               </div>
-              {!isIndependentHolderRewards && (
+              {!isIndependentHolderRewards && !isIndependentLPRewards && (
                 <div>
                   <span>{advancedCopy.marketingWallet}</span>
                   <strong>{marketingWallet.data ?? t("loading")}</strong>
@@ -1263,6 +1310,14 @@ export function TokenTradingPage({
               )}
               {isLPRewards && (
                 <>
+                  {isIndependentLPRewards && (
+                    <div>
+                      <span>{advancedCopy.minimumLpValue}</span>
+                      <strong>
+                        {formatEther(minimumWbnbValue.data ?? 0n)} WBNB
+                      </strong>
+                    </div>
+                  )}
                   <div>
                     <span>{advancedCopy.walletLp}</span>
                     <strong>{formatEther(lpBalance.data ?? 0n)} LP</strong>

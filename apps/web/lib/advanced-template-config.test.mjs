@@ -175,7 +175,9 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
     readFile(new URL("./web3.ts", import.meta.url), "utf8"),
     readFile(new URL("./deployments.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /advancedTemplateValue\(template\)/);
+  assert.match(page, /buildLPRewardsCreateRequest/);
+  assert.match(page, /lpRewardsFactoryAddress/);
+  assert.match(page, /lpRewardsFactoryAbi/);
   assert.match(page, /estimateContractGas/);
   assert.match(page, /advancedCreateGasLimit/);
   assert.match(page, /writeContractAsync/);
@@ -188,6 +190,8 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.match(page, /holderRewardTokenAddress/);
   assert.match(page, /holderTaxSideToBps/);
   assert.match(page, /holders: DEFAULT_HOLDER_MINIMUM_REWARD_BALANCE/);
+  assert.doesNotMatch(page, /marketingWallet:/);
+  assert.doesNotMatch(page, /minimumRewardShare: minimumRewardShareOrThrow\(template\)/);
   assert.match(page, /parseMinimumRewardShare/);
   assert.match(page, /validateRewardPool/);
   assert.match(page, /getReserves/);
@@ -219,6 +223,7 @@ test("wires the canonical ABI and advanced gas policy into creation", async () =
   assert.match(officialCatalog, /standardFactoryAddress/);
   assert.match(officialCatalog, /rewardsFactoryAddress/);
   assert.match(officialCatalog, /holderRewardsFactoryAddress/);
+  assert.match(officialCatalog, /lpRewardsFactoryAddress/);
   assert.doesNotMatch(officialCatalog, /legacyStandardFactoryAddress/);
   assert.doesNotMatch(officialCatalog, /legacyAutoLiquidityFactoryAddress/);
   assert.doesNotMatch(officialCatalog, /legacyRewardsFactoryAddress/);

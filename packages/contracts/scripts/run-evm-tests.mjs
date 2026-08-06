@@ -29,6 +29,7 @@ const entrypoints = [
   "test/BNBXV4Security.t.sol",
   "test/BNBXZeroTaxTemplate.t.sol",
   "test/BNBXHolderRewardsTemplate.t.sol",
+  "test/BNBXLPRewardsTemplate.t.sol",
   "test/DividendTaxProcessingV4.t.sol",
   "test/BNBXRewardVault.t.sol",
 ];
@@ -150,6 +151,27 @@ function check(condition, message) {
 }
 
 const suites = [
+  {
+    source: "test/BNBXLPRewardsTemplate.t.sol",
+    contract: "BNBXLPRewardsTemplateTest",
+    tests: [
+      "testFactoryOwnsDedicatedLPTokenDeployer",
+      "testFactoryCreatesIndependentTokenVaultAndCurve",
+      "testStakeRequiresAtLeastOneHundredthWbnbOfPairReserves",
+      "testWithdrawalRejectsDustRemnantButAlwaysAllowsFullExit",
+      "testStakedLPReceivesSynchronizedRewardsAndCanClaim",
+      "testRejectsLPThatTransfersLessThanTheApprovedAmount",
+      "testNewLPStakerCannotCapturePreviouslyAccruedRewards",
+      "testFailedAutomaticRewardTransferRemainsClaimable",
+      "testBoundedProcessorPaysEligibleLPStaker",
+      "testTokenAcceptsExactlyTenPercentAndRejectsAnyHigherSide",
+      "testBlankRewardPredictionUsesDefaultAndDeployerRejectsOutsiders",
+      "testLaunchConfigurationCreatesDedicatedVaultAndDestroysRoles",
+      "testBuyAndSellAccountThreeTaxBucketsIndependently",
+      "testProcessesTaxesBurnsAutomaticLPAndFundsOnlyLPVault",
+      "testFailedAutomaticTaxProcessingCannotBlockSell",
+    ],
+  },
   {
     source: "test/BNBXHolderRewardsTemplate.t.sol",
     contract: "BNBXHolderRewardsTemplateTest",
@@ -359,6 +381,7 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
     suite.contract.startsWith("DividendTaxProcessing") ||
     suite.contract === "BNBXZeroTaxTemplateTest" ||
     suite.contract === "BNBXHolderRewardsTemplateTest"
+    || suite.contract === "BNBXLPRewardsTemplateTest"
   ) {
     const fundingHash = await walletClient.sendTransaction({
       to: expectedAddress,
@@ -432,6 +455,32 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
     if (saltReceipt.status !== "success") {
       throw new Error("Failed to configure dividend test salts");
     }
+  }
+
+
+  if (suite.contract === "BNBXLPRewardsTemplateTest") {
+    let foundSalt;
+    for (let start = 1; start < 1_000_000; start += 10_000) {
+      const result = await publicClient.readContract({
+        address: expectedAddress,
+        abi: artifact.abi,
+        functionName: "findTestSalt",
+        args: [BigInt(start), 10_000n],
+      });
+      if (result[0]) {
+        foundSalt = result[1];
+        break;
+      }
+    }
+    if (!foundSalt) throw new Error("No LP Rewards vanity salt found");
+    const hash = await walletClient.writeContract({
+      address: expectedAddress,
+      abi: artifact.abi,
+      functionName: "setTestSalt",
+      args: [foundSalt],
+      gas: 1_000_000n,
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
   }
 
   if (suite.contract === "BNBXV4SecurityTest") {

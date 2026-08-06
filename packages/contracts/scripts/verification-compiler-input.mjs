@@ -134,3 +134,23 @@ export function createHolderRewardsVerificationInputs(root) {
     ]),
   };
 }
+
+export function createLPRewardsVerificationInputs(root) {
+  return {
+    factory: createVerificationCompilerInput(root, [
+      "src/BNBXLPRewardsFactory.sol",
+    ]),
+    token: createVerificationCompilerInput(root, [
+      "src/BNBXLPRewardsToken.sol",
+    ]),
+    tokenDeployer: createVerificationCompilerInput(root, [
+      "src/BNBXLPRewardsTokenDeployer.sol",
+    ]),
+    rewardVault: createVerificationCompilerInput(root, [
+      "src/BNBXLPRewardsVault.sol",
+    ]),
+    bondingCurve: createVerificationCompilerInput(root, [
+      "src/BondingCurve.sol",
+    ]),
+  };
+}

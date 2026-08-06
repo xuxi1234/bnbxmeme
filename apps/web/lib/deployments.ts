@@ -51,6 +51,12 @@ export const zeroTaxFactoryAddress =
 export const holderRewardsFactoryAddress =
   "0xb814fde8835e9081698d997609ce47031a3ca294" as const;
 
+// Set to the audited LP Rewards V2 Factory after Mainnet deployment. Keeping
+// an explicit zero address before activation prevents legacy rewards factories
+// from being selected for new LP-rewards launches.
+export const lpRewardsFactoryAddress: `0x${string}` =
+  "0x0000000000000000000000000000000000000000";
+
 const configuredStandardFactoryAddress = process.env
   .NEXT_PUBLIC_BNBX_FACTORY_ADDRESS as `0x${string}` | undefined;
 
@@ -98,6 +104,10 @@ export const officialFactoryAddresses = Array.from(
     standardFactoryAddress,
     ...(rewardsFactoryAddress ? [rewardsFactoryAddress] : []),
     holderRewardsFactoryAddress,
+    ...(lpRewardsFactoryAddress !==
+    "0x0000000000000000000000000000000000000000"
+      ? [lpRewardsFactoryAddress]
+      : []),
   ]),
 );
 

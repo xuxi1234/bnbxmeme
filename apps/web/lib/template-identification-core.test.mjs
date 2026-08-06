@@ -11,6 +11,7 @@ const factories = {
   rewards: "0x0000000000000000000000000000000000000002",
   legacyRewards: "0x0000000000000000000000000000000000000003",
   holderRewards: "0xb814fde8835e9081698d997609ce47031a3ca294",
+  lpRewards: "0x0000000000000000000000000000000000000005",
 };
 
 test("classifies the independent Holder Factory as an advanced rewards template", () => {
@@ -25,6 +26,11 @@ test("classifies the independent Holder Factory as an advanced rewards template"
     isRewardsTemplateFactory(mixedCaseHolderFactory, factories),
     true,
   );
+});
+
+test("classifies the independent LP Factory as an advanced rewards template", () => {
+  assert.equal(isAdvancedTemplateFactory(factories.lpRewards, factories), true);
+  assert.equal(isRewardsTemplateFactory(factories.lpRewards, factories), true);
 });
 
 test("maps an independent Holder token's reward-only tax into the public allocation", () => {
