@@ -199,7 +199,7 @@ test("keeps holder rewards V2 verification independent from the legacy address",
     "utf8",
   );
   assert.doesNotMatch(workflow, /0xcc1FFcA6985658DE357f3F5763FD1Ff690074625/i);
-  assert.match(workflow, /BNBX_HOLDER_REWARDS_V2_FACTORY_ADDRESS/);
+  assert.match(workflow, /0x31ce11e80875e1d698089f71f06acbb27726db95/i);
   assert.match(verifier, /defaultRewardToken/);
   assert.match(verifier, /tokenDeployer/);
   assert.match(verifier, /BNBXHolderRewardsVault/);

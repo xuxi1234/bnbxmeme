@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   officialFactoryAddresses,
   standardFactoryAddress,
+  supersededZeroTaxFactoryAddress,
   v4StandardFactoryAddress,
   zeroTaxFactoryAddress,
 } from "./deployments.ts";
@@ -11,10 +12,11 @@ import {
 test("activates only the clean zero-tax Factory for new standard launches", () => {
   assert.equal(
     zeroTaxFactoryAddress,
-    "0xcdb3bb57cb27eab36a7c39685afcb93abfec326f",
+    "0x26f43d62e1cfadc3d89ff0ffe58375ecbded7330",
   );
   assert.equal(standardFactoryAddress, zeroTaxFactoryAddress);
   assert.ok(officialFactoryAddresses.includes(zeroTaxFactoryAddress));
+  assert.ok(!officialFactoryAddresses.includes(supersededZeroTaxFactoryAddress));
   assert.ok(!officialFactoryAddresses.includes(v4StandardFactoryAddress));
 });
 

@@ -46,22 +46,20 @@ packages/chain-config shared chain addresses and IDs
 - Fee recipient: `0xdaf4f62914f7f64c9eabfd473f4db4b7e74048a6`
 - Platform admin signing wallet:
   `0xbE37AB912De351B9312FA593C9f99e3279FDB0a2`
-- Standard zero-tax Factory: `0x510dbBE270b2F009619BCbcF757aE2e2D48734Ad`
-- Advanced token deployer: `0x6Be576ab1b2874641DE5Ac41069C57a16A5C892c`
-- Holder/LP rewards Factory: `0x28100dBFA3F1a3D563e1667259433AdFA3aaC4BB`
+- Standard zero-tax Factory: `0x26f43D62E1CfAdC3d89ff0fFe58375ECbdED7330`
+- Holder rewards Factory: `0x31cE11E80875e1D698089f71F06Acbb27726dB95`
+- LP rewards Factory: `0xA887212925AAA9DEe93C1379f7A8119384cf9157`
 - Standard Factory deployment:
-  `0x31dcdb83a885f1a02d1a19656c988cd61e6744a7149900f89c71dd26c13d528f`
-- Advanced token deployer deployment:
-  `0xe75203f55eb924c5606ee0733b3eb17d509eb446c3b5e6fef9c5d9b9a73ede54`
-- Rewards Factory deployment:
-  `0x4700bf563aaa0d0c413962163ef0274a05daecf5789f664d43ff448a9fa4519e`
-- Deployer manager configuration:
-  `0xdbe5034667981942a2f2654480175daf7b98527e32f14b1913d411b8f873695a`
+  `0xdcb85f657af7c7845fc1416468907a4e3eeafa4056c04d2eaf9330933950cda1`
+- Holder rewards Factory deployment:
+  `0x3f36f04e9f9c9ce7e407cd244b0c09ac1c8b4d215356c2655c49158702605687`
+- LP rewards Factory deployment:
+  `0x8d92589c9fc07c0a3990b4a76acc3ec848eb9a7cb0a5e0cb793e736b49664872`
 
 All Solidity sources are public under the MIT License. The three user-facing
 templates are permanent zero tax, holder rewards, and LP rewards. The deployed
-standard Factory, rewards Factory, and advanced deployer match the current V4
-source and generated deployment artifacts. The superseded pre-fix rewards
+three independent Factories match the current reviewed source and generated
+deployment artifacts. The superseded pre-fix rewards
 infrastructure and the superseded 0.5% V4 factories are documented in
 [docs/mainnet-source-verification.md](docs/mainnet-source-verification.md) and
 remain public and readable only for historical launches.

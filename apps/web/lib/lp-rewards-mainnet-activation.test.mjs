@@ -6,7 +6,7 @@ import {
 } from "./deployments.ts";
 
 const deployedLPRewardsFactory =
-  "0x33aa029dffbb8e5c4c039ac4af7da61e019f7122";
+  "0xa887212925aaa9dee93c1379f7a8119384cf9157";
 
 test("production enables the verified independent LP Rewards V2 factory", () => {
   assert.equal(lpRewardsFactoryAddress, deployedLPRewardsFactory);
