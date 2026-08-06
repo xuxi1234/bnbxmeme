@@ -9,9 +9,9 @@ import { FeeMath } from "./libraries/FeeMath.sol";
 /// @notice Trading is routed through BNBXFactory so creation and first buy can
 /// be executed atomically.
 contract BondingCurve {
-    /// @dev A target step of 1..18 permanently represents 0.01..0.18 BNB for
+    /// @dev A target step of 1..18 permanently represents 1..18 BNB for
     /// this immutable Factory release.
-    uint256 public constant GRADUATION_UNIT = 0.01 ether;
+    uint256 public constant GRADUATION_UNIT = 1 ether;
     using FeeMath for uint256;
 
     enum State {
