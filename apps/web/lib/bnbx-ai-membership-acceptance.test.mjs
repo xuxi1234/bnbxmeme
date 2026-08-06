@@ -37,13 +37,14 @@ const [
   readFile(new URL("bnbx-ai-copy.ts", import.meta.url), "utf8"),
 ]);
 
-test("charges exactly 0.1 BNB to the approved BSC recipient", () => {
+test("charges exactly 1 BNB to the approved BSC recipient", () => {
   const recipient = "0x3c97e99441cf86778d81fd6fef61bda84be9634a";
   assert.match(component, new RegExp(recipient));
-  assert.match(component, /value:\s*parseEther\("0\.1"\)/);
+  assert.match(component, /value:\s*parseEther\("1"\)/);
   assert.match(component, /chainId:\s*bsc\.id/);
   assert.match(membership, new RegExp(recipient));
-  assert.match(membership, /BNBX_AI_PAYMENT_WEI = 100_000_000_000_000_000n/);
+  assert.match(membership, /BNBX_AI_PAYMENT_WEI = 1_000_000_000_000_000_000n/);
+  assert.doesNotMatch(copy, /0\.1 BNB/);
 });
 
 test("credits only a confirmed direct payment from the connected wallet", () => {
