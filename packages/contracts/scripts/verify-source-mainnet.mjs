@@ -342,7 +342,7 @@ async function verifyCurve(curve, token, factory) {
     readAddress(curve, "wbnb"),
     readValue(curve, uintReadAbi("graduationTarget"), "graduationTarget"),
   ]);
-  const graduationUnit = 10_000_000_000_000_000n;
+  const graduationUnit = 1_000_000_000_000_000_000n;
   if (graduationTarget % graduationUnit !== 0n) {
     throw new Error(`Unexpected graduation target on ${curve}`);
   }
