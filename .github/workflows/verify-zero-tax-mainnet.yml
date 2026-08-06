@@ -39,7 +39,7 @@ jobs:
     env:
       BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
       BSC_MAINNET_RPC_URL: ${{ secrets.BSC_MAINNET_RPC_URL }}
-      BNBX_ZERO_TAX_FACTORY_ADDRESS: ${{ inputs.factory_address || vars.BNBX_ZERO_TAX_FACTORY_ADDRESS || '0xcdb3bb57cb27eab36a7c39685afcb93abfec326f' }}
+      BNBX_ZERO_TAX_FACTORY_ADDRESS: ${{ inputs.factory_address || '0x26f43d62e1cfadc3d89ff0ffe58375ecbded7330' }}
       VERIFY_DRY_RUN: ${{ github.event_name == 'push' && '1' || '0' }}
       VERIFY_LAUNCHED_TOKENS: "1"
     steps:
