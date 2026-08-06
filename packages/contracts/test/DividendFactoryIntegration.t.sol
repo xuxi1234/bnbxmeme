@@ -211,7 +211,7 @@ contract DividendFactoryIntegrationTest {
 
     function testGraduationActivatesTaxesAndBurnsLPAndRoles() public {
         (address tokenAddress, address curveAddress, uint256 tokensOut) =
-            factory.createVanityTokenAndBuy{ value: 0.1 ether }(
+            factory.createVanityTokenAndBuy{ value: 2 ether }(
                 request(
                     TemplateConfigV3.Template.HolderRewards,
                     configuredTaxes(),
@@ -238,7 +238,7 @@ contract DividendFactoryIntegrationTest {
 
     function testHolderRewardsUseBalanceDeltaAccounting() public {
         (address tokenAddress,,) = factory.createVanityTokenAndBuy{
-            value: 0.1 ether
+            value: 2 ether
         }(
             request(
                 TemplateConfigV3.Template.HolderRewards,

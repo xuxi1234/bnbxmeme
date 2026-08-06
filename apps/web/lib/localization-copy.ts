@@ -856,7 +856,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     titleMainnet: "部署 BNBX 主网小额灰度 Factory",
     titleTestnet: "部署 BNBX 测试网 Factory",
     leadMainnet:
-      "仅部署到 BSC Mainnet；毕业档位为 0.01–0.18 BNB。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
+      "仅部署到 BSC Mainnet；毕业档位为整数 1–18 BNB。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
     leadTestnet:
       "仅部署到 BSC Testnet。部署费接收地址和 Pancake V2 Router 已固定，MetaMask 会在发送前显示 Gas 费用。",
     factoryType: "Factory 类型",
@@ -902,7 +902,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     titleMainnet: "Deploy the BNBX Mainnet Canary Factory",
     titleTestnet: "Deploy the BNBX Testnet Factory",
     leadMainnet:
-      "Deploys only to BSC Mainnet with 0.01–0.18 BNB graduation targets. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
+      "Deploys only to BSC Mainnet with integer 1–18 BNB graduation targets. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
     leadTestnet:
       "Deploys only to BSC Testnet. The fee recipient and Pancake V2 Router are fixed; MetaMask shows the gas cost before sending.",
     factoryType: "Factory type",
@@ -950,7 +950,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     titleMainnet: "BNBX 메인넷 카나리 Factory 배포",
     titleTestnet: "BNBX 테스트넷 Factory 배포",
     leadMainnet:
-      "BSC Mainnet에만 배포하며 졸업 목표는 0.01–0.18 BNB입니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
+      "BSC Mainnet에만 배포하며 졸업 목표는 1–18 BNB의 정수 단계입니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
     leadTestnet:
       "BSC Testnet에만 배포합니다. 수수료 수령 주소와 Pancake V2 Router는 고정되어 있고 전송 전에 MetaMask가 Gas 비용을 표시합니다.",
     factoryType: "Factory 유형",
@@ -996,7 +996,7 @@ export const deploymentCopy: Record<Language, DeploymentCopy> = {
     titleMainnet: "BNBX メインネット・カナリー Factory をデプロイ",
     titleTestnet: "BNBX テストネット Factory をデプロイ",
     leadMainnet:
-      "BSC Mainnetのみにデプロイし、卒業目標は0.01〜0.18 BNBです。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
+      "BSC Mainnetのみにデプロイし、卒業目標は整数の1〜18 BNBです。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
     leadTestnet:
       "BSC Testnetのみにデプロイします。手数料受取先とPancake V2 Routerは固定され、送信前にMetaMaskがGas費用を表示します。",
     factoryType: "Factory の種類",

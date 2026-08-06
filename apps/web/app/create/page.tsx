@@ -140,7 +140,7 @@ function grossForExactNet(requiredNet: bigint) {
 
 function quoteFreshCurveBuy(targetStep: number, offeredGross: bigint) {
   if (offeredGross <= 0n) return 0n;
-  const graduationTarget = parseEther((targetStep / 100).toFixed(2));
+  const graduationTarget = parseEther(String(targetStep));
   const acceptedGross =
     offeredGross < grossForExactNet(graduationTarget)
       ? offeredGross
@@ -1123,7 +1123,7 @@ export default function CreateTokenPage() {
           <fieldset className="graduation-control">
             <legend>{t("graduationTarget")}</legend>
             <div className="graduation-value" aria-live="polite">
-              <span>{(target / 100).toFixed(2)}</span>
+              <span>{target}</span>
               <small>BNB</small>
             </div>
             <div
@@ -1137,7 +1137,7 @@ export default function CreateTokenPage() {
                   type="button"
                   onClick={() => setTarget(value)}
                 >
-                  {(value / 100).toFixed(2)} BNB
+                  {value} BNB
                 </button>
               ))}
             </div>
@@ -1156,7 +1156,7 @@ export default function CreateTokenPage() {
                 max="18"
                 step="1"
                 aria-label={t("graduationTarget")}
-                aria-valuetext={`${(target / 100).toFixed(2)} BNB`}
+                aria-valuetext={`${target} BNB`}
                 value={target}
                 style={
                   {
@@ -1177,9 +1177,9 @@ export default function CreateTokenPage() {
               </button>
             </div>
             <div className="graduation-scale" aria-hidden="true">
-              <span>0.01 BNB</span>
-              <span>0.01–0.18 BNB</span>
-              <span>0.18 BNB</span>
+              <span>1 BNB</span>
+              <span>1–18 BNB</span>
+              <span>18 BNB</span>
             </div>
           </fieldset>
 

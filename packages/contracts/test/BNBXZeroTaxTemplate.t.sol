@@ -228,7 +228,7 @@ contract BNBXZeroTaxTemplateTest {
         assert(token.liquidityPair() == curve.liquidityPair());
         assert(!token.liquidityPairUnlocked());
         assert(curve.creator() == address(this));
-        assert(curve.graduationTarget() == 0.01 ether);
+        assert(curve.graduationTarget() == 1 ether);
     }
 
     function testFactoryPredictionUsesOnlyTheCleanTokenInitCode() external view {
@@ -294,7 +294,7 @@ contract BNBXZeroTaxTemplateTest {
             factory.createForTest(request, address(this));
         BondingCurve curve = BondingCurve(payable(curveAddress));
         (uint256 acceptedGross,,, uint256 tokensOut) =
-            curve.quoteBuy(1 ether);
+            curve.quoteBuy(2 ether);
 
         uint256 bought = factory.buy{ value: acceptedGross }(
             tokenAddress, tokensOut, block.timestamp + 1, address(this)
