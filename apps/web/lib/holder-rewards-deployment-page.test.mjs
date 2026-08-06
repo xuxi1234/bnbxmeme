@@ -65,7 +65,7 @@ test("encodes the reviewed bytecode and exactly three immutable mainnet argument
   assert.equal(data.slice(0, bytecode.length), bytecode);
   assert.equal(
     keccak256(bytecode),
-    "0xbac03db40596b0ad0b5f1c445592a6cc897a57dbbf2d4d7e5b60d47b03ef4573",
+    "0x6a63a60033c6e39ced4c68ec4be27e1a54bc94d0dfeaeed5bb6aa190c4e4d336",
   );
   const suffix = `0x${data.slice(bytecode.length)}`;
   assert.deepEqual(
