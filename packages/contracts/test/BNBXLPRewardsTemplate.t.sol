@@ -188,7 +188,7 @@ contract BNBXLPRewardsTemplateTest {
         assert(token.rewardVault().curve() == curveAddress);
         assert(
             BondingCurve(payable(curveAddress)).graduationTarget()
-                == 0.01 ether
+                == 1 ether
         );
         assert(address(0xFEE).balance == feeBefore + 0.001 ether);
     }
