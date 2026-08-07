@@ -8,10 +8,13 @@ type SecurityCopy = {
   lead: string;
   domain: string;
   contracts: string;
+  historicalContracts: string;
   fees: string;
   feeItems: readonly DisclosureRow[];
   factoryLabels: {
     standard: string;
+    holderRewards: string;
+    lpRewards: string;
     legacyStandard: string;
     autoLiquidity: string;
     rewards: string;
@@ -49,6 +52,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     lead: "本页公开 BNBX 正式域名、合约、费用和钱包交互规则。市场指标中的 0 表示数据已成功读取且数值确实为零；“—”或“暂不可用”表示尚未取得或无法验证。交易前请同时核对钱包预览与 BscScan。",
     domain: "平台五大官网",
     contracts: "BNB Chain Mainnet 正式地址",
+    historicalContracts: "历史 Factory（只读）",
     fees: "平台固定费用",
     feeItems: [
       ["创建代币", "0.001 BNB"],
@@ -58,9 +62,11 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "标准 0 税 Factory",
+      holderRewards: "持币分红 Factory",
+      lpRewards: "LP 分红 Factory",
       legacyStandard: "历史标准 0 税 Factory（只读）",
       autoLiquidity: "历史自动回流 Factory（只读）",
-      rewards: "持币 / LP 分红 Factory",
+      rewards: "历史持币 / LP 分红 Factory（只读）",
       legacyRewards: "历史持币 / LP 分红 Factory（只读）",
       router: "PancakeSwap V2 Router",
       burnAddress: "LP 销毁地址",
@@ -104,6 +110,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     lead: "This page publishes BNBX official domains, contracts, fees, and wallet interaction rules. A market metric of 0 means the data was read successfully and is exactly zero; “—” or “temporarily unavailable” means the value is not yet available or could not be verified. Check wallet previews and BscScan before trading.",
     domain: "Five official platform domains",
     contracts: "Official BNB Chain Mainnet addresses",
+    historicalContracts: "Historical Factories (read only)",
     fees: "Fixed platform fees",
     feeItems: [
       ["Token creation", "0.001 BNB"],
@@ -113,9 +120,11 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "Standard zero-tax Factory",
+      holderRewards: "Holder rewards Factory",
+      lpRewards: "LP rewards Factory",
       legacyStandard: "Legacy standard zero-tax Factory (read only)",
       autoLiquidity: "Legacy auto-liquidity Factory (read only)",
-      rewards: "Holder / LP rewards Factory",
+      rewards: "Historical holder / LP rewards Factory (read only)",
       legacyRewards: "Legacy holder / LP rewards Factory (read only)",
       router: "PancakeSwap V2 Router",
       burnAddress: "LP burn address",
@@ -168,6 +177,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     lead: "BNBX 공식 도메인, 컨트랙트, 수수료와 지갑 상호작용 원칙을 공개합니다. 시장 지표의 0은 조회가 정상 완료되어 실제 값이 0이라는 뜻이며, “—” 또는 “일시적으로 이용 불가”는 아직 값이 없거나 검증할 수 없다는 뜻입니다. 거래 전 지갑 미리보기와 BscScan을 확인하세요.",
     domain: "플랫폼 공식 도메인 5개",
     contracts: "BNB Chain Mainnet 공식 주소",
+    historicalContracts: "레거시 Factory (읽기 전용)",
     fees: "플랫폼 고정 수수료",
     feeItems: [
       ["토큰 생성", "0.001 BNB"],
@@ -177,9 +187,11 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "표준 0% 세금 Factory",
+      holderRewards: "홀더 보상 Factory",
+      lpRewards: "LP 보상 Factory",
       legacyStandard: "레거시 표준 0% 세금 Factory (읽기 전용)",
       autoLiquidity: "레거시 자동 유동성 Factory (읽기 전용)",
-      rewards: "홀더 / LP 보상 Factory",
+      rewards: "레거시 홀더 / LP 보상 Factory (읽기 전용)",
       legacyRewards: "레거시 홀더 / LP 보상 Factory (읽기 전용)",
       router: "PancakeSwap V2 Router",
       burnAddress: "LP 소각 주소",
@@ -229,6 +241,7 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     lead: "BNBXの公式ドメイン、コントラクト、手数料、ウォレット連携ルールを公開します。市場指標の0は取得に成功し実値が0であることを示し、「—」または「一時的に利用不可」は未取得または検証不能を示します。取引前にウォレットのプレビューとBscScanを確認してください。",
     domain: "プラットフォームの公式5ドメイン",
     contracts: "BNB Chain Mainnet公式アドレス",
+    historicalContracts: "旧Factory（読み取り専用）",
     fees: "プラットフォーム固定手数料",
     feeItems: [
       ["トークン作成", "0.001 BNB"],
@@ -238,9 +251,11 @@ export const securityCopy: Record<Language, SecurityCopy> = {
     ],
     factoryLabels: {
       standard: "標準0%税Factory",
+      holderRewards: "ホルダー報酬Factory",
+      lpRewards: "LP報酬Factory",
       legacyStandard: "旧標準0%税Factory（読み取り専用）",
       autoLiquidity: "旧自動流動性Factory（読み取り専用）",
-      rewards: "ホルダー / LP報酬Factory",
+      rewards: "旧ホルダー / LP報酬Factory（読み取り専用）",
       legacyRewards: "旧ホルダー / LP報酬Factory（読み取り専用）",
       router: "PancakeSwap V2 Router",
       burnAddress: "LPバーンアドレス",

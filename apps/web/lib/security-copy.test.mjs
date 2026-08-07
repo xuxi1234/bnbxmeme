@@ -7,6 +7,7 @@ import {
   securityCopy,
 } from "./security-copy.ts";
 import { MAX_TEMPLATE_SIDE_TAX_PERCENT } from "./template-rules.ts";
+import { buildSecurityAddressGroups } from "./security-addresses.ts";
 
 const languages = ["zh", "en", "ko", "ja"];
 
@@ -122,4 +123,52 @@ test("publishes the five official domains and concise one-percent launch fees", 
       assert.equal(value, "1%");
     }
   }
+});
+
+test("separates the three active factories from read-only historical factories", () => {
+  const labels = {
+    standard: "Standard",
+    holderRewards: "Holder rewards",
+    lpRewards: "LP rewards",
+    legacyStandard: "Legacy standard",
+    autoLiquidity: "Legacy auto-liquidity",
+    legacyRewards: "Legacy rewards",
+    router: "Router",
+    burnAddress: "Burn address",
+  };
+  const addresses = {
+    standard: "0x26f43d62e1cfadc3d89ff0ffe58375ecbded7330",
+    holderRewards: "0x31ce11e80875e1d698089f71f06acbb27726db95",
+    lpRewards: "0xa887212925aaa9dee93c1379f7a8119384cf9157",
+    legacyStandard: "0xdb189396ae2a350c484ddd749a6af96baebc124b",
+    autoLiquidity: "0x9f572dc9d582ec8347d2a803f766652982220539",
+    rewards: "0x28100dbfa3f1a3d563e1667259433adfa3aac4bb",
+    legacyRewards: "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8",
+    router: "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+    burnAddress: "0x000000000000000000000000000000000000dead",
+  };
+
+  const groups = buildSecurityAddressGroups(labels, addresses);
+
+  assert.deepEqual(
+    groups.activeFactories.map(({ label, address }) => [label, address]),
+    [
+      [labels.standard, addresses.standard],
+      [labels.holderRewards, addresses.holderRewards],
+      [labels.lpRewards, addresses.lpRewards],
+    ],
+  );
+  assert.ok(
+    groups.historicalFactories.some(
+      ({ address }) => address === addresses.rewards,
+    ),
+  );
+  assert.ok(
+    groups.historicalFactories.every(
+      ({ address }) =>
+        !groups.activeFactories.some(
+          ({ address: activeAddress }) => activeAddress === address,
+        ),
+    ),
+  );
 });
