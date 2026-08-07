@@ -7,6 +7,7 @@ import {
   securityCopy,
 } from "./security-copy.ts";
 import { MAX_TEMPLATE_SIDE_TAX_PERCENT } from "./template-rules.ts";
+import { buildSecurityAddressGroups } from "./security-addresses.ts";
 
 const languages = ["zh", "en", "ko", "ja"];
 
@@ -22,10 +23,10 @@ function shape(value) {
 
 test("removes return promises and first-choice claims from the announcement", () => {
   const prohibited = {
-    zh: /更高的收益|首选平台/,
+    zh: /æ´é«çæ¶ç|é¦éå¹³å°/,
     en: /greater potential|first choice/i,
-    ko: /더 높은 잠재력|선택하세요/,
-    ja: /高い可能性|発行するならBNBX/,
+    ko: /ë ëì ì ì¬ë ¥|ì ííì¸ì/,
+    ja: /é«ãå¯è½æ§|çºè¡ãããªãBNBX/,
   };
 
   for (const language of languages) {
@@ -36,7 +37,7 @@ test("removes return promises and first-choice claims from the announcement", ()
 test("publishes the community launch message in every announcement", () => {
   assert.equal(
     announcementCopy.zh,
-    "一个想法，一个社区，一枚代币。在 BNBX.MEME 低门槛启动你的社区代币，费用与规则公开透明，达标后自动进入 PancakeSwap。",
+    "ä¸ä¸ªæ³æ³ï¼ä¸ä¸ªç¤¾åºï¼ä¸æä»£å¸ãå¨ BNBX.MEME ä½é¨æ§å¯å¨ä½ çç¤¾åºä»£å¸ï¼è´¹ç¨ä¸è§åå¬å¼éæï¼è¾¾æ åèªå¨è¿å¥ PancakeSwapã",
   );
 
   for (const language of languages) {
@@ -122,4 +123,52 @@ test("publishes the five official domains and concise one-percent launch fees", 
       assert.equal(value, "1%");
     }
   }
+});
+
+test("separates the three active factories from read-only historical factories", () => {
+  const labels = {
+    standard: "Standard",
+    holderRewards: "Holder rewards",
+    lpRewards: "LP rewards",
+    legacyStandard: "Legacy standard",
+    autoLiquidity: "Legacy auto-liquidity",
+    legacyRewards: "Legacy rewards",
+    router: "Router",
+    burnAddress: "Burn address",
+  };
+  const addresses = {
+    standard: "0x26f43d62e1cfadc3d89ff0ffe58375ecbded7330",
+    holderRewards: "0x31ce11e80875e1d698089f71f06acbb27726db95",
+    lpRewards: "0xa887212925aaa9dee93c1379f7a8119384cf9157",
+    legacyStandard: "0xdb189396ae2a350c484ddd749a6af96baebc124b",
+    autoLiquidity: "0x9f572dc9d582ec8347d2a803f766652982220539",
+    rewards: "0x28100dbfa3f1a3d563e1667259433adfa3aac4bb",
+    legacyRewards: "0xde844f36a3bab42ae23158de5c3e8f0ac31e6af8",
+    router: "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+    burnAddress: "0x000000000000000000000000000000000000dead",
+  };
+
+  const groups = buildSecurityAddressGroups(labels, addresses);
+
+  assert.deepEqual(
+    groups.activeFactories.map(({ label, address }) => [label, address]),
+    [
+      [labels.standard, addresses.standard],
+      [labels.holderRewards, addresses.holderRewards],
+      [labels.lpRewards, addresses.lpRewards],
+    ],
+  );
+  assert.ok(
+    groups.historicalFactories.some(
+      ({ address }) => address === addresses.rewards,
+    ),
+  );
+  assert.ok(
+    groups.historicalFactories.every(
+      ({ address }) =>
+        !groups.activeFactories.some(
+          ({ address: activeAddress }) => activeAddress === address,
+        ),
+    ),
+  );
 });
