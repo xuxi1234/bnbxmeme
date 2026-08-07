@@ -4,13 +4,16 @@ import Link from "next/link";
 import {
   autoLiquidityFactoryAddress,
   blockExplorerUrl,
+  holderRewardsFactoryAddress,
   legacyRewardsFactoryAddress,
   legacyStandardFactoryAddress,
   lpBurnAddress,
+  lpRewardsFactoryAddress,
   pancakeRouterAddress,
   rewardsFactoryAddress,
   v3StandardFactoryAddress,
 } from "@/lib/web3";
+import { buildSecurityAddressGroups } from "@/lib/security-addresses";
 import { useLanguage } from "@/components/language-provider";
 import { resolveSecurityCopy } from "@/lib/security-copy";
 import { MAX_TEMPLATE_SIDE_TAX_PERCENT } from "@/lib/template-rules";
@@ -26,57 +29,17 @@ const officialDomains = [
 export default function SecurityPage() {
   const { language, t } = useLanguage();
   const content = resolveSecurityCopy(language, MAX_TEMPLATE_SIDE_TAX_PERCENT);
-  const officialAddresses = [
-    ...(v3StandardFactoryAddress
-      ? [
-          {
-            label: content.factoryLabels.standard,
-            address: v3StandardFactoryAddress,
-            sourceCode: true,
-          },
-        ]
-      : []),
-    ...(rewardsFactoryAddress
-      ? [
-          {
-            label: content.factoryLabels.rewards,
-            address: rewardsFactoryAddress,
-            sourceCode: true,
-          },
-        ]
-      : []),
-    {
-      label: content.factoryLabels.legacyStandard,
-      address: legacyStandardFactoryAddress,
-      sourceCode: true,
-    },
-    {
-      label: content.factoryLabels.autoLiquidity,
-      address: autoLiquidityFactoryAddress,
-      sourceCode: true,
-    },
-    {
-      label: content.factoryLabels.legacyRewards,
-      address: legacyRewardsFactoryAddress,
-      sourceCode: true,
-    },
-    {
-      label: content.factoryLabels.router,
-      address: pancakeRouterAddress,
-      sourceCode: true,
-    },
-    {
-      label: content.factoryLabels.burnAddress,
-      address: lpBurnAddress,
-      sourceCode: false,
-    },
-  ].filter(
-    (entry, index, entries) =>
-      entries.findIndex(
-        (candidate) =>
-          candidate.address.toLowerCase() === entry.address.toLowerCase(),
-      ) === index,
-  );
+  const addressGroups = buildSecurityAddressGroups(content.factoryLabels, {
+    standard: v3StandardFactoryAddress,
+    holderRewards: holderRewardsFactoryAddress,
+    lpRewards: lpRewardsFactoryAddress,
+    legacyStandard: legacyStandardFactoryAddress,
+    autoLiquidity: autoLiquidityFactoryAddress,
+    rewards: rewardsFactoryAddress,
+    legacyRewards: legacyRewardsFactoryAddress,
+    router: pancakeRouterAddress,
+    burnAddress: lpBurnAddress,
+  });
 
   return (
     <main className="security-page">
@@ -108,7 +71,10 @@ export default function SecurityPage() {
       </section>
       <section className="official-contracts">
         <h2>{content.contracts}</h2>
-        {officialAddresses.map(({ label, address, sourceCode }) => (
+        {[
+          ...addressGroups.activeFactories,
+          ...addressGroups.infrastructure,
+        ].map(({ label, address, sourceCode }) => (
           <a
             key={address}
             href={`${blockExplorerUrl}/address/${address}${sourceCode ? "#code" : ""}`}
@@ -117,10 +83,29 @@ export default function SecurityPage() {
           >
             <span>{label}</span>
             <strong>{address}</strong>
-            <b>BSCSCAN ↗</b>
+            <b>BSCSCAN â</b>
           </a>
         ))}
       </section>
+      {addressGroups.historicalFactories.length > 0 ? (
+        <section className="official-contracts">
+          <h2>{content.historicalContracts}</h2>
+          {addressGroups.historicalFactories.map(
+            ({ label, address, sourceCode }) => (
+              <a
+                key={address}
+                href={`${blockExplorerUrl}/address/${address}${sourceCode ? "#code" : ""}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span>{label}</span>
+                <strong>{address}</strong>
+                <b>BSCSCAN â</b>
+              </a>
+            ),
+          )}
+        </section>
+      ) : null}
       <section className="trust-grid">
         <article>
           <h2>{content.templateRules}</h2>
@@ -166,7 +151,7 @@ export default function SecurityPage() {
             target="_blank"
             rel="noreferrer"
           >
-            {content.verifyBurnAddress} ↗
+            {content.verifyBurnAddress} â
           </a>
           <p className="trust-warning">{content.report}</p>
           <Link className="button secondary" href="/create">
