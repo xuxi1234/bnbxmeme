@@ -83,7 +83,7 @@ export default function SecurityPage() {
           >
             <span>{label}</span>
             <strong>{address}</strong>
-            <b>BSCSCAN â</b>
+            <b>BSCSCAN ↗</b>
           </a>
         ))}
       </section>
@@ -100,7 +100,7 @@ export default function SecurityPage() {
               >
                 <span>{label}</span>
                 <strong>{address}</strong>
-                <b>BSCSCAN â</b>
+                <b>BSCSCAN ↗</b>
               </a>
             ),
           )}
@@ -151,7 +151,7 @@ export default function SecurityPage() {
             target="_blank"
             rel="noreferrer"
           >
-            {content.verifyBurnAddress} â
+            {content.verifyBurnAddress} ↗
           </a>
           <p className="trust-warning">{content.report}</p>
           <Link className="button secondary" href="/create">
