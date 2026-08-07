@@ -3222,7 +3222,11 @@ h2 {
   display: grid;
 }
 .activity-table {
+  max-height: 460px;
   overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .activity-table-head,
 .activity-table a {
@@ -3236,7 +3240,11 @@ h2 {
   padding: 13px 18px;
 }
 .activity-table-head {
+  position: sticky;
+  z-index: 2;
+  top: 0;
   border-bottom: 1px solid var(--line);
+  background: var(--surface);
   color: var(--muted);
   font-family: monospace;
   font-size: 10px;

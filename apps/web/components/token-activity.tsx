@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { formatEther, zeroAddress } from "viem";
 import { useLanguage } from "./language-provider";
 import { blockExplorerUrl } from "@/lib/web3";
 import { pancakeRouterAddress } from "@/lib/deployments";
 import { fetchSharedChainData } from "@/lib/shared-chain-data";
 import { startVisiblePolling } from "@/lib/visible-polling";
+import {
+  initialTradeLimit,
+  isTradeScrollEnd,
+  nextTradeLimit,
+  tradeLimitAfterRefresh,
+} from "@/lib/trade-pagination-core";
 
 type Trade = {
   id: string;
@@ -25,8 +31,6 @@ type Holder = {
   address: `0x${string}`;
   balance: bigint;
 };
-
-const RECENT_TRADE_LIMIT = 20;
 
 export type ActivitySummary = {
   latestPricePerMillionBnb: number | null;
@@ -89,6 +93,8 @@ export function TokenActivity({
     "trades" | "holders" | "topTraders"
   >("trades");
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [visibleTradeLimit, setVisibleTradeLimit] =
+    useState(initialTradeLimit);
   const [holders, setHolders] = useState<Holder[]>([]);
   const [bnbUsd, setBnbUsd] = useState(0);
   const [top10ConcentrationPct, setTop10ConcentrationPct] = useState<
@@ -99,6 +105,16 @@ export function TokenActivity({
   const [reloadKey, setReloadKey] = useState(0);
   const hasActivityData = useRef(false);
   const activityIdentity = useRef<string | null>(null);
+  const tradesRef = useRef<Trade[]>([]);
+  const tradeViewportRef = useRef<HTMLDivElement>(null);
+  const pendingViewportRef = useRef<{
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
+  const visibleTrades = useMemo(
+    () => trades.slice(0, visibleTradeLimit),
+    [trades, visibleTradeLimit],
+  );
   const topTraders = useMemo(() => {
     const excluded = new Set(
       [curve, pair, token, zeroAddress, pancakeRouterAddress]
@@ -109,7 +125,7 @@ export function TokenActivity({
       string,
       { account: `0x${string}`; volume: bigint; buys: number; sells: number }
     >();
-    for (const trade of trades) {
+    for (const trade of trades.slice(0, initialTradeLimit)) {
       if (!trade.account || excluded.has(trade.account.toLowerCase())) continue;
       const key = trade.account.toLowerCase();
       const current = totals.get(key) ?? {
@@ -127,6 +143,16 @@ export function TokenActivity({
       .slice(0, 20);
   }, [curve, pair, token, trades]);
 
+  useLayoutEffect(() => {
+    const pendingViewport = pendingViewportRef.current;
+    const viewport = tradeViewportRef.current;
+    if (!pendingViewport || !viewport) return;
+    viewport.scrollTop =
+      pendingViewport.scrollTop +
+      Math.max(0, viewport.scrollHeight - pendingViewport.scrollHeight);
+    pendingViewportRef.current = null;
+  }, [trades, visibleTradeLimit]);
+
   useEffect(() => {
     if (token === zeroAddress || curve === zeroAddress) return;
     const nextIdentity = `${curve}:${token}:${pair ?? zeroAddress}`;
@@ -135,7 +161,10 @@ export function TokenActivity({
       activityIdentity.current !== nextIdentity
     ) {
       hasActivityData.current = false;
+      tradesRef.current = [];
+      pendingViewportRef.current = null;
       setTrades([]);
+      setVisibleTradeLimit(initialTradeLimit);
       setHolders([]);
       setIsLoading(true);
     }
@@ -199,8 +228,25 @@ export function TokenActivity({
             blockNumber: BigInt(trade.blockNumber),
           }))
           .sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1));
-        const activity = allActivity.slice(0, RECENT_TRADE_LIMIT);
-        setTrades(activity);
+        const previousTrades = tradesRef.current;
+        const viewport = tradeViewportRef.current;
+        const preserveViewport = Boolean(viewport && viewport.scrollTop > 16);
+        if (viewport && preserveViewport) {
+          pendingViewportRef.current = {
+            scrollHeight: viewport.scrollHeight,
+            scrollTop: viewport.scrollTop,
+          };
+        }
+        setVisibleTradeLimit((current) =>
+          tradeLimitAfterRefresh(
+            current,
+            previousTrades.length,
+            allActivity.length,
+            preserveViewport,
+          ),
+        );
+        tradesRef.current = allActivity;
+        setTrades(allActivity);
         const nextHolders = data.holders.map((holder) => ({
           ...holder,
           balance: BigInt(holder.balance),
@@ -334,7 +380,16 @@ export function TokenActivity({
           ) : trades.length === 0 ? (
             <p className="activity-empty">{t("noTrades")}</p>
           ) : (
-            <div className="activity-table">
+            <div
+              className="activity-table"
+              ref={tradeViewportRef}
+              onScroll={(event) => {
+                if (!isTradeScrollEnd(event.currentTarget)) return;
+                setVisibleTradeLimit((current) =>
+                  nextTradeLimit(current, trades.length),
+                );
+              }}
+            >
               <div className="activity-table-head">
                 <span>{t("direction")}</span>
                 <span>{t("account")}</span>
@@ -344,7 +399,7 @@ export function TokenActivity({
                 <span>{t("date")}</span>
                 <span>TXN</span>
               </div>
-              {trades.map((trade) => (
+              {visibleTrades.map((trade) => (
                 <a
                   key={trade.id}
                   href={`${blockExplorerUrl}/tx/${trade.transactionHash}`}
