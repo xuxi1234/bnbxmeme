@@ -23,10 +23,10 @@ function shape(value) {
 
 test("removes return promises and first-choice claims from the announcement", () => {
   const prohibited = {
-    zh: /æ´é«çæ¶ç|é¦éå¹³å°/,
+    zh: /更高的收益|首选平台/,
     en: /greater potential|first choice/i,
-    ko: /ë ëì ì ì¬ë ¥|ì ííì¸ì/,
-    ja: /é«ãå¯è½æ§|çºè¡ãããªãBNBX/,
+    ko: /더 높은 잠재력|선택하세요/,
+    ja: /高い可能性|発行するならBNBX/,
   };
 
   for (const language of languages) {
@@ -37,7 +37,7 @@ test("removes return promises and first-choice claims from the announcement", ()
 test("publishes the community launch message in every announcement", () => {
   assert.equal(
     announcementCopy.zh,
-    "ä¸ä¸ªæ³æ³ï¼ä¸ä¸ªç¤¾åºï¼ä¸æä»£å¸ãå¨ BNBX.MEME ä½é¨æ§å¯å¨ä½ çç¤¾åºä»£å¸ï¼è´¹ç¨ä¸è§åå¬å¼éæï¼è¾¾æ åèªå¨è¿å¥ PancakeSwapã",
+    "一个想法，一个社区，一枚代币。在 BNBX.MEME 低门槛启动你的社区代币，费用与规则公开透明，达标后自动进入 PancakeSwap。",
   );
 
   for (const language of languages) {
