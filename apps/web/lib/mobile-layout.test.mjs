@@ -29,9 +29,11 @@ test("puts the mobile chart directly after token details and keeps trade inline"
   assert.match(styles, /\.market-column > \.project-discussion \{\s*order: 5;/);
 });
 
-test("limits recent trades and gives the mobile list its own vertical scroller", () => {
-  assert.match(activity, /const RECENT_TRADE_LIMIT = 20;/);
-  assert.match(activity, /allActivity\.slice\(0, RECENT_TRADE_LIMIT\)/);
+test("pages recent trades inside a fixed independent scroller", () => {
+  assert.match(activity, /initialTradeLimit/);
+  assert.match(activity, /trades\.slice\(0, visibleTradeLimit\)/);
+  assert.match(activity, /isTradeScrollEnd/);
+  assert.doesNotMatch(activity, /allActivity\.slice\(0, RECENT_TRADE_LIMIT\)/);
   assert.match(styles, /\.activity-table \{[\s\S]*max-height: 460px;/);
   assert.match(styles, /\.activity-table \{[\s\S]*overflow-y: auto;/);
   assert.match(styles, /\.activity-table-head \{[\s\S]*position: sticky;/);
