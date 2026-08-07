@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { blockExplorerUrl } from "@/lib/web3";
+import { chooseWeb3WalletAction, discoverWeb3Connectors } from "@/lib/wallet-discovery-core";
 import { useLanguage } from "./language-provider";
 
 function shortAddress(address: string) {
@@ -34,6 +35,9 @@ export function WalletButton({
   const { disconnect } = useDisconnect();
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [detectedWallets, setDetectedWallets] = useState<typeof connectors>([]);
+  const [web3Message, setWeb3Message] = useState("");
+  const [detectingWallets, setDetectingWallets] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,6 +70,25 @@ export function WalletButton({
       return;
     }
     window.open(option.install, "_blank", "noopener,noreferrer");
+  }
+
+  async function chooseAutomaticWeb3Wallet() {
+    setDetectingWallets(true);
+    setWeb3Message("");
+    const available = await discoverWeb3Connectors(connectors);
+    setDetectingWallets(false);
+    const action = chooseWeb3WalletAction(available);
+    if (action === "guide") {
+      setDetectedWallets([]);
+      setWeb3Message(t("web3WalletGuide"));
+      return;
+    }
+    if (action === "connect") {
+      connect({ connector: available[0] });
+      setMenuOpen(false);
+      return;
+    }
+    setDetectedWallets(available);
   }
 
   async function copyAddress() {
@@ -131,6 +154,11 @@ export function WalletButton({
                 <button type="button" aria-label={t("close")} onClick={() => setMenuOpen(false)}>×</button>
               </div>
               <div className="wallet-options">
+                <button className="wallet-auto-option" type="button" onClick={chooseAutomaticWeb3Wallet} disabled={detectingWallets}>
+                  <span className="wallet-option-mark wallet-auto-mark">W3</span>
+                  <strong>{t("web3Wallet")}</strong>
+                  <small>{detectingWallets ? t("detectingWallet") : t("autoDetect")}</small>
+                </button>
                 {walletOptions.map((option) => {
                   const installed = Boolean(findConnector(option.match));
                   return (
@@ -144,6 +172,18 @@ export function WalletButton({
                   );
                 })}
               </div>
+              {detectedWallets.length > 1 && (
+                <div className="wallet-detected-options" aria-label={t("detectedWallets")}>
+                  <small>{t("detectedWallets")}</small>
+                  {detectedWallets.map((connector) => (
+                    <button key={`${connector.id}-${connector.name}`} type="button" onClick={() => {
+                      connect({ connector });
+                      setMenuOpen(false);
+                    }}>{connector.name}</button>
+                  ))}
+                </div>
+              )}
+              {web3Message && <p className="wallet-web3-guide" role="status">{web3Message}</p>}
               <p className="wallet-popover-note">{t("walletSafety")}</p>
             </>
           )}
