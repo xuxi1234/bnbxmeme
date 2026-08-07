@@ -679,6 +679,41 @@ a {
   grid-template-columns: 1fr 1fr;
   gap: 7px;
 }
+
+.wallet-options .wallet-auto-option {
+  grid-column: 1 / -1;
+}
+
+.wallet-auto-mark {
+  background: linear-gradient(135deg, #f3ba2f, #17e6a1);
+  font-size: 0.7rem;
+}
+
+.wallet-detected-options {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wallet-detected-options small,
+.wallet-web3-guide {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.wallet-detected-options button {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.wallet-web3-guide {
+  margin: 12px 0 0;
+  line-height: 1.5;
+}
 .wallet-options button {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
