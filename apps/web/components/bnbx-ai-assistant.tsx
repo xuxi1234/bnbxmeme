@@ -231,7 +231,7 @@ export function BnbxAiAssistant() {
         account: address,
         chainId: bsc.id,
         to: PAYMENT_ADDRESS,
-        value: parseEther("0.05"),
+        value: parseEther("1"),
       });
       setPaymentStage("submitted");
       await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
