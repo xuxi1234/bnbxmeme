@@ -48,7 +48,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     title: "BNBX AI",
     name: "小壹 · X-One",
     hello: "你好，我是小壹。可以问我 BNBX 发币、内盘交易、毕业机制和钱包安全。",
-    join: "支付 1 BNB，永久开通 BNBX AI，领取专属于您的小壹 / X-One。开通会员可持续畅聊，正常使用不按个人额度中断。",
+    join: "支付 0.05 BNB，永久开通 BNBX AI，领取专属于您的小壹 / X-One。开通会员可持续畅聊，正常使用不按个人额度中断。",
     active:
       "您已是 BNBX AI 永久会员。签名即可领取专属于您的小壹 / X-One；签名不消耗 Gas，也不会授权交易。",
     refill: "您已是永久会员，可以继续与小壹畅聊。",
@@ -61,8 +61,8 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     connectWallet: "请先连接钱包",
     connectWalletFirst: "请先使用页面顶部按钮连接钱包",
     loadingMembership: "正在读取会员状态…",
-    permanentClaim: "1 BNB 永久领取",
-    refillButton: "补充算力 · 1 BNB",
+    permanentClaim: "0.05 BNB 永久领取",
+    refillButton: "补充算力 · 0.05 BNB",
     verifyingSignature: "验证中…",
     thinking: "小壹正在思考…",
     membershipLoadFailed: "会员状态暂时无法读取，请稍后重试。",
@@ -94,7 +94,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     name: "X-One",
     hello:
       "Hi, I’m X-One. Ask me about BNBX launches, bonding-curve trading, graduation, and wallet safety.",
-    join: "Pay 1 BNB to unlock BNBX AI permanently and claim your personal X-One. Members can keep chatting without an individual credit cutoff under normal use.",
+    join: "Pay 0.05 BNB to unlock BNBX AI permanently and claim your personal X-One. Members can keep chatting without an individual credit cutoff under normal use.",
     active:
       "You are a permanent BNBX AI member. Sign to access your X-One. Signing costs no gas and authorizes no transaction.",
     refill: "Your permanent membership is active. Keep chatting with X-One.",
@@ -109,8 +109,8 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     connectWalletFirst:
       "Connect your wallet using the button at the top of the page.",
     loadingMembership: "Loading membership…",
-    permanentClaim: "Unlock forever · 1 BNB",
-    refillButton: "Add AI credits · 1 BNB",
+    permanentClaim: "Unlock forever · 0.05 BNB",
+    refillButton: "Add AI credits · 0.05 BNB",
     verifyingSignature: "Verifying…",
     thinking: "X-One is thinking…",
     membershipLoadFailed:
@@ -147,7 +147,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     name: "X-One",
     hello:
       "안녕하세요, X-One입니다. BNBX 토큰 출시, 본딩 커브 거래, 졸업 방식과 지갑 보안을 물어보세요.",
-    join: "1 BNB를 결제하면 BNBX AI를 영구적으로 이용하고 나만의 X-One을 받을 수 있습니다. 정상적인 이용에는 개인 크레딧 제한 없이 계속 대화할 수 있습니다.",
+    join: "0.05 BNB를 결제하면 BNBX AI를 영구적으로 이용하고 나만의 X-One을 받을 수 있습니다. 정상적인 이용에는 개인 크레딧 제한 없이 계속 대화할 수 있습니다.",
     active:
       "BNBX AI 영구 회원입니다. 서명하면 나만의 X-One을 이용할 수 있습니다. 서명에는 Gas가 들지 않으며 거래 권한을 부여하지 않습니다.",
     refill: "영구 회원 자격이 활성화되어 있습니다. X-One과 계속 대화하세요.",
@@ -161,8 +161,8 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     connectWallet: "먼저 지갑을 연결하세요",
     connectWalletFirst: "페이지 상단 버튼으로 지갑을 먼저 연결하세요.",
     loadingMembership: "회원 상태 확인 중…",
-    permanentClaim: "영구 이용 · 1 BNB",
-    refillButton: "AI 크레딧 충전 · 1 BNB",
+    permanentClaim: "영구 이용 · 0.05 BNB",
+    refillButton: "AI 크레딧 충전 · 0.05 BNB",
     verifyingSignature: "확인 중…",
     thinking: "X-One이 생각 중입니다…",
     membershipLoadFailed:
@@ -198,7 +198,7 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     name: "X-One",
     hello:
       "こんにちは、X-Oneです。BNBXでのトークン作成、ボンディングカーブ取引、卒業の仕組み、ウォレット安全について質問できます。",
-    join: "1 BNBを支払うとBNBX AIを永久に利用でき、あなただけのX-Oneを受け取れます。通常利用では個別クレジット上限なく会話を続けられます。",
+    join: "0.05 BNBを支払うとBNBX AIを永久に利用でき、あなただけのX-Oneを受け取れます。通常利用では個別クレジット上限なく会話を続けられます。",
     active:
       "BNBX AIの永久会員です。署名すると専用のX-Oneを利用できます。署名にGasはかからず、取引権限も付与しません。",
     refill: "永久会員資格は有効です。X-Oneとの会話を続けられます。",
@@ -212,8 +212,8 @@ export const bnbxAiCopy: Record<Language, BnbxAiCopy> = {
     connectWallet: "先にウォレットを接続してください",
     connectWalletFirst: "ページ上部のボタンからウォレットを接続してください。",
     loadingMembership: "会員情報を確認中…",
-    permanentClaim: "永久利用 · 1 BNB",
-    refillButton: "AIクレジット追加 · 1 BNB",
+    permanentClaim: "永久利用 · 0.05 BNB",
+    refillButton: "AIクレジット追加 · 0.05 BNB",
     verifyingSignature: "確認中…",
     thinking: "X-Oneが考えています…",
     membershipLoadFailed:
