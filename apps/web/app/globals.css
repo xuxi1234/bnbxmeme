@@ -1716,6 +1716,25 @@ h2 {
   outline: 0;
   background: color-mix(in srgb, var(--brand) 8%, var(--surface));
 }
+
+.token-market-row-official {
+  background: linear-gradient(90deg, rgba(241, 185, 32, 0.12), transparent 42%);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.official-token-badge {
+  display: inline-flex;
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.38rem;
+  border: 1px solid rgba(241, 185, 32, 0.55);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.64rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+}
 .token-market-identity {
   display: flex;
   min-width: 0;
