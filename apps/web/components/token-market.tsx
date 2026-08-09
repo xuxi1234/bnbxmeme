@@ -29,6 +29,8 @@ import {
   localeByLanguage,
 } from "@/lib/localization-copy";
 import { startVisiblePolling } from "@/lib/visible-polling";
+import { pinFeaturedExternalEntry } from "@/lib/featured-market-core";
+import type { FeaturedMarketData } from "@/lib/featured-market-data";
 
 type MarketEntry = {
   token: `0x${string}`;
@@ -45,6 +47,7 @@ type MarketEntry = {
   state: number | null;
   creator: `0x${string}` | null;
   liquidityPair: `0x${string}` | null;
+  official?: boolean;
 };
 type MarketPayload = {
   entries: MarketEntry[];
@@ -63,12 +66,35 @@ type MarketScore = {
   createdAt?: number;
   graduatedAt?: number;
   hotScore?: number;
+  marketCapUsd?: number;
+  volume24hUsd?: number;
+  liquidityUsd?: number;
 };
 type MarketScoreResult = readonly [string, MarketScore, boolean];
 
 const SCORE_REQUEST_BATCH_SIZE = 8;
 const SCORE_POLL_INTERVAL_MS = 60_000;
 const MARKET_PAGE_SIZE = 30;
+const FEATURED_BNBX_TOKEN =
+  "0xfd87628840890c9ea4eb3a0053a691b29d3e1111" as const;
+const FEATURED_BNBX_ENTRY: MarketEntry = {
+  token: FEATURED_BNBX_TOKEN,
+  name: "BNBX",
+  symbol: "BNBX",
+  totalSupply: "1000000000000000000000000000",
+  factory: zeroAddress,
+  factoryOrder: -1,
+  curve: null,
+  metadataURI: null,
+  creationIndex: Number.MAX_SAFE_INTEGER,
+  principal: null,
+  target: null,
+  state: 2,
+  creator: null,
+  liquidityPair: null,
+  official: true,
+};
+const FEATURED_BNBX_SWAP_URL = `https://pancakeswap.finance/swap?outputCurrency=${FEATURED_BNBX_TOKEN}`;
 
 function asBigInt(value: string | null) {
   return value === null ? undefined : BigInt(value);
@@ -123,15 +149,20 @@ function TokenMarketRow({
     ? Number(formatEther(BigInt(entry.totalSupply)))
     : undefined;
   const marketCap =
-    priceUsdt !== null && supply !== undefined ? priceUsdt * supply : undefined;
+    score?.marketCapUsd ??
+    (priceUsdt !== null && supply !== undefined
+      ? priceUsdt * supply
+      : undefined);
   const volumeUsd =
-    score?.volume24hBnb !== undefined && score?.bnbUsd !== undefined
+    score?.volume24hUsd ??
+    (score?.volume24hBnb !== undefined && score?.bnbUsd !== undefined
       ? score.volume24hBnb * score.bnbUsd
-      : undefined;
+      : undefined);
   const liquidityUsd =
-    score?.liquidityBnb !== undefined && score?.bnbUsd !== undefined
+    score?.liquidityUsd ??
+    (score?.liquidityBnb !== undefined && score?.bnbUsd !== undefined
       ? score.liquidityBnb * score.bnbUsd
-      : undefined;
+      : undefined);
   const change = score?.priceChange24h;
   const stateLabel =
     entry.state === null
@@ -144,16 +175,20 @@ function TokenMarketRow({
 
   return (
     <Link
-      className="token-market-row"
-      href={tokenProjectPath(entry.token)}
+      className={`token-market-row${entry.official ? " token-market-row-official" : ""}`}
+      href={
+        entry.official ? FEATURED_BNBX_SWAP_URL : tokenProjectPath(entry.token)
+      }
+      target={entry.official ? "_blank" : undefined}
+      rel={entry.official ? "noopener noreferrer" : undefined}
       role="row"
     >
       <span className="token-market-identity" role="cell">
         <span className="token-avatar">
-          {metadata?.image && !imageFailed ? (
+          {(entry.official || metadata?.image) && !imageFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={metadata.image}
+              src={entry.official ? "/bnbx-logo.png" : metadata!.image!}
               alt={interpolate(a11y.tokenLogo, {
                 name:
                   entry.name ??
@@ -169,7 +204,12 @@ function TokenMarketRow({
           )}
         </span>
         <span className="token-market-name">
-          <strong>{entry.name ?? t("dataUnknown")}</strong>
+          <strong>
+            {entry.name ?? t("dataUnknown")}
+            {entry.official && (
+              <em className="official-token-badge">{t("officialToken")}</em>
+            )}
+          </strong>
           <small>${entry.symbol ?? "—"}</small>
         </span>
       </span>
@@ -221,9 +261,11 @@ function TokenMarketRow({
       >
         <strong>{formatUsdMetric(volumeUsd, locale)}</strong>
         <small>
-          {score?.volume24hBnb === undefined
-            ? "—"
-            : `${formatCompactMetric(score.volume24hBnb, locale)} BNB`}
+          {entry.official
+            ? "PancakeSwap V2"
+            : score?.volume24hBnb === undefined
+              ? "—"
+              : `${formatCompactMetric(score.volume24hBnb, locale)} BNB`}
         </small>
       </span>
       <span
@@ -268,6 +310,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   const [query, setQuery] = useState("");
   const [payload, setPayload] = useState<MarketPayload | null>(null);
   const [scores, setScores] = useState<Record<string, MarketScore>>({});
+  const [featuredScore, setFeaturedScore] = useState<MarketScore>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -348,6 +391,39 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       stopPolling();
     };
   }, [creator, loadMarket, reloadKey]);
+
+  useEffect(() => {
+    if (creator) return;
+    const controller = new AbortController();
+    const loadFeaturedScore = async () => {
+      try {
+        const response = await fetch("/api/featured-market", {
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as FeaturedMarketData;
+        if (controller.signal.aborted) return;
+        setFeaturedScore({
+          pricePerMillion:
+            data.priceUsd === undefined ? undefined : data.priceUsd * 1_000_000,
+          bnbUsd: 1,
+          marketCapUsd: data.marketCapUsd,
+          volume24hUsd: data.volume24hUsd,
+          liquidityUsd: data.liquidityUsd,
+          priceChange24h: data.priceChange24h,
+          activity: data.trades24h,
+          createdAt: data.createdAt,
+        });
+      } catch {
+        // The official row remains visible with explicit unavailable metrics.
+      }
+    };
+    const stopPolling = startVisiblePolling(loadFeaturedScore, 60_000);
+    return () => {
+      controller.abort();
+      stopPolling();
+    };
+  }, [creator]);
 
   const entries = useMemo(
     () =>
@@ -538,8 +614,13 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       }
       return marketEntryMatchesFilter(filter, entry);
     });
-    return visible.sort((a, b) => compareMarketEntries(filter, scores, a, b));
-  }, [entries, filter, query, scores]);
+    const ordered = visible.sort((a, b) =>
+      compareMarketEntries(filter, scores, a, b),
+    );
+    return creator
+      ? ordered
+      : pinFeaturedExternalEntry(filter, query, ordered, FEATURED_BNBX_ENTRY);
+  }, [creator, entries, filter, query, scores]);
   const noResults = useMemo(
     () => resolveMarketNoResults(query, filter),
     [filter, query],
@@ -697,7 +778,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
               <TokenMarketRow
                 key={entry.token}
                 entry={entry}
-                score={scores[entry.token]}
+                score={entry.official ? featuredScore : scores[entry.token]}
                 onCreationTime={rememberCreationTime}
               />
             ))}

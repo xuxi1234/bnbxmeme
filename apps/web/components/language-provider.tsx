@@ -9,7 +9,7 @@ const messages: Record<Language, Record<string, string>> = {
   zh: {
     market: "市场", create: "创建代币", today: "即将打满", history: "历史毕业",
     projects: "实时项目", hot: "热门", latest: "最新", graduating: "即将打满", graduated: "历史毕业",
-    hotInternal: "热内盘", newInternal: "新内盘", newExternal: "新外盘", hotExternal: "热外盘",
+    hotInternal: "热内盘", newInternal: "新内盘", newExternal: "新外盘", hotExternal: "热外盘", officialToken: "官方",
     buy: "买入", sell: "卖出", buyWith: "使用 BNB 买入", sellToken: "卖出代币",
     tradeStateLoading: "正在确认链上交易状态…",
     migrationTradingPaused: "毕业迁移处理中",
@@ -99,7 +99,7 @@ const messages: Record<Language, Record<string, string>> = {
   en: {
     market: "Market", create: "Create Token", today: "Graduating", history: "Graduated",
     projects: "Live Projects", hot: "Hot", latest: "Latest", graduating: "Graduating", graduated: "Graduated",
-    hotInternal: "Hot Internal", newInternal: "New Internal", newExternal: "New External", hotExternal: "Hot External",
+    hotInternal: "Hot Internal", newInternal: "New Internal", newExternal: "New External", hotExternal: "Hot External", officialToken: "Official",
     buy: "Buy", sell: "Sell", buyWith: "Buy with BNB", sellToken: "Sell Token",
     tradeStateLoading: "Confirming the on-chain trade state…",
     migrationTradingPaused: "Graduation migration in progress",
@@ -189,7 +189,7 @@ const messages: Record<Language, Record<string, string>> = {
   ko: {
     market: "마켓", create: "토큰 생성", today: "졸업 예정", history: "졸업 기록",
     projects: "실시간 프로젝트", hot: "인기", latest: "최신", graduating: "졸업 예정", graduated: "졸업 완료",
-    hotInternal: "인기 내부 시장", newInternal: "신규 내부 시장", newExternal: "신규 외부 시장", hotExternal: "인기 외부 시장",
+    hotInternal: "인기 내부 시장", newInternal: "신규 내부 시장", newExternal: "신규 외부 시장", hotExternal: "인기 외부 시장", officialToken: "공식",
     buy: "구매", sell: "판매", buyWith: "BNB로 구매", sellToken: "토큰 판매",
     tradeStateLoading: "온체인 거래 상태를 확인하는 중…",
     migrationTradingPaused: "졸업 마이그레이션 진행 중",
@@ -279,7 +279,7 @@ const messages: Record<Language, Record<string, string>> = {
   ja: {
     market: "マーケット", create: "トークン作成", today: "卒業予定", history: "卒業履歴",
     projects: "リアルタイム", hot: "人気", latest: "新着", graduating: "卒業間近", graduated: "卒業済み",
-    hotInternal: "人気内盤", newInternal: "新着内盤", newExternal: "新着外盤", hotExternal: "人気外盤",
+    hotInternal: "人気内盤", newInternal: "新着内盤", newExternal: "新着外盤", hotExternal: "人気外盤", officialToken: "公式",
     buy: "購入", sell: "売却", buyWith: "BNBで購入", sellToken: "トークンを売却",
     tradeStateLoading: "オンチェーンの取引状態を確認中…",
     migrationTradingPaused: "卒業マイグレーション処理中",
