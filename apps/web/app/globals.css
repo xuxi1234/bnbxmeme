@@ -2013,6 +2013,7 @@ h2 {
 .four-mirror-warning,
 .four-mirror-action-note,
 .four-mirror-statusbar,
+.four-mirror-batchbar,
 .four-mirror-progress,
 .four-mirror-error,
 .four-mirror-result,
@@ -2040,6 +2041,17 @@ h2 {
 .four-mirror-statusbar div { display: grid; gap: 5px; }
 .four-mirror-statusbar small { color: var(--muted); }
 .four-mirror-statusbar code { color: var(--brand); }
+.four-mirror-batchbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border-color: color-mix(in srgb, var(--brand) 65%, var(--line));
+}
+.four-mirror-batchbar > div:first-child { display: grid; gap: 5px; }
+.four-mirror-batchbar span { color: var(--muted); font-size: 13px; }
+.four-mirror-batch-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .four-mirror-action-note,
 .four-mirror-progress,
 .four-mirror-error,
@@ -2072,8 +2084,18 @@ h2 {
   border-radius: 12px;
   background: var(--surface);
 }
-.four-mirror-card.eligible { border-color: color-mix(in srgb, var(--brand) 65%, var(--line)); }
-.four-mirror-card.rejected { opacity: .78; }
+.four-mirror-card.selected { border-color: var(--brand); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 55%, transparent); }
+.four-mirror-card.active { border-color: #f1b84b; }
+.four-mirror-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.four-mirror-selector input { width: 18px; height: 18px; accent-color: var(--brand); }
 .four-mirror-card-head { display: flex; align-items: center; gap: 14px; }
 .four-mirror-logo {
   flex: 0 0 72px;
@@ -2101,6 +2123,20 @@ h2 {
 .four-mirror-warnings { margin: 0; padding-left: 18px; color: #f2bd2f; font-size: 12px; line-height: 1.6; }
 .four-mirror-links { display: flex; flex-wrap: wrap; gap: 12px; }
 .four-mirror-links a { color: var(--brand); font-size: 12px; font-weight: 800; }
+.four-mirror-item-state {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.four-mirror-item-state.success { border-color: var(--brand); color: var(--brand); }
+.four-mirror-item-state.failed,
+.four-mirror-item-state.cancelled { border-color: #f26b5e; color: #ff9388; }
+.four-mirror-item-state div { display: flex; flex-wrap: wrap; gap: 12px; }
+.four-mirror-item-state a { color: inherit; font-weight: 850; }
 
 @media (max-width: 960px) {
   .four-mirror-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2116,7 +2152,9 @@ h2 {
   .four-mirror-grid { grid-template-columns: 1fr; }
   .four-mirror-statusbar { align-items: stretch; }
   .four-mirror-action-note,
-  .four-mirror-result { align-items: stretch; flex-direction: column; }
+  .four-mirror-result,
+  .four-mirror-batchbar { align-items: stretch; flex-direction: column; }
+  .four-mirror-batch-actions { display: grid; }
 }
 
 .topbar {

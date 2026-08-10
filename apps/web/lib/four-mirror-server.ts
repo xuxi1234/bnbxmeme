@@ -139,9 +139,9 @@ function unavailableCandidate(base: NormalizedFourCandidate): FourMirrorCandidat
     volume24hUsd: 0,
     holderCount: 0,
     pairUrl: "",
-    eligible: false,
-    reasons: ["security-unavailable"],
-    warnings: [],
+    eligible: true,
+    reasons: [],
+    warnings: ["security-unavailable"],
   };
 }
 
@@ -303,9 +303,6 @@ export async function prepareFourMirrorMetadataWith(
   dependencies: PrepareDependencies,
 ) {
   const candidate = await fetchEligibleMirror(address, dependencies.fetcher);
-  if (!candidate.eligible) {
-    throw new Error(`Four mirror is not eligible: ${candidate.reasons.join(", ")}`);
-  }
   const image = candidate.imageUrl
     ? await dependencies.pinImage(candidate.imageUrl)
     : "";

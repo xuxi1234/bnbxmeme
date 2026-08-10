@@ -115,7 +115,7 @@ test("discovers and enriches a Four graduate using live boundary shapes", async 
   });
 });
 
-test("keeps a candidate visible but fail-closed when risk data is unavailable", async () => {
+test("keeps a graduate selectable when risk data is unavailable", async () => {
   const fetcher = createFetcher();
   const mirrors = await discoverFourMirrorsWith(async (input, init) => {
     if (String(input).includes("api.gopluslabs.io")) {
@@ -123,8 +123,9 @@ test("keeps a candidate visible but fail-closed when risk data is unavailable", 
     }
     return fetcher(input, init);
   });
-  assert.equal(mirrors[0].eligible, false);
-  assert.ok(mirrors[0].reasons.includes("security-unavailable"));
+  assert.equal(mirrors[0].eligible, true);
+  assert.deepEqual(mirrors[0].reasons, []);
+  assert.ok(mirrors[0].warnings.includes("security-unavailable"));
 });
 
 test("batches market data and checks qualifying token risks individually", async () => {
@@ -207,15 +208,13 @@ test("revalidates and pins disclosed mirror metadata before deployment", async (
   assert.match(pinnedMetadata.description, /非原项目官方发行/);
 });
 
-test("refuses metadata preparation when a source no longer passes screening", async () => {
-  await assert.rejects(
-    prepareFourMirrorMetadataWith(address, {
-      fetcher: createFetcher({
-        security: { ...safeSecurity, is_honeypot: "1" },
-      }),
-      pinImage: async () => "ipfs://must-not-run",
-      pinJson: async () => "ipfs://must-not-run",
+test("prepares a fresh zero-tax mirror even when the source contract has warnings", async () => {
+  const result = await prepareFourMirrorMetadataWith(address, {
+    fetcher: createFetcher({
+      security: { ...safeSecurity, is_honeypot: "1" },
     }),
-    /not eligible: is_honeypot/,
-  );
+    pinImage: async () => "ipfs://mirror-logo",
+    pinJson: async () => "ipfs://mirror-metadata",
+  });
+  assert.equal(result.metadataURI, "ipfs://mirror-metadata");
 });

@@ -52,3 +52,10 @@ The button is locked while preparation, vanity search, wallet confirmation, or r
 - Route/page acceptance tests verify the mirror disclosure, authorized-wallet guard, and absence of batch-deploy behavior.
 - Final verification runs the full test suite, lint, TypeScript typecheck, production build, git diff review, and secret-pattern scan.
 
+## Approved sequential multi-select revision
+
+- Every Four project returned as graduated is selectable. Liquidity, 24-hour volume, holder count, unavailable security data, honeypot flags, trading restrictions, and other source-contract findings remain visible as yellow warnings but do not block creation of the independent BNBX zero-tax mirror.
+- The operator can select individual projects or select the entire current result set. The page displays the exact Factory fee as `selected count × 0.001 BNB`; gas remains separate.
+- One start action processes the selected projects in their displayed order. Each project directly calls the existing Factory from the connected operator wallet, creates one wallet confirmation, waits for its receipt, and only then advances to the next project.
+- A metadata or vanity-search failure is recorded for that project and the queue continues. An explicit wallet rejection immediately pauses the queue and leaves every remaining project unsent.
+- No batching contract, delegated signing, private-key custody, Factory replacement, `main` merge, or Production release is included.

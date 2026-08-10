@@ -91,3 +91,27 @@
 - [ ] Commit the scoped work, push `agent/four-mirror-deploy-preview`, and create a Draft PR targeting `main`.
 - [ ] Wait for the Vercel Preview deployment, inspect its build status, and verify `/four-mirror-deploy` without sending a mainnet transaction.
 
+### Task 6: Sequential multi-select deployment queue
+
+**Files:**
+- Create: `apps/web/lib/four-mirror-queue.ts`
+- Test: `apps/web/lib/four-mirror-queue.test.mjs`
+- Modify: `apps/web/lib/four-mirror-core.ts`
+- Modify: `apps/web/lib/four-mirror-core.test.mjs`
+- Modify: `apps/web/lib/four-mirror-server.ts`
+- Modify: `apps/web/lib/four-mirror-server.test.mjs`
+- Modify: `apps/web/components/four-mirror-deploy-client.tsx`
+- Modify: `apps/web/app/globals.css`
+
+**Interfaces:**
+- Produces: `runSequentialMirrorQueue`, `isWalletRejection`, and `selectedMirrorFeeBNB`.
+- Consumes: the existing direct `createVanityToken` request builder and BSC public client.
+
+- [ ] Write failing tests proving every graduate is selectable and all source metrics or risks become warnings.
+- [ ] Run the focused tests and confirm they fail against the prior blocking rules.
+- [ ] Write failing tests proving strict sequential execution, continue-on-preparation-failure, stop-on-wallet-rejection, and exact `count × 0.001 BNB` fee display.
+- [ ] Run the focused tests and confirm the queue module is absent.
+- [ ] Implement the minimal warning-only policy and sequential queue.
+- [ ] Run the focused tests and confirm they pass.
+- [ ] Add per-card selection, select-all, fee summary, per-item status, transaction links, and token links to the existing Preview page.
+- [ ] Run full tests, lint, typecheck, build, diff checks, and sensitive-data checks before updating the Draft PR branch.

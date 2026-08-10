@@ -84,7 +84,7 @@ test("selects the highest-liquidity BSC Pancake pair", () => {
   assert.equal(pair?.liquidity?.usd, 25_000);
 });
 
-test("accepts candidates at the lowered market and holder thresholds", () => {
+test("keeps every Four graduate selectable while surfacing weak metrics as warnings", () => {
   assert.deepEqual(
     evaluateMirrorEligibility({
       liquidityUsd: 3_000,
@@ -99,14 +99,14 @@ test("accepts candidates at the lowered market and holder thresholds", () => {
       volume24hUsd: 4_999,
       security: { ...safeSecurity, holder_count: "29" },
     }),
-    { eligible: false, reasons: ["liquidity", "volume24h", "holders"], warnings: [] },
+    { eligible: true, reasons: [], warnings: ["liquidity", "volume24h", "holders"] },
   );
 });
 
-test("fails closed when security data is missing or reports a hard blocking risk", () => {
+test("keeps missing security data and source-contract risks as warnings", () => {
   assert.deepEqual(
     evaluateMirrorEligibility({ liquidityUsd: 5_000, volume24hUsd: 8_000, security: null }),
-    { eligible: false, reasons: ["security-unavailable"], warnings: [] },
+    { eligible: true, reasons: [], warnings: ["security-unavailable"] },
   );
   for (const field of ["is_honeypot", "cannot_buy", "cannot_sell_all"]) {
     const result = evaluateMirrorEligibility({
@@ -114,8 +114,9 @@ test("fails closed when security data is missing or reports a hard blocking risk
       volume24hUsd: 8_000,
       security: { ...safeSecurity, holder_count: "30", [field]: "1" },
     });
-    assert.equal(result.eligible, false, field);
-    assert.deepEqual(result.reasons, [field], field);
+    assert.equal(result.eligible, true, field);
+    assert.deepEqual(result.reasons, [], field);
+    assert.deepEqual(result.warnings, [field], field);
   }
 });
 

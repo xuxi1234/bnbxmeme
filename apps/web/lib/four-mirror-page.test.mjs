@@ -49,3 +49,10 @@ test("blocks rejected projects and duplicate clicks while one token is active", 
     "busy",
   );
 });
+
+test("allows every displayed Four graduate to enter the sequential queue", () => {
+  assert.equal(
+    resolveMirrorDeployBlocker({ ...ready, eligible: true }),
+    null,
+  );
+});
