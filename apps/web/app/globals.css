@@ -2098,6 +2098,7 @@ h2 {
 .four-mirror-metrics dt { color: var(--muted); font-size: 11px; }
 .four-mirror-metrics dd { margin: 5px 0 0; font-size: 13px; font-weight: 850; }
 .four-mirror-reasons { margin: 0; padding-left: 18px; color: #ff9388; font-size: 12px; line-height: 1.6; }
+.four-mirror-warnings { margin: 0; padding-left: 18px; color: #f2bd2f; font-size: 12px; line-height: 1.6; }
 .four-mirror-links { display: flex; flex-wrap: wrap; gap: 12px; }
 .four-mirror-links a { color: var(--brand); font-size: 12px; font-weight: 800; }
 
