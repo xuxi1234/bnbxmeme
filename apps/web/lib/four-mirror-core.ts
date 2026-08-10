@@ -1,14 +1,17 @@
-export const FOUR_MIRROR_MIN_LIQUIDITY_USD = 10_000;
-export const FOUR_MIRROR_MIN_VOLUME_24H_USD = 20_000;
-export const FOUR_MIRROR_MIN_HOLDERS = 100;
+export const FOUR_MIRROR_MIN_LIQUIDITY_USD = 3_000;
+export const FOUR_MIRROR_MIN_VOLUME_24H_USD = 5_000;
+export const FOUR_MIRROR_MIN_HOLDERS = 30;
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const BLOCKING_SECURITY_FIELDS = [
   "is_honeypot",
-  "is_mintable",
-  "is_blacklisted",
   "cannot_buy",
   "cannot_sell_all",
+] as const;
+
+const WARNING_SECURITY_FIELDS = [
+  "is_mintable",
+  "is_blacklisted",
   "hidden_owner",
   "is_proxy",
   "selfdestruct",
@@ -132,6 +135,7 @@ export function evaluateMirrorEligibility({
   security: MirrorSecurity | null;
 }) {
   const reasons: string[] = [];
+  const warnings: string[] = [];
   if (finiteNumber(liquidityUsd) < FOUR_MIRROR_MIN_LIQUIDITY_USD) {
     reasons.push("liquidity");
   }
@@ -140,16 +144,19 @@ export function evaluateMirrorEligibility({
   }
   if (!security) {
     reasons.push("security-unavailable");
-    return { eligible: false, reasons };
+    return { eligible: false, reasons, warnings };
   }
   if (finiteNumber(security.holder_count) < FOUR_MIRROR_MIN_HOLDERS) {
     reasons.push("holders");
   }
-  if (security.is_open_source !== "1") reasons.push("not-open-source");
+  if (security.is_open_source !== "1") warnings.push("not-open-source");
   for (const field of BLOCKING_SECURITY_FIELDS) {
     if (security[field] === "1") reasons.push(field);
   }
-  return { eligible: reasons.length === 0, reasons };
+  for (const field of WARNING_SECURITY_FIELDS) {
+    if (security[field] === "1") warnings.push(field);
+  }
+  return { eligible: reasons.length === 0, reasons, warnings };
 }
 
 export function mirrorMetric(value: unknown) {
