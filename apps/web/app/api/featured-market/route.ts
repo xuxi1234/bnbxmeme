@@ -16,9 +16,14 @@ export async function GET() {
     let holderCount: number | undefined;
     try {
       const holderResponse = await fetch(
-        `https://bscscan.com/token/${BNBX_TOKEN}`,
+        `https://bscscan.com/token/${BNBX_TOKEN}?output=1`,
         {
-          headers: { "User-Agent": "BNBX market data/1.0" },
+          headers: {
+            Accept: "text/html,application/xhtml+xml",
+            "Accept-Language": "en-US,en;q=0.9",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+          },
           next: { revalidate: 300 },
         },
       );
