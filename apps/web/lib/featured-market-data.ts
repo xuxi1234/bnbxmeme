@@ -84,6 +84,18 @@ export function parseBscScanHolderCount(html: string) {
   return Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
+export function parseGoPlusHolderCount(payload: unknown, tokenAddress: string) {
+  if (!payload || typeof payload !== "object" || !("result" in payload))
+    return undefined;
+  const result = payload.result;
+  if (!result || typeof result !== "object") return undefined;
+  const token = (result as Record<string, unknown>)[tokenAddress.toLowerCase()];
+  if (!token || typeof token !== "object" || !("holder_count" in token))
+    return undefined;
+  const value = Number((token as { holder_count: unknown }).holder_count);
+  return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
 export function mergeFeaturedMarketScore(
   current: FeaturedMarketScore,
   data: FeaturedMarketData,

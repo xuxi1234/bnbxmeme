@@ -4,6 +4,7 @@ import {
   mergeFeaturedMarketScore,
   normalizeFeaturedMarket,
   parseBscScanHolderCount,
+  parseGoPlusHolderCount,
 } from "./featured-market-data.ts";
 
 test("selects the most liquid BSC PancakeSwap pair and normalizes its metrics", () => {
@@ -65,6 +66,25 @@ test("does not invent holder counts from malformed or unrelated explorer data", 
   assert.equal(parseBscScanHolderCount("<html>Transfers: 12,019</html>"), undefined);
   assert.equal(parseBscScanHolderCount("<html>Holders: unknown</html>"), undefined);
   assert.equal(parseBscScanHolderCount("<html>Holders: 0</html>"), undefined);
+});
+
+test("parses the official GoPlus holder count without accepting invalid values", () => {
+  const token = "0xfd87628840890c9ea4eb3a0053a691b29d3e1111";
+  assert.equal(
+    parseGoPlusHolderCount(
+      { code: 1, result: { [token]: { holder_count: "11118" } } },
+      token,
+    ),
+    11118,
+  );
+  assert.equal(
+    parseGoPlusHolderCount(
+      { code: 1, result: { [token]: { holder_count: "unknown" } } },
+      token,
+    ),
+    undefined,
+  );
+  assert.equal(parseGoPlusHolderCount({ code: 2 }, token), undefined);
 });
 
 test("normalizes a valid holder count with featured market data", () => {

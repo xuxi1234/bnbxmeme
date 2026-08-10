@@ -6,9 +6,9 @@ Show the real BscScan holder count for the official BNBX row pinned to both the 
 
 ## Data flow
 
-The existing `/api/featured-market` route will continue to fetch price and liquidity data from DexScreener. In the same server-side request it will fetch the public BscScan token page for `0xfd87628840890c9ea4eb3a0053a691b29d3e1111`, parse the holder count from the page metadata, and add `holderCount` to the normalized response.
+The existing `/api/featured-market` route will continue to fetch price and liquidity data from DexScreener. In the same server-side request it will fetch GoPlus Token Security data for `0xfd87628840890c9ea4eb3a0053a691b29d3e1111`, normalize its documented `holder_count`, and add `holderCount` to the response. BscScan metadata remains a best-effort fallback.
 
-The BscScan request will use Next.js revalidation and CDN cache headers so the homepage does not scan Transfer logs or call BscScan for every visitor. The BscScan count is the displayed explorer count; it must not be replaced with trade count, transfer count, or LP count.
+The upstream requests will use Next.js revalidation and CDN cache headers so the homepage does not scan Transfer logs or call an indexer for every visitor. The holder count must not be replaced with trade count, transfer count, or LP count.
 
 ## Failure behavior
 

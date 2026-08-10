@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Display the cached BscScan holder count on the official BNBX external-market row.
+**Goal:** Display a cached indexed holder count on the official BNBX external-market row.
 
-**Architecture:** A pure parser extracts the explorer holder count from HTML metadata. The existing featured-market API composes that count with DexScreener market data, while the client retains its last successful count across partial refresh failures.
+**Architecture:** Pure parsers normalize the documented GoPlus holder count with a BscScan metadata fallback. The existing featured-market API composes that count with DexScreener market data, while the client retains its last successful count across partial refresh failures.
 
 **Tech Stack:** Next.js 15 route handlers, React 19, TypeScript, Node test runner.
 
