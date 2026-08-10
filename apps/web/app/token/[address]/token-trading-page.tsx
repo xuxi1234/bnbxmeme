@@ -33,6 +33,7 @@ import {
   tokenAbi,
 } from "@/lib/web3";
 import { useTokenMetadata } from "@/lib/metadata";
+import { shouldShowTokenDescriptionForCreator } from "@/lib/four-mirror-metadata";
 import {
   formatCompactTokenPriceUsdt,
   formatExactCount,
@@ -1144,36 +1145,38 @@ export function TokenTradingPage({
             </div>
           </div>
         </div>
-        <section
-          className="token-description-card"
-          aria-labelledby="token-description-title"
-        >
-          <strong id="token-description-title">{t("tokenDescription")}</strong>
-          <p
-            className={`token-description${descriptionExpanded ? " expanded" : ""}`}
+        {shouldShowTokenDescriptionForCreator(creatorAddress) && (
+          <section
+            className="token-description-card"
+            aria-labelledby="token-description-title"
           >
-            {metadataLoading
-              ? t("loading")
-              : metadataError
-                ? t("metadataUnavailable")
-                : tokenDescription || t("noTokenDescription")}
-          </p>
-          {metadataError && (
-            <button type="button" onClick={retryMetadata}>
-              {t("retry")}
-            </button>
-          )}
-          {tokenDescription.length > 120 && (
-            <button
-              type="button"
-              onClick={() => setDescriptionExpanded((expanded) => !expanded)}
+            <strong id="token-description-title">{t("tokenDescription")}</strong>
+            <p
+              className={`token-description${descriptionExpanded ? " expanded" : ""}`}
             >
-              {descriptionExpanded
-                ? t("collapseDescription")
-                : t("expandDescription")}
-            </button>
-          )}
-        </section>
+              {metadataLoading
+                ? t("loading")
+                : metadataError
+                  ? t("metadataUnavailable")
+                  : tokenDescription || t("noTokenDescription")}
+            </p>
+            {metadataError && (
+              <button type="button" onClick={retryMetadata}>
+                {t("retry")}
+              </button>
+            )}
+            {tokenDescription.length > 120 && (
+              <button
+                type="button"
+                onClick={() => setDescriptionExpanded((expanded) => !expanded)}
+              >
+                {descriptionExpanded
+                  ? t("collapseDescription")
+                  : t("expandDescription")}
+              </button>
+            )}
+          </section>
+        )}
         {isAdvancedTemplate && (
           <section
             className={`tax-template-card${tokenomicsExpanded ? " mobile-expanded" : ""}`}
