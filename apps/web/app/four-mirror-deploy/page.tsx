@@ -1,0 +1,9 @@
+import { FourMirrorDeployClient } from "@/components/four-mirror-deploy-client";
+import { resolveAdminSigningWallet } from "@/lib/admin-signing-wallet";
+
+export default function FourMirrorDeployPage() {
+  const authorizedWallet = resolveAdminSigningWallet(
+    process.env.BNBX_ADMIN_SIGNING_WALLET,
+  );
+  return <FourMirrorDeployClient authorizedWallet={authorizedWallet} />;
+}
