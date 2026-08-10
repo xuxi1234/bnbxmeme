@@ -30,7 +30,10 @@ import {
 } from "@/lib/localization-copy";
 import { startVisiblePolling } from "@/lib/visible-polling";
 import { pinFeaturedExternalEntry } from "@/lib/featured-market-core";
-import type { FeaturedMarketData } from "@/lib/featured-market-data";
+import {
+  mergeFeaturedMarketScore,
+  type FeaturedMarketData,
+} from "@/lib/featured-market-data";
 
 type MarketEntry = {
   token: `0x${string}`;
@@ -403,17 +406,9 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         if (!response.ok) return;
         const data = (await response.json()) as FeaturedMarketData;
         if (controller.signal.aborted) return;
-        setFeaturedScore({
-          pricePerMillion:
-            data.priceUsd === undefined ? undefined : data.priceUsd * 1_000_000,
-          bnbUsd: 1,
-          marketCapUsd: data.marketCapUsd,
-          volume24hUsd: data.volume24hUsd,
-          liquidityUsd: data.liquidityUsd,
-          priceChange24h: data.priceChange24h,
-          activity: data.trades24h,
-          createdAt: data.createdAt,
-        });
+        setFeaturedScore((current) =>
+          mergeFeaturedMarketScore(current, data),
+        );
       } catch {
         // The official row remains visible with explicit unavailable metrics.
       }
