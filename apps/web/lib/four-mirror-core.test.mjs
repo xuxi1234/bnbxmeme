@@ -84,66 +84,58 @@ test("selects the highest-liquidity BSC Pancake pair", () => {
   assert.equal(pair?.liquidity?.usd, 25_000);
 });
 
-test("accepts only candidates meeting all balanced thresholds", () => {
+test("accepts candidates at the lowered market and holder thresholds", () => {
   assert.deepEqual(
     evaluateMirrorEligibility({
-      liquidityUsd: 10_000,
-      volume24hUsd: 20_000,
-      security: safeSecurity,
+      liquidityUsd: 3_000,
+      volume24hUsd: 5_000,
+      security: { ...safeSecurity, holder_count: "30" },
     }),
-    { eligible: true, reasons: [] },
+    { eligible: true, reasons: [], warnings: [] },
   );
   assert.deepEqual(
     evaluateMirrorEligibility({
-      liquidityUsd: 9_999,
-      volume24hUsd: 19_999,
-      security: { ...safeSecurity, holder_count: "99" },
+      liquidityUsd: 2_999,
+      volume24hUsd: 4_999,
+      security: { ...safeSecurity, holder_count: "29" },
     }),
-    {
-      eligible: false,
-      reasons: ["liquidity", "volume24h", "holders"],
-    },
+    { eligible: false, reasons: ["liquidity", "volume24h", "holders"], warnings: [] },
   );
 });
 
-test("fails closed when security data is missing or reports a blocking risk", () => {
+test("fails closed when security data is missing or reports a hard blocking risk", () => {
   assert.deepEqual(
-    evaluateMirrorEligibility({
-      liquidityUsd: 50_000,
-      volume24hUsd: 70_000,
-      security: null,
-    }).reasons,
-    ["security-unavailable"],
+    evaluateMirrorEligibility({ liquidityUsd: 5_000, volume24hUsd: 8_000, security: null }),
+    { eligible: false, reasons: ["security-unavailable"], warnings: [] },
   );
-
-  const riskFields = [
-    "is_honeypot",
-    "is_mintable",
-    "is_blacklisted",
-    "cannot_buy",
-    "cannot_sell_all",
-    "hidden_owner",
-    "is_proxy",
-    "selfdestruct",
-    "transfer_pausable",
-    "external_call",
-  ];
-  for (const field of riskFields) {
+  for (const field of ["is_honeypot", "cannot_buy", "cannot_sell_all"]) {
     const result = evaluateMirrorEligibility({
-      liquidityUsd: 50_000,
-      volume24hUsd: 70_000,
-      security: { ...safeSecurity, [field]: "1" },
+      liquidityUsd: 5_000,
+      volume24hUsd: 8_000,
+      security: { ...safeSecurity, holder_count: "30", [field]: "1" },
     });
     assert.equal(result.eligible, false, field);
-    assert.ok(result.reasons.includes(field), field);
+    assert.deepEqual(result.reasons, [field], field);
   }
+});
 
+test("keeps inherited source-contract risks as visible warnings", () => {
   assert.deepEqual(
     evaluateMirrorEligibility({
-      liquidityUsd: 50_000,
-      volume24hUsd: 70_000,
-      security: { ...safeSecurity, is_open_source: "0" },
-    }).reasons,
-    ["not-open-source"],
+      liquidityUsd: 5_000,
+      volume24hUsd: 8_000,
+      security: {
+        ...safeSecurity,
+        holder_count: "30",
+        is_open_source: "0",
+        is_mintable: "1",
+        hidden_owner: "1",
+      },
+    }),
+    {
+      eligible: true,
+      reasons: [],
+      warnings: ["not-open-source", "is_mintable", "hidden_owner"],
+    },
   );
 });
