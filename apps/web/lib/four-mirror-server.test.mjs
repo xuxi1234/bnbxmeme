@@ -185,7 +185,7 @@ test("batches market data and checks qualifying token risks individually", async
   assert.equal(mirrors.every((mirror) => mirror.eligible), true);
 });
 
-test("revalidates and pins disclosed mirror metadata before deployment", async () => {
+test("pins the original Four description separately from mirror disclosure", async () => {
   let pinnedMetadata;
   const result = await prepareFourMirrorMetadataWith(address, {
     fetcher: createFetcher(),
@@ -204,8 +204,11 @@ test("revalidates and pins disclosed mirror metadata before deployment", async (
   assert.equal(pinnedMetadata.image, "ipfs://mirror-logo");
   assert.equal(pinnedMetadata.sourceContract, address);
   assert.equal(pinnedMetadata.sourcePlatform, "Four.meme");
-  assert.match(pinnedMetadata.description, /社区镜像/);
-  assert.match(pinnedMetadata.description, /非原项目官方发行/);
+  assert.equal(pinnedMetadata.description, detail.descr);
+  assert.equal(
+    pinnedMetadata.mirrorDisclosure,
+    "社区镜像 / 非原项目官方发行",
+  );
 });
 
 test("prepares a fresh zero-tax mirror even when the source contract has warnings", async () => {
