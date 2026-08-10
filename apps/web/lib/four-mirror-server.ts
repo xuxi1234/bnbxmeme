@@ -307,15 +307,10 @@ export async function prepareFourMirrorMetadataWith(
     ? await dependencies.pinImage(candidate.imageUrl)
     : "";
   const disclosure = "社区镜像 / 非原项目官方发行";
-  const sourceStatement = `原始 Four.meme 合约：${candidate.sourceAddress}`;
-  const description = [disclosure, sourceStatement, candidate.description]
-    .filter(Boolean)
-    .join("。")
-    .slice(0, 500);
   const metadata = {
     name: candidate.name,
     symbol: candidate.symbol,
-    description,
+    description: candidate.description,
     image,
     website: candidate.sourceUrl,
     telegram: candidate.telegram,
