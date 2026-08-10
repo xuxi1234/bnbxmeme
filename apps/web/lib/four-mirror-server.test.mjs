@@ -111,6 +111,7 @@ test("discovers and enriches a Four graduate using live boundary shapes", async 
     pairUrl: "https://dexscreener.com/bsc/panda",
     eligible: true,
     reasons: [],
+    warnings: [],
   });
 });
 
