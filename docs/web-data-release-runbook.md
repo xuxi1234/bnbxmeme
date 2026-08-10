@@ -30,6 +30,28 @@ endpoint.
 
 Never print, paste into an issue, or commit any environment value.
 
+### RPC cost-containment invariants
+
+- Homepage market scoring must call `/api/chain-data?mode=cache` and read only
+  `chain_data_cache`. Cache-only requests never call BSC RPC.
+- Missing Supabase configuration, a failed cache read, or a missing cache row
+  fails closed. None of these cases may fall back to an unchecked historical
+  scan.
+- A refresh scans at most 20,000 blocks. Further history is completed by later
+  bounded refreshes from the saved checkpoint.
+- A compatible fresh cache is returned before project validation or any other
+  BSC read.
+- A compatible stale or partial cache must first win the atomic
+  `latest_block` + `refreshed_at` lease. Losing Vercel instances return stale
+  cache or HTTP 503 without calling BSC RPC.
+- The route duration is 300 seconds and the lease is 360 seconds. The final
+  cache write must still own both the claimed block and timestamp.
+- A cold cache row is created only after the token, Curve, Factory, and active
+  Pair identity have been validated as an official BNBX project.
+- The homepage catalog and token detail data poll every 60 seconds. Homepage
+  market scores poll every five minutes. `/api/market-data` uses a 60-second
+  CDN cache.
+
 ## 2. Apply database migrations
 
 Apply migrations in filename order. A database that already contains the
@@ -124,6 +146,15 @@ logs:
 
 Check for `error` or `fatal` runtime logs and record response times for the
 first historical backfill and a cached follow-up request.
+
+Also verify the RPC cost envelope:
+
+- a homepage load produces cache-only chain-data responses and no BSC RPC;
+- two simultaneous stale requests result in one lease winner and one stale or
+  503 response;
+- no single refresh requests a range wider than 20,000 blocks;
+- Alchemy request counts remain flat while the Preview is idle and do not grow
+  linearly with the number of browser tabs.
 
 ## 5. Rollback
 

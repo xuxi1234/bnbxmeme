@@ -103,18 +103,61 @@ test("wires visible polling into every production API poller", async () => {
   }
 });
 
-test("polls market scores independently once per minute", async () => {
+test("polls market scores independently once per five minutes", async () => {
   const source = await readFile(
     new URL("../components/token-market.tsx", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /const SCORE_POLL_INTERVAL_MS = 60_000/);
+  assert.match(source, /const SCORE_POLL_INTERVAL_MS = 300_000/);
   assert.match(
     source,
     /startVisiblePolling\(\s*refreshScores,\s*SCORE_POLL_INTERVAL_MS,\s*\)/,
   );
   assert.match(source, /\[indexReloadKey, scoreRefreshKey\]/);
+});
+
+test("uses sixty second polling for market catalogs and token chain data", async () => {
+  const market = await readFile(
+    new URL("../components/token-market.tsx", import.meta.url),
+    "utf8",
+  );
+  const trading = await readFile(
+    new URL("../app/token/[address]/token-trading-page.tsx", import.meta.url),
+    "utf8",
+  );
+  const chart = await readFile(
+    new URL("../components/bonding-curve-chart.tsx", import.meta.url),
+    "utf8",
+  );
+  const activity = await readFile(
+    new URL("../components/token-activity.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(market, /startVisiblePolling\([\s\S]*?loadMarket[\s\S]*?60_000/);
+  assert.doesNotMatch(market, /creator \? 60_000 : 15_000/);
+  assert.match(trading, /startVisiblePolling\(load, 60_000\)/);
+  assert.match(chart, /startVisiblePolling\(load, 60_000\)/);
+  assert.match(activity, /startVisiblePolling\(load, 60_000\)/);
+});
+
+test("home market scores use cache-only chain data", async () => {
+  const source = await readFile(
+    new URL("../components/token-market.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /\/api\/chain-data\?mode=cache&curve=/);
+});
+
+test("market data uses a sixty second CDN cache", async () => {
+  const source = await readFile(
+    new URL("../app/api/market-data/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /s-maxage=60, stale-while-revalidate=300/);
 });
 
 test("does not restart activity polling when result counts change", async () => {

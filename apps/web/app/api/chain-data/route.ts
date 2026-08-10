@@ -21,6 +21,18 @@ import {
   type IndexedTrade,
   type IndexedTokenTransfer,
 } from "@/lib/chain-data-core";
+import {
+  MAX_CHAIN_DATA_BACKFILL_BLOCKS,
+  classifyCacheTimestamp,
+  normalizeChainDataMode,
+  type ChainDataMode,
+} from "@/lib/chain-data-cost-policy";
+import {
+  buildClaimedRefreshTimestamp,
+  buildRefreshLeaseFilters,
+  canAttemptRefreshLease,
+} from "@/lib/chain-data-refresh-lease";
+import { officialFactoryAddresses } from "@/lib/deployments";
 import { resolveFactoryDeploymentBlock } from "@/lib/factory-deployment-blocks";
 import {
   serverLogClient as logClient,
@@ -30,6 +42,7 @@ import { createInFlightRequestCoalescer } from "@/lib/server-request-coalescing"
 import { validateTokenProject } from "@/lib/token-project-server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const boughtEvent = parseAbiItem(
   "event Bought(address indexed buyer, uint256 grossBNB, uint256 feeBNB, uint256 netBNB, uint256 tokensOut, uint256 refundBNB)",
@@ -47,7 +60,6 @@ const swapEvent = parseAbiItem(
   "event Swap(address indexed sender, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out, address indexed to)",
 );
 const LOG_BLOCK_RANGE = 10_000n;
-const CACHE_MAX_AGE_MS = 10_000;
 const LP_BURN_ADDRESS = "0x000000000000000000000000000000000000dead";
 const coalesceChainDataRequest =
   createInFlightRequestCoalescer<NextResponse>();
@@ -83,6 +95,12 @@ type ChainDataPayload = {
     chainHead: string;
   };
   _index?: ChainIndexState;
+};
+
+type ChainDataCacheRow = {
+  payload: ChainDataPayload;
+  refreshed_at: string;
+  latest_block: number | string;
 };
 
 const pairReadAbi = [
@@ -170,7 +188,9 @@ function cacheHeaders() {
 }
 
 async function readCachedChainData(curveAddress: string) {
-  if (!supabaseUrl || !supabaseSecret) return null;
+  if (!supabaseUrl || !supabaseSecret) {
+    throw new Error("Chain cache is not configured");
+  }
   const query = new URL("/rest/v1/chain_data_cache", supabaseUrl);
   query.searchParams.set("chain_id", "eq.56");
   query.searchParams.set("curve_address", `eq.${curveAddress.toLowerCase()}`);
@@ -180,12 +200,10 @@ async function readCachedChainData(curveAddress: string) {
     headers: cacheHeaders(),
     cache: "no-store",
   });
-  if (!response.ok) return null;
-  const rows = (await response.json()) as Array<{
-    payload: ChainDataPayload;
-    refreshed_at: string;
-    latest_block: number | string;
-  }>;
+  if (!response.ok) {
+    throw new Error(`Chain cache read failed with status ${response.status}`);
+  }
+  const rows = (await response.json()) as ChainDataCacheRow[];
   return rows[0] ?? null;
 }
 
@@ -194,9 +212,12 @@ async function writeCachedChainData(
   tokenAddress: string | null,
   latestBlock: bigint,
   payload: ChainDataPayload,
-  expectedLatestBlock: string | null,
+  expectedLatestBlock: string,
+  expectedRefreshedAt: string,
 ) {
-  if (!supabaseUrl || !supabaseSecret) return true;
+  if (!supabaseUrl || !supabaseSecret) {
+    throw new Error("Chain cache is not configured");
+  }
   const endpoint = new URL("/rest/v1/chain_data_cache", supabaseUrl);
   const row = {
     chain_id: 56,
@@ -207,27 +228,8 @@ async function writeCachedChainData(
     refreshed_at: new Date().toISOString(),
   };
 
-  if (expectedLatestBlock === null) {
-    endpoint.searchParams.set("on_conflict", "chain_id,curve_address");
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        ...cacheHeaders(),
-        Prefer: "resolution=ignore-duplicates,return=representation",
-      },
-      body: JSON.stringify(row),
-    });
-    if (!response.ok) {
-      throw new Error(
-        `Chain cache insert failed with status ${response.status}`,
-      );
-    }
-    const inserted = (await response.json()) as unknown[];
-    return inserted.length > 0;
-  }
-
-  // Optimistic checkpoint comparison prevents a slower request from
-  // overwriting a newer incremental snapshot.
+  // The final write owns both the scanned checkpoint and the exact lease.
+  // This prevents an expired worker from overwriting a newer refresh.
   endpoint.searchParams.set("chain_id", "eq.56");
   endpoint.searchParams.set(
     "curve_address",
@@ -237,6 +239,7 @@ async function writeCachedChainData(
     "latest_block",
     exactCheckpointFilter(expectedLatestBlock),
   );
+  endpoint.searchParams.set("refreshed_at", `eq.${expectedRefreshedAt}`);
   const response = await fetch(endpoint, {
     method: "PATCH",
     headers: {
@@ -250,6 +253,68 @@ async function writeCachedChainData(
   }
   const updated = (await response.json()) as unknown[];
   return updated.length > 0;
+}
+
+async function claimExistingRefreshLease(
+  curveAddress: string,
+  cached: ChainDataCacheRow,
+) {
+  if (!supabaseUrl || !supabaseSecret) return null;
+  if (!canAttemptRefreshLease(cached.refreshed_at)) return null;
+  const claimedRefreshedAt = buildClaimedRefreshTimestamp();
+  const endpoint = new URL("/rest/v1/chain_data_cache", supabaseUrl);
+  endpoint.searchParams.set("chain_id", "eq.56");
+  endpoint.searchParams.set(
+    "curve_address",
+    `eq.${curveAddress.toLowerCase()}`,
+  );
+  const filters = buildRefreshLeaseFilters({
+    latestBlock: String(cached.latest_block),
+    refreshedAt: cached.refreshed_at,
+  });
+  endpoint.searchParams.set("latest_block", filters.latest_block);
+  endpoint.searchParams.set("refreshed_at", filters.refreshed_at);
+  const response = await fetch(endpoint, {
+    method: "PATCH",
+    headers: { ...cacheHeaders(), Prefer: "return=representation" },
+    body: JSON.stringify({ refreshed_at: claimedRefreshedAt }),
+  });
+  if (!response.ok) {
+    throw new Error(`Chain cache lease failed with status ${response.status}`);
+  }
+  const claimed = (await response.json()) as unknown[];
+  return claimed.length > 0 ? claimedRefreshedAt : null;
+}
+
+async function createColdRefreshLease(
+  curveAddress: string,
+  tokenAddress: string,
+  latestBlock: bigint,
+) {
+  if (!supabaseUrl || !supabaseSecret) return null;
+  const claimedRefreshedAt = buildClaimedRefreshTimestamp();
+  const endpoint = new URL("/rest/v1/chain_data_cache", supabaseUrl);
+  endpoint.searchParams.set("on_conflict", "chain_id,curve_address");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      ...cacheHeaders(),
+      Prefer: "resolution=ignore-duplicates,return=representation",
+    },
+    body: JSON.stringify({
+      chain_id: 56,
+      curve_address: curveAddress.toLowerCase(),
+      token_address: tokenAddress.toLowerCase(),
+      latest_block: latestBlock.toString(),
+      payload: { trades: [], holders: [], bnbUsd: 0 },
+      refreshed_at: claimedRefreshedAt,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Chain cache lease insert failed with status ${response.status}`);
+  }
+  const inserted = (await response.json()) as unknown[];
+  return inserted.length > 0 ? claimedRefreshedAt : null;
 }
 
 async function getBoughtLogs(
@@ -542,7 +607,89 @@ function backfillResponse(
   };
 }
 
-async function handleChainDataRequest(request: NextRequest) {
+function compatibleCachedIndex(
+  cached: ChainDataCacheRow | null,
+  curve: `0x${string}`,
+  token: `0x${string}`,
+  pair: `0x${string}` | null,
+) {
+  if (!cached) return null;
+  for (const factory of officialFactoryAddresses) {
+    const deploymentBlock = resolveFactoryDeploymentBlock(factory);
+    if (deploymentBlock === null) continue;
+    const identity: ChainIndexIdentity = {
+      factory,
+      token,
+      curve,
+      pair,
+      deploymentBlock: deploymentBlock.toString(),
+    };
+    if (isCompatibleIndexState(cached.payload._index, identity)) {
+      return cached.payload._index;
+    }
+  }
+  return null;
+}
+
+function chainCacheUnavailable() {
+  return NextResponse.json(
+    {
+      code: "CHAIN_CACHE_UNAVAILABLE",
+      error: "Cached chain data is temporarily unavailable",
+    },
+    { status: 503, headers: { "Cache-Control": "no-store" } },
+  );
+}
+
+function serveCachedChainData(
+  cached: ChainDataCacheRow,
+  cachedIndex: ChainIndexState,
+) {
+  const timestampState = classifyCacheTimestamp(cached.refreshed_at);
+  if (!cachedIndex.complete) {
+    if (!cached.payload.market) return chainCacheUnavailable();
+    return NextResponse.json(
+      backfillResponse(
+        cachedIndex,
+        BigInt(cachedIndex.latestBlock),
+        cached.payload.market,
+        cached.payload.bnbUsd,
+      ),
+      {
+        status: 202,
+        headers: {
+          "Cache-Control": "no-store",
+          "Retry-After": "60",
+          "X-BNBX-Chain-Cache":
+            timestampState === "fresh" ? "HIT" : "STALE",
+          "X-BNBX-Chain-Index": "BACKFILLING",
+        },
+      },
+    );
+  }
+  return NextResponse.json(
+    publicPayload(cached.payload, BigInt(cachedIndex.latestBlock)),
+    {
+      headers: {
+        "Cache-Control":
+          timestampState === "fresh"
+            ? "public, s-maxage=60, stale-while-revalidate=300"
+            : "public, s-maxage=30, stale-while-revalidate=300",
+        ...(timestampState === "fresh"
+          ? {}
+          : { Warning: '110 - "Serving stale chain cache"' }),
+        "X-BNBX-Chain-Cache":
+          timestampState === "fresh" ? "HIT" : "STALE",
+        "X-BNBX-Chain-Index": "COMPLETE",
+      },
+    },
+  );
+}
+
+async function handleChainDataRequest(
+  request: NextRequest,
+  mode: ChainDataMode,
+) {
   const curve = request.nextUrl.searchParams.get("curve");
   const token = request.nextUrl.searchParams.get("token");
   const pair = request.nextUrl.searchParams.get("pair");
@@ -554,6 +701,66 @@ async function handleChainDataRequest(request: NextRequest) {
     (pair && !isAddress(pair))
   ) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+
+  if (!supabaseUrl || !supabaseSecret) return chainCacheUnavailable();
+  const requestedCurve = curve as `0x${string}`;
+  const requestedToken = token as `0x${string}`;
+  const requestedPair = pair as `0x${string}` | null;
+  let cached: ChainDataCacheRow | null;
+  try {
+    cached = await readCachedChainData(requestedCurve);
+  } catch {
+    return chainCacheUnavailable();
+  }
+  let cachedIndex = compatibleCachedIndex(
+    cached,
+    requestedCurve,
+    requestedToken,
+    requestedPair,
+  );
+
+  if (mode === "cache") {
+    return cached && cachedIndex
+      ? serveCachedChainData(cached, cachedIndex)
+      : chainCacheUnavailable();
+  }
+
+  if (
+    cached &&
+    cachedIndex?.complete &&
+    cached.payload.market?.priceSource === "reserve" &&
+    classifyCacheTimestamp(cached.refreshed_at) === "fresh"
+  ) {
+    return serveCachedChainData(cached, cachedIndex);
+  }
+
+  let claimedRefreshedAt: string | null = null;
+  let claimedLatestBlock: string | null = null;
+  if (cached && cachedIndex) {
+    try {
+      claimedRefreshedAt = await claimExistingRefreshLease(
+        requestedCurve,
+        cached,
+      );
+    } catch {
+      return serveCachedChainData(cached, cachedIndex);
+    }
+    if (!claimedRefreshedAt) {
+      const concurrent = await readCachedChainData(requestedCurve).catch(
+        () => cached,
+      );
+      const concurrentIndex = compatibleCachedIndex(
+        concurrent,
+        requestedCurve,
+        requestedToken,
+        requestedPair,
+      );
+      return concurrent && concurrentIndex
+        ? serveCachedChainData(concurrent, concurrentIndex)
+        : chainCacheUnavailable();
+    }
+    claimedLatestBlock = String(cached.latest_block);
   }
 
   const project = await validateTokenProject(token);
@@ -587,7 +794,6 @@ async function handleChainDataRequest(request: NextRequest) {
 
   const curveAddress = project.curve;
   const tokenAddress = project.token;
-  const requestedPair = pair as `0x${string}` | null;
   let curveMarketConfig: Awaited<ReturnType<typeof readCurveMarketConfig>>;
   try {
     curveMarketConfig = await readCurveMarketConfig(curveAddress);
@@ -642,28 +848,50 @@ async function handleChainDataRequest(request: NextRequest) {
     pair: pairAddress,
     deploymentBlock: deploymentBlock.toString(),
   };
-  let cached = await readCachedChainData(curveAddress).catch(() => null);
-  let cachedIndex =
+  cachedIndex =
     cached && isCompatibleIndexState(cached.payload._index, identity)
       ? cached.payload._index
       : null;
 
-  if (
-    cached &&
-    cachedIndex?.complete &&
-    cached.payload.market?.priceSource === "reserve" &&
-    Date.now() - new Date(cached.refreshed_at).getTime() < CACHE_MAX_AGE_MS
-  ) {
-    return NextResponse.json(
-      publicPayload(cached.payload, BigInt(cachedIndex.latestBlock)),
-      {
-        headers: {
-          "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
-          "X-BNBX-Chain-Cache": "HIT",
-          "X-BNBX-Chain-Index": "COMPLETE",
-        },
-      },
-    );
+  if (!claimedRefreshedAt || !claimedLatestBlock) {
+    try {
+      if (cached) {
+        claimedRefreshedAt = await claimExistingRefreshLease(
+          curveAddress,
+          cached,
+        );
+        claimedLatestBlock = claimedRefreshedAt
+          ? String(cached.latest_block)
+          : null;
+      } else {
+        const initialCheckpoint = deploymentBlock - 1n;
+        claimedRefreshedAt = await createColdRefreshLease(
+          curveAddress,
+          tokenAddress,
+          initialCheckpoint,
+        );
+        claimedLatestBlock = claimedRefreshedAt
+          ? initialCheckpoint.toString()
+          : null;
+      }
+    } catch {
+      claimedRefreshedAt = null;
+      claimedLatestBlock = null;
+    }
+    if (!claimedRefreshedAt || !claimedLatestBlock) {
+      const concurrent = await readCachedChainData(curveAddress).catch(
+        () => null,
+      );
+      const concurrentIndex = compatibleCachedIndex(
+        concurrent,
+        curveAddress,
+        tokenAddress,
+        pairAddress,
+      );
+      return concurrent && concurrentIndex
+        ? serveCachedChainData(concurrent, concurrentIndex)
+        : chainCacheUnavailable();
+    }
   }
 
   try {
@@ -689,13 +917,11 @@ async function handleChainDataRequest(request: NextRequest) {
     const checkpointBlock = cachedIndex
       ? BigInt(cachedIndex.latestBlock)
       : null;
-    const maxBlocks =
-      supabaseUrl && supabaseSecret ? undefined : latest - deploymentBlock + 1n;
     const scanWindow = resolveScanWindow({
       deploymentBlock,
       checkpointBlock,
       chainHead: latest,
-      ...(maxBlocks === undefined ? {} : { maxBlocks }),
+      maxBlocks: MAX_CHAIN_DATA_BACKFILL_BLOCKS,
     });
     const scanPromise = scanWindow.shouldScan
       ? Promise.all([
@@ -943,13 +1169,13 @@ async function handleChainDataRequest(request: NextRequest) {
       latestBlock: checkpoint.toString(),
       _index: indexState,
     };
-    const expectedLatestBlock = cached ? String(cached.latest_block) : null;
     const cacheWriteWon = await writeCachedChainData(
       curveAddress,
       tokenAddress,
       checkpoint,
       payload,
-      expectedLatestBlock,
+      claimedLatestBlock,
+      claimedRefreshedAt,
     );
     if (!cacheWriteWon) {
       const concurrent = await readCachedChainData(curveAddress);
@@ -1052,6 +1278,12 @@ async function handleChainDataRequest(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  let mode: ChainDataMode;
+  try {
+    mode = normalizeChainDataMode(request.nextUrl.searchParams.get("mode"));
+  } catch {
+    return NextResponse.json({ error: "Unsupported mode" }, { status: 400 });
+  }
   const curve = request.nextUrl.searchParams.get("curve");
   const token = request.nextUrl.searchParams.get("token");
   const pair = request.nextUrl.searchParams.get("pair");
@@ -1062,14 +1294,14 @@ export async function GET(request: NextRequest) {
     !isAddress(token) ||
     (pair && !isAddress(pair))
   ) {
-    return handleChainDataRequest(request);
+    return handleChainDataRequest(request, mode);
   }
 
   const key = [curve, token, pair ?? ""]
     .map((address) => address.toLowerCase())
     .join(":");
   const response = await coalesceChainDataRequest(key, () =>
-    handleChainDataRequest(request),
+    handleChainDataRequest(request, mode),
   );
   return response.clone();
 }

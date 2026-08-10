@@ -85,6 +85,47 @@ test("wires canonical request coalescing into the chain-data route", async () =>
     source,
     /const key = \[curve, token, pair \?\? ""\][\s\S]*address\.toLowerCase\(\)/,
   );
+  assert.doesNotMatch(source, /const key = \[[^\]]*mode/);
   assert.match(source, /coalesceChainDataRequest\(key/);
   assert.match(source, /return response\.clone\(\)/);
+});
+
+test("chain-data route fails closed and bounds every history scan", async () => {
+  const source = await readFile(
+    new URL("../app/api/chain-data/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /export const maxDuration = 300/);
+  assert.match(source, /MAX_CHAIN_DATA_BACKFILL_BLOCKS/);
+  assert.doesNotMatch(source, /latest - deploymentBlock \+ 1n/);
+  assert.match(source, /mode === "cache"/);
+  assert.match(source, /CHAIN_CACHE_UNAVAILABLE/);
+});
+
+test("returns cache-only and fresh-cache responses before BSC reads", async () => {
+  const source = await readFile(
+    new URL("../app/api/chain-data/route.ts", import.meta.url),
+    "utf8",
+  );
+  const handler = source.slice(source.indexOf("async function handleChainDataRequest"));
+
+  assert.ok(handler.indexOf('mode === "cache"') >= 0);
+  assert.ok(handler.indexOf('mode === "cache"') < handler.indexOf("validateTokenProject"));
+  assert.ok(handler.indexOf("serveCachedChainData(cached, cachedIndex)") < handler.indexOf("validateTokenProject"));
+  assert.ok(handler.indexOf("claimExistingRefreshLease") < handler.indexOf("validateTokenProject"));
+  assert.ok(handler.indexOf("claimExistingRefreshLease") < handler.indexOf("client.getBlockNumber"));
+});
+
+test("validates a cold project before creating its unique refresh row", async () => {
+  const source = await readFile(
+    new URL("../app/api/chain-data/route.ts", import.meta.url),
+    "utf8",
+  );
+  const handler = source.slice(source.indexOf("async function handleChainDataRequest"));
+
+  assert.ok(handler.indexOf("validateTokenProject") < handler.indexOf("createColdRefreshLease"));
+  assert.match(source, /writeCachedChainData\([\s\S]*claimedLatestBlock,[\s\S]*claimedRefreshedAt/);
+  assert.match(source, /endpoint\.searchParams\.set\("refreshed_at", `eq\.\$\{expectedRefreshedAt\}`\)/);
+  assert.match(source, /payload:\s*\{\s*trades:\s*\[\],\s*holders:\s*\[\],\s*bnbUsd:\s*0\s*\}/);
 });
