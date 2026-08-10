@@ -88,9 +88,9 @@ function walletMessage(error: unknown) {
 }
 
 export function FourMirrorDeployClient({
-  authorizedWallet,
+  authorizedWallets,
 }: {
-  authorizedWallet: string;
+  authorizedWallets: readonly string[];
 }) {
   const [mirrors, setMirrors] = useState<MirrorCandidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -209,7 +209,7 @@ export function FourMirrorDeployClient({
     const blocker = resolveMirrorDeployBlocker({
       isConnected,
       address,
-      authorizedWallet,
+      authorizedWallets,
       chainId,
       eligible: mirror.eligible,
       busy: globallyBusy,
@@ -292,7 +292,10 @@ export function FourMirrorDeployClient({
 
       <section className="four-mirror-statusbar">
         <div><small>正式 0 税 Factory</small><code>{shortAddress(zeroTaxFactoryAddress)}</code></div>
-        <div><small>授权钱包</small><code>{shortAddress(authorizedWallet)}</code></div>
+        <div>
+          <small>授权钱包</small>
+          <code>{authorizedWallets.map(shortAddress).join(" / ")}</code>
+        </div>
         <div><small>本轮合格</small><strong>{eligibleCount} / {mirrors.length}</strong></div>
         <button className="button secondary" type="button" onClick={() => void loadMirrors()} disabled={loading || globallyBusy}>刷新项目</button>
       </section>
@@ -303,7 +306,9 @@ export function FourMirrorDeployClient({
           <button className="button" type="button" onClick={() => switchChain({ chainId: bsc.id })}>切换到 BSC</button>
         </section>
       )}
-      {isConnected && address?.toLowerCase() !== authorizedWallet.toLowerCase() && (
+      {isConnected && !authorizedWallets.some(
+        (wallet) => wallet.toLowerCase() === address?.toLowerCase(),
+      ) && (
         <p className="four-mirror-error" role="alert">当前钱包无部署权限，请连接指定的 BNBX 管理钱包。</p>
       )}
       {stage && (
@@ -331,7 +336,7 @@ export function FourMirrorDeployClient({
             const blocker = resolveMirrorDeployBlocker({
               isConnected,
               address,
-              authorizedWallet,
+              authorizedWallets,
               chainId,
               eligible: mirror.eligible,
               busy: globallyBusy,
