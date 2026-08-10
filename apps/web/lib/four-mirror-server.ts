@@ -52,6 +52,7 @@ export type FourMirrorCandidate = NormalizedFourCandidate & {
   pairUrl: string;
   eligible: boolean;
   reasons: string[];
+  warnings: string[];
 };
 
 type PrepareDependencies = {
@@ -140,6 +141,7 @@ function unavailableCandidate(base: NormalizedFourCandidate): FourMirrorCandidat
     pairUrl: "",
     eligible: false,
     reasons: ["security-unavailable"],
+    warnings: [],
   };
 }
 
