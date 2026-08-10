@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { sanitizeMetadataCommunityLinks } from "@/lib/metadata-links";
+import { normalizeFourMirrorMetadata } from "@/lib/four-mirror-metadata";
 
 export type TokenMetadata = {
   name?: string;
@@ -14,6 +15,10 @@ export type TokenMetadata = {
   debox?: string;
   qqGroupNumber?: string;
   createdAt?: string;
+  mirrorDisclosure?: string;
+  sourcePlatform?: string;
+  sourceContract?: string;
+  sourceUrl?: string;
 };
 
 export function resolveContentURI(uri?: string) {
@@ -50,11 +55,15 @@ function sanitizeMetadata(value: unknown): TokenMetadata | null {
         ? properties.description
         : undefined;
   const communityLinks = sanitizeMetadataCommunityLinks(source);
+  const mirrorMetadata = normalizeFourMirrorMetadata({
+    ...source,
+    description: descriptionSource,
+  });
   return {
     name: typeof source.name === "string" ? source.name.slice(0, 40) : undefined,
     symbol:
       typeof source.symbol === "string" ? source.symbol.slice(0, 10) : undefined,
-    description: descriptionSource?.trim().slice(0, 500) || undefined,
+    ...mirrorMetadata,
     image:
       typeof source.image === "string"
         ? resolveContentURI(source.image)
