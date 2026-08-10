@@ -21,6 +21,19 @@ export type FeaturedMarketData = {
   trades24h?: number;
   createdAt?: number;
   marketUrl?: string;
+  holderCount?: number;
+};
+
+export type FeaturedMarketScore = {
+  pricePerMillion?: number;
+  bnbUsd?: number;
+  marketCapUsd?: number;
+  volume24hUsd?: number;
+  liquidityUsd?: number;
+  priceChange24h?: number;
+  activity?: number;
+  createdAt?: number;
+  holderCount?: number;
 };
 
 function finite(value: unknown) {
@@ -31,6 +44,7 @@ function finite(value: unknown) {
 
 export function normalizeFeaturedMarket(
   payload: unknown,
+  holderCount?: number,
 ): FeaturedMarketData | null {
   if (!payload || typeof payload !== "object" || !("pairs" in payload))
     return null;
@@ -57,5 +71,33 @@ export function normalizeFeaturedMarket(
       buys !== undefined && sells !== undefined ? buys + sells : undefined,
     createdAt: finite(pair.pairCreatedAt),
     marketUrl: typeof pair.url === "string" ? pair.url : undefined,
+    ...(finite(holderCount) === undefined
+      ? {}
+      : { holderCount: finite(holderCount) }),
+  };
+}
+
+export function parseBscScanHolderCount(html: string) {
+  const match = html.match(/\bHolders:\s*([1-9]\d*(?:,\d{3})*)\b/i);
+  if (!match) return undefined;
+  const value = Number(match[1].replaceAll(",", ""));
+  return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+export function mergeFeaturedMarketScore(
+  current: FeaturedMarketScore,
+  data: FeaturedMarketData,
+): FeaturedMarketScore {
+  return {
+    pricePerMillion:
+      data.priceUsd === undefined ? undefined : data.priceUsd * 1_000_000,
+    bnbUsd: 1,
+    marketCapUsd: data.marketCapUsd,
+    volume24hUsd: data.volume24hUsd,
+    liquidityUsd: data.liquidityUsd,
+    priceChange24h: data.priceChange24h,
+    activity: data.trades24h,
+    createdAt: data.createdAt,
+    holderCount: data.holderCount ?? current.holderCount,
   };
 }
