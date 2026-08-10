@@ -39,6 +39,7 @@ type MirrorCandidate = {
   pairUrl: string;
   eligible: boolean;
   reasons: string[];
+  warnings: string[];
 };
 
 type PrepareResult = {
@@ -50,9 +51,9 @@ type PrepareResult = {
 };
 
 const reasonCopy: Record<string, string> = {
-  liquidity: "流动性低于 10,000 USDT",
-  volume24h: "24h 交易量低于 20,000 USDT",
-  holders: "持币地址少于 100",
+  liquidity: "流动性低于 3,000 USDT",
+  volume24h: "24h 交易量低于 5,000 USDT",
+  holders: "持币地址少于 30",
   "security-unavailable": "安全数据暂不可用",
   "not-open-source": "原合约未开源",
   is_honeypot: "蜜罐风险",
@@ -276,7 +277,7 @@ export function FourMirrorDeployClient({
           <p className="eyebrow">BNBX ADMIN · FOUR MIRROR PREVIEW</p>
           <h1>Four 毕业币镜像部署</h1>
           <p>
-            自动读取 Four.meme 新毕业项目，通过平衡筛选后，由你的钱包逐个部署 BNBX 0 税版本。
+            自动读取 Four.meme 新毕业项目，通过实用筛选后，由你的钱包逐个部署 BNBX 0 税版本。
             每个按钮只弹出一笔主网交易。
           </p>
         </div>
@@ -365,6 +366,13 @@ export function FourMirrorDeployClient({
                 {!mirror.eligible && (
                   <ul className="four-mirror-reasons">
                     {mirror.reasons.map((reason) => <li key={reason}>{reasonCopy[reason] ?? reason}</li>)}
+                  </ul>
+                )}
+                {mirror.warnings.length > 0 && (
+                  <ul className="four-mirror-warnings">
+                    {mirror.warnings.map((warning) => (
+                      <li key={warning}>提示：{reasonCopy[warning] ?? warning}</li>
+                    ))}
                   </ul>
                 )}
                 <div className="four-mirror-links">
