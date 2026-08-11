@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { foundationCopy } from "./foundation-copy.ts";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
@@ -46,4 +47,14 @@ test("supports all site languages and responsive foundation styling", async () =
   assert.match(styles, /\.foundation-entry/);
   assert.match(styles, /\.foundation-directory-row/);
   assert.match(styles, /@media \(max-width: 719px\)[\s\S]*\.foundation-directory-row/);
+});
+
+test("uses 股 consistently for the Chinese foundation registry", () => {
+  const chineseCopy = Object.values(foundationCopy.zh).join(" ");
+
+  assert.equal(foundationCopy.zh.perShare, "每股数量");
+  assert.equal(foundationCopy.zh.totalShares, "总股数");
+  assert.equal(foundationCopy.zh.shares, "股数");
+  assert.equal(foundationCopy.zh.shareUnit, "股");
+  assert.doesNotMatch(chineseCopy, /份/);
 });
