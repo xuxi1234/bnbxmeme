@@ -3,8 +3,27 @@ export type MirrorQueueResult<T, R> =
   | { item: T; status: "failed" | "cancelled"; error: unknown };
 
 export function isWalletRejection(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return /User rejected|User denied|rejected the request/i.test(message);
+  let current = error;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (current && typeof current === "object") {
+      const candidate = current as {
+        code?: unknown;
+        name?: unknown;
+        message?: unknown;
+        shortMessage?: unknown;
+        cause?: unknown;
+      };
+      if (candidate.code === 4001 || candidate.name === "UserRejectedRequestError") {
+        return true;
+      }
+      const text = `${String(candidate.message ?? "")} ${String(candidate.shortMessage ?? "")}`;
+      if (/User rejected|User denied|rejected the request/i.test(text)) return true;
+      current = candidate.cause;
+      continue;
+    }
+    return /User rejected|User denied|rejected the request/i.test(String(current));
+  }
+  return false;
 }
 
 export function selectedMirrorFeeBNB(count: number) {

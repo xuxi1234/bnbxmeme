@@ -4,27 +4,44 @@ import { STANDARD_CREATE_GAS_LIMIT } from "./advanced-template-config.ts";
 import { zeroTaxFactoryAddress } from "./deployments.ts";
 import { zeroTaxFactoryDeploymentAbi } from "./zero-tax-factory-deployment.ts";
 
-export const FOUR_MIRROR_CREATION_FEE = parseEther("0.001");
+export const FLAP_MIRROR_CREATION_FEE = parseEther("0.001");
 
-export class SubmittedFourMirrorTransactionError extends Error {
+export type FlapMirrorOperatorSession = {
+  wallet: string;
+  expiresAt: number;
+};
+
+export function shouldReuseFlapMirrorSession(
+  session: FlapMirrorOperatorSession | null,
+  wallet: string,
+  now = Date.now(),
+) {
+  return Boolean(
+    session &&
+      session.wallet === wallet.toLowerCase() &&
+      session.expiresAt > now,
+  );
+}
+
+export class SubmittedFlapMirrorTransactionError extends Error {
   transactionHash: `0x${string}`;
 
   constructor(transactionHash: `0x${string}`, cause: unknown) {
-    super("Four mirror transaction was submitted; receipt status is uncertain", {
+    super("Flap mirror transaction was already submitted; receipt status is uncertain", {
       cause,
     });
-    this.name = "SubmittedFourMirrorTransactionError";
+    this.name = "SubmittedFlapMirrorTransactionError";
     this.transactionHash = transactionHash;
   }
 }
 
-export function isSubmittedFourMirrorTransaction(
+export function isSubmittedFlapMirrorTransaction(
   error: unknown,
-): error is SubmittedFourMirrorTransactionError {
-  return error instanceof SubmittedFourMirrorTransactionError;
+): error is SubmittedFlapMirrorTransactionError {
+  return error instanceof SubmittedFlapMirrorTransactionError;
 }
 
-export function buildFourMirrorCreateRequest({
+export function buildFlapMirrorCreateRequest({
   account,
   name,
   symbol,
@@ -44,7 +61,11 @@ export function buildFourMirrorCreateRequest({
   if (!symbol.trim() || symbol.trim().length > 10) {
     throw new Error("Invalid token symbol");
   }
-  if (!Number.isInteger(graduationTargetBNB) || graduationTargetBNB < 1 || graduationTargetBNB > 18) {
+  if (
+    !Number.isInteger(graduationTargetBNB) ||
+    graduationTargetBNB < 1 ||
+    graduationTargetBNB > 18
+  ) {
     throw new Error("Invalid graduation target");
   }
   if (
@@ -70,7 +91,7 @@ export function buildFourMirrorCreateRequest({
         vanitySalt,
       },
     ],
-    value: FOUR_MIRROR_CREATION_FEE,
+    value: FLAP_MIRROR_CREATION_FEE,
     gas: STANDARD_CREATE_GAS_LIMIT,
     chain: bsc,
     account,

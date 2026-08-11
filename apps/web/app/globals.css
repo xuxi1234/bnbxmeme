@@ -2133,6 +2133,7 @@ h2 {
   font-size: 12px;
 }
 .four-mirror-item-state.success { border-color: var(--brand); color: var(--brand); }
+.four-mirror-item-state.submitted { border-color: #e5a93b; color: #ffd37a; }
 .four-mirror-item-state.failed,
 .four-mirror-item-state.cancelled { border-color: #f26b5e; color: #ff9388; }
 .four-mirror-item-state div { display: flex; flex-wrap: wrap; gap: 12px; }

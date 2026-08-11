@@ -14,10 +14,12 @@ import {
 import { bsc } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
 import {
-  buildFourMirrorCreateRequest,
-  isSubmittedFourMirrorTransaction,
-  SubmittedFourMirrorTransactionError,
-} from "@/lib/four-mirror-deployment";
+  buildFlapMirrorCreateRequest,
+  isSubmittedFlapMirrorTransaction,
+  shouldReuseFlapMirrorSession,
+  type FlapMirrorOperatorSession,
+  SubmittedFlapMirrorTransactionError,
+} from "@/lib/flap-mirror-deployment";
 import { resolveMirrorDeployBlocker } from "@/lib/four-mirror-page-core";
 import {
   isWalletRejection,
@@ -38,14 +40,13 @@ type MirrorCandidate = {
   imageUrl: string;
   sourceUrl: string;
   createdAt: string | null;
-  description: string;
-  telegram: string;
-  twitter: string;
   graduationTargetBNB: number;
-  liquidityUsd: number;
-  volume24hUsd: number;
-  holderCount: number;
-  pairUrl: string;
+  marketCapUsd: number | null;
+  liquidityUsd: number | null;
+  volume24hUsd: number | null;
+  holderCount: number | null;
+  buyTaxPercent: number | null;
+  sellTaxPercent: number | null;
   eligible: boolean;
   reasons: string[];
   warnings: string[];
@@ -66,11 +67,6 @@ type QueueItemState = {
   token?: `0x${string}`;
 };
 
-type MirrorSession = {
-  wallet: string;
-  expiresAt: number;
-};
-
 const reasonCopy: Record<string, string> = {
   liquidity: "流动性低于 3,000 USDT",
   volume24h: "24h 交易量低于 5,000 USDT",
@@ -89,12 +85,18 @@ const reasonCopy: Record<string, string> = {
   external_call: "外部调用风险",
 };
 
-function formatUsd(value: number) {
+function formatUsd(value: number | null) {
+  if (value === null) return "暂无数据";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatTax(value: number | null) {
+  if (value === null) return "暂无数据";
+  return `${Number(value.toFixed(2))}%`;
 }
 
 function shortAddress(address: string) {
@@ -103,13 +105,13 @@ function shortAddress(address: string) {
 
 function walletMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  if (/User rejected|User denied|rejected the request/i.test(message)) {
+  if (isWalletRejection(error)) {
     return "你已在钱包中取消，本次没有发送交易。";
   }
   return message.split("\n")[0]?.slice(0, 240) || "部署失败";
 }
 
-export function FourMirrorDeployClient() {
+export function FlapMirrorDeployClient() {
   const [mirrors, setMirrors] = useState<MirrorCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -120,7 +122,8 @@ export function FourMirrorDeployClient() {
   const [stage, setStage] = useState("");
   const [vanityProgress, setVanityProgress] = useState(0);
   const [actionError, setActionError] = useState("");
-  const [mirrorSession, setMirrorSession] = useState<MirrorSession | null>(null);
+  const [operatorSession, setOperatorSession] =
+    useState<FlapMirrorOperatorSession | null>(null);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -131,19 +134,19 @@ export function FourMirrorDeployClient() {
     setLoading(true);
     setLoadError("");
     try {
-      const response = await fetch("/api/four-mirrors", { cache: "no-store" });
+      const response = await fetch("/api/flap-mirrors", { cache: "no-store" });
       const payload = (await response.json()) as {
         mirrors?: MirrorCandidate[];
         error?: string;
       };
       if (!response.ok || !Array.isArray(payload.mirrors)) {
-        throw new Error(payload.error ?? "Four 项目读取失败");
+        throw new Error(payload.error ?? "Flap 项目读取失败");
       }
       setMirrors(payload.mirrors);
       setSelectedAddresses([]);
       setQueueStates({});
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Four 项目读取失败");
+      setLoadError(error instanceof Error ? error.message : "Flap 项目读取失败");
     } finally {
       setLoading(false);
     }
@@ -213,18 +216,12 @@ export function FourMirrorDeployClient() {
     throw new Error("本轮未找到 1111 尾号，请重新点击再试");
   }
 
-  async function ensureMirrorSession(force = false) {
+  async function ensureOperatorSession(force = false) {
     if (!address) throw new Error("请先连接钱包");
-    if (
-      !force &&
-      mirrorSession?.wallet === address.toLowerCase() &&
-      mirrorSession.expiresAt > Date.now()
-    ) {
-      return;
-    }
-    setStage("请签署一次免 Gas 的钱包验证消息…");
+    if (!force && shouldReuseFlapMirrorSession(operatorSession, address)) return;
+    setStage("请签署一次免 Gas 的部署员登录消息…");
     const challengeResponse = await fetch(
-      `/api/four-mirrors/session?address=${encodeURIComponent(address)}`,
+      `/api/flap-mirrors/session?address=${encodeURIComponent(address)}`,
       { cache: "no-store" },
     );
     const challenge = (await challengeResponse.json()) as {
@@ -233,10 +230,10 @@ export function FourMirrorDeployClient() {
       error?: string;
     };
     if (!challengeResponse.ok || !challenge.token || !challenge.message) {
-      throw new Error(challenge.error ?? "钱包验证失败");
+      throw new Error(challenge.error ?? "部署员身份验证失败");
     }
     const signature = await signMessageAsync({ message: challenge.message });
-    const sessionResponse = await fetch("/api/four-mirrors/session", {
+    const sessionResponse = await fetch("/api/flap-mirrors/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -255,23 +252,23 @@ export function FourMirrorDeployClient() {
       typeof session.address !== "string" ||
       typeof session.expiresAt !== "number"
     ) {
-      throw new Error(session.error ?? "钱包会话建立失败");
+      throw new Error(session.error ?? "部署员会话建立失败");
     }
-    setMirrorSession({
+    setOperatorSession({
       wallet: session.address.toLowerCase(),
       expiresAt: session.expiresAt,
     });
   }
 
   async function prepareMirror(sourceAddress: string, retryUnauthorized = true) {
-    const response = await fetch("/api/four-mirrors/prepare", {
+    const response = await fetch("/api/flap-mirrors/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sourceAddress }),
     });
     if (response.status === 401 && retryUnauthorized) {
-      setMirrorSession(null);
-      await ensureMirrorSession(true);
+      setOperatorSession(null);
+      await ensureOperatorSession(true);
       return prepareMirror(sourceAddress, false);
     }
     return {
@@ -287,6 +284,7 @@ export function FourMirrorDeployClient() {
     setStage(`${position} · 正在准备 ${mirror.symbol} 的镜像资料…`);
     updateQueueState(mirror.sourceAddress, { status: "preparing", message: "准备资料与 1111 尾号" });
     const { response, prepared } = await prepareMirror(mirror.sourceAddress);
+    setStage(`${position} · 正在准备 ${mirror.symbol} 的镜像资料…`);
     if (
       !response.ok ||
       !prepared.metadataURI ||
@@ -305,7 +303,7 @@ export function FourMirrorDeployClient() {
     setStage(`${position} · 请在钱包中确认部署 ${prepared.symbol}`);
     updateQueueState(mirror.sourceAddress, { status: "wallet", message: "等待钱包确认" });
     const hash = await writeContractAsync(
-      buildFourMirrorCreateRequest({
+      buildFlapMirrorCreateRequest({
         account: address!,
         name: prepared.name,
         symbol: prepared.symbol,
@@ -329,7 +327,7 @@ export function FourMirrorDeployClient() {
         throw new Error("交易已确认，但未找到 TokenCreated 事件，请打开 BscScan 核对");
       }
     } catch (error) {
-      throw new SubmittedFourMirrorTransactionError(hash, error);
+      throw new SubmittedFlapMirrorTransactionError(hash, error);
     }
     updateQueueState(mirror.sourceAddress, {
       status: "success",
@@ -360,7 +358,7 @@ export function FourMirrorDeployClient() {
     setQueueRunning(true);
     setActionError("");
     try {
-      await ensureMirrorSession();
+      await ensureOperatorSession();
     } catch (error) {
       setActionError(walletMessage(error));
       setStage("");
@@ -378,7 +376,7 @@ export function FourMirrorDeployClient() {
           return await deployMirrorTransaction(mirror, index);
         } catch (error) {
           const cancelled = isWalletRejection(error);
-          const submitted = isSubmittedFourMirrorTransaction(error);
+          const submitted = isSubmittedFlapMirrorTransaction(error);
           updateQueueState(mirror.sourceAddress, {
             status: submitted ? "submitted" : cancelled ? "cancelled" : "failed",
             message: submitted
@@ -391,7 +389,7 @@ export function FourMirrorDeployClient() {
       },
       {
         shouldStop: (error) =>
-          isWalletRejection(error) || isSubmittedFourMirrorTransaction(error),
+          isWalletRejection(error) || isSubmittedFlapMirrorTransaction(error),
       },
     );
     const successCount = results.filter((result) => result.status === "success").length;
@@ -411,10 +409,10 @@ export function FourMirrorDeployClient() {
     <main className="four-mirror-shell">
       <section className="four-mirror-hero">
         <div>
-          <p className="eyebrow">BNBX · FOUR MIRROR</p>
-          <h1>Four 毕业币镜像部署</h1>
+          <p className="eyebrow">BNBX · FLAP MIRROR</p>
+          <h1>Flap 最新外盘镜像部署</h1>
           <p>
-            自动读取 Four.meme 新毕业项目。勾选你喜欢的项目后，系统会按顺序逐枚弹出钱包确认，
+            自动读取 Flap.sh 在 BSC 上最新的已毕业外盘。勾选你喜欢的项目后，系统会按顺序逐枚弹出钱包确认，
             每次只发送一笔 BNBX 0 税部署交易。
           </p>
         </div>
@@ -424,12 +422,12 @@ export function FourMirrorDeployClient() {
       <section className="four-mirror-warning" role="note">
         <strong>社区镜像 / 非原项目官方发行</strong>
         <span>
-          BNBX 版本与原 Four 项目合约地址不同。页面和 IPFS 资料都会保留原合约与来源链接，禁止冒充原项目官方。
+          BNBX 版本与原 Flap 项目合约地址不同。页面和 IPFS 资料都会保留原合约与来源链接，禁止冒充原项目官方。
         </span>
       </section>
 
       <p className="four-mirror-action-note">
-        任意钱包均可使用。开始批次时先签署一次免 Gas 的钱包验证消息；随后每枚代币只弹出一笔链上部署确认。
+        开始批次时先签署一次免 Gas 的部署员登录消息；随后每枚代币只弹出一笔链上部署确认。
       </p>
 
       <section className="four-mirror-statusbar">
@@ -493,13 +491,13 @@ export function FourMirrorDeployClient() {
       {actionError && <p className="four-mirror-error" role="alert">{actionError}</p>}
 
       {loading ? (
-        <p className="four-mirror-empty">正在读取 Four 新毕业项目并执行安全筛选…</p>
+        <p className="four-mirror-empty">正在读取 Flap 最新已毕业外盘项目并执行安全筛选…</p>
       ) : loadError ? (
         <p className="four-mirror-error" role="alert">{loadError}</p>
       ) : mirrors.length === 0 ? (
-        <p className="four-mirror-empty">本轮没有读取到可展示的 Four 毕业项目。</p>
+        <p className="four-mirror-empty">本轮没有读取到可展示的 Flap 毕业项目。</p>
       ) : (
-        <section className="four-mirror-grid" aria-label="Four 镜像候选项目">
+        <section className="four-mirror-grid" aria-label="Flap 镜像候选项目">
           {mirrors.map((mirror) => {
             const active = activeAddress === mirror.sourceAddress;
             const selected = selectedAddresses.includes(mirror.sourceAddress);
@@ -526,16 +524,22 @@ export function FourMirrorDeployClient() {
                     ) : <span>{mirror.symbol.slice(0, 2).toUpperCase()}</span>}
                   </div>
                   <div>
-                    <span className="four-mirror-badge">Four 已毕业 · 可部署</span>
+                    <span className="four-mirror-badge">Flap 已毕业 · 可部署</span>
                     <h2>{mirror.name}</h2>
                     <p>{mirror.symbol} · 毕业 {mirror.graduationTargetBNB} BNB</p>
                   </div>
                 </div>
-                <p className="four-mirror-description">{mirror.description || "Four.meme 未提供简介"}</p>
+                <p className="four-mirror-description">
+                  原合约 {shortAddress(mirror.sourceAddress)}
+                  {mirror.createdAt ? ` · 创建于 ${new Date(mirror.createdAt).toLocaleString("zh-CN")}` : ""}
+                </p>
                 <dl className="four-mirror-metrics">
-                  <div><dt>流动性</dt><dd>{formatUsd(mirror.liquidityUsd)}</dd></div>
+                  <div><dt>市值</dt><dd>{formatUsd(mirror.marketCapUsd)}</dd></div>
                   <div><dt>24h 交易量</dt><dd>{formatUsd(mirror.volume24hUsd)}</dd></div>
-                  <div><dt>持币地址</dt><dd>{mirror.holderCount.toLocaleString()}</dd></div>
+                  <div><dt>流动性</dt><dd>{formatUsd(mirror.liquidityUsd)}</dd></div>
+                  <div><dt>持币地址</dt><dd>{mirror.holderCount === null ? "暂无数据" : mirror.holderCount.toLocaleString()}</dd></div>
+                  <div><dt>买税</dt><dd>{formatTax(mirror.buyTaxPercent)}</dd></div>
+                  <div><dt>卖税</dt><dd>{formatTax(mirror.sellTaxPercent)}</dd></div>
                 </dl>
                 {mirror.reasons.length > 0 && (
                   <ul className="four-mirror-reasons">
@@ -550,9 +554,8 @@ export function FourMirrorDeployClient() {
                   </ul>
                 )}
                 <div className="four-mirror-links">
-                  <a href={mirror.sourceUrl} target="_blank" rel="noreferrer">Four 原项目 ↗</a>
+                  <a href={mirror.sourceUrl} target="_blank" rel="noreferrer">Flap 原项目 ↗</a>
                   <a href={`${blockExplorerUrl}/token/${mirror.sourceAddress}`} target="_blank" rel="noreferrer">原合约 ↗</a>
-                  {mirror.pairUrl && <a href={mirror.pairUrl} target="_blank" rel="noreferrer">外盘 ↗</a>}
                 </div>
                 {queueState && (
                   <div className={`four-mirror-item-state ${queueState.status}`}>

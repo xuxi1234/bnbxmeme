@@ -1,37 +1,35 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-import {
-  resolveFourMirrorAuthorizedWallets,
-  resolveMirrorDeployBlocker,
-} from "./four-mirror-page-core.ts";
+import { fileURLToPath } from "node:url";
+import { resolveMirrorDeployBlocker } from "./four-mirror-page-core.ts";
 
-const authorizedWallet = "0xbe37ab912de351b9312fa593c9f99e3279fdb0a2";
-const newlyAuthorizedWallet = "0x50ce802bc302ba36cd91d26f4b3aafeb631806d3";
+const webRoot = fileURLToPath(new URL("..", import.meta.url));
+
+async function source(path) {
+  return readFile(new URL(path, `file://${webRoot}/`), "utf8");
+}
+
 const ready = {
   isConnected: true,
-  address: authorizedWallet,
-  authorizedWallets: resolveFourMirrorAuthorizedWallets(authorizedWallet),
+  address: "0xbe37ab912de351b9312fa593c9f99e3279fdb0a2",
   chainId: 56,
   eligible: true,
   busy: false,
 };
 
-test("allows every configured BNBX wallet on BSC to deploy", () => {
+test("allows any connected wallet on BSC to deploy", () => {
   assert.equal(resolveMirrorDeployBlocker(ready), null);
-  assert.equal(
-    resolveMirrorDeployBlocker({ ...ready, address: newlyAuthorizedWallet }),
-    null,
-  );
-  assert.equal(
-    resolveMirrorDeployBlocker({ ...ready, isConnected: false, address: undefined }),
-    "wallet-required",
-  );
   assert.equal(
     resolveMirrorDeployBlocker({
       ...ready,
       address: "0x0000000000000000000000000000000000000001",
     }),
-    "unauthorized-wallet",
+    null,
+  );
+  assert.equal(
+    resolveMirrorDeployBlocker({ ...ready, isConnected: false, address: undefined }),
+    "wallet-required",
   );
   assert.equal(
     resolveMirrorDeployBlocker({ ...ready, chainId: 1 }),
@@ -55,4 +53,23 @@ test("allows every displayed Four graduate to enter the sequential queue", () =>
     resolveMirrorDeployBlocker({ ...ready, eligible: true }),
     null,
   );
+});
+
+test("requires a signed rate-limited session from any Four wallet before metadata preparation", async () => {
+  const [page, client, prepareRoute, sessionRoute, auth] = await Promise.all([
+    source("../app/four-mirror-deploy/page.tsx"),
+    source("../components/four-mirror-deploy-client.tsx"),
+    source("../app/api/four-mirrors/prepare/route.ts"),
+    source("../app/api/four-mirrors/session/route.ts"),
+    source("../lib/four-mirror-auth.ts"),
+  ]);
+
+  assert.doesNotMatch(page, /BNBX_ADMIN_SIGNING_WALLET|authorizedWallets/);
+  assert.match(client, /useSignMessage/);
+  assert.match(client, /\/api\/four-mirrors\/session/);
+  assert.match(prepareRoute, /requireFourMirrorSession/);
+  assert.match(prepareRoute, /consumeFourMirrorPrepareQuota/);
+  assert.match(sessionRoute, /createFourMirrorChallenge/);
+  assert.match(auth, /isAddress\(address\)/);
+  assert.doesNotMatch(auth, /BNBX_ADMIN_SIGNING_WALLET|resolveAdminSigningWallet/);
 });
