@@ -27,7 +27,7 @@ test("keeps the approved foundation registry in its original order", () => {
   });
   assert.deepEqual(foundationShareholders[21], {
     id: "022",
-    name: "BNBX平台方",
+    name: "范总",
     shares: 10,
   });
 });
