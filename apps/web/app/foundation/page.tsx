@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FoundationGoldX } from "@/components/foundation-gold-x";
 import { useLanguage } from "@/components/language-provider";
 import { foundationCopy } from "@/lib/foundation-copy";
 import {
@@ -39,7 +40,7 @@ export default function FoundationPage() {
           <h1>{copy.title}</h1>
           <p>{copy.lead}</p>
         </div>
-        <span className="foundation-hero-mark" aria-hidden="true">F</span>
+        <FoundationGoldX className="foundation-hero-mark" />
       </section>
 
       <section className="foundation-stats" aria-label={copy.progress}>

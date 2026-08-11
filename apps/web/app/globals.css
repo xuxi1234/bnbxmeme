@@ -4876,20 +4876,16 @@ h2 {
   outline: 2px solid var(--brand-bright);
   outline-offset: 3px;
 }
-.foundation-entry-shield,
+.foundation-entry-mark,
 .foundation-hero-mark {
-  display: grid;
-  place-items: center;
-  background: linear-gradient(145deg, #ffe16c, #a66a00);
-  color: #171006;
-  font-family: Georgia, serif;
-  font-weight: 900;
-  clip-path: polygon(50% 0, 92% 16%, 86% 70%, 50% 100%, 14% 70%, 8% 16%);
+  display: block;
+  flex: 0 0 auto;
+  overflow: visible;
 }
-.foundation-entry-shield {
+.foundation-entry-mark {
   width: 42px;
-  height: 46px;
-  font-size: 22px;
+  height: 42px;
+  filter: drop-shadow(0 4px 5px #0009) drop-shadow(0 0 7px #f5b71c55);
 }
 .foundation-entry strong {
   font-size: 13px;
@@ -4927,9 +4923,8 @@ h2 {
 }
 .foundation-hero-mark {
   width: clamp(104px, 16vw, 176px);
-  aspect-ratio: 0.9;
-  font-size: clamp(54px, 9vw, 96px);
-  filter: drop-shadow(0 22px 32px #0007);
+  height: auto;
+  filter: drop-shadow(0 22px 32px #0008) drop-shadow(0 0 24px #f5b71c42);
 }
 .foundation-stats {
   display: grid;
@@ -5106,10 +5101,9 @@ h2 {
     padding: 6px;
     border-radius: 17px;
   }
-  .foundation-entry-shield {
+  .foundation-entry-mark {
     width: 39px;
-    height: 42px;
-    font-size: 20px;
+    height: 39px;
   }
   .foundation-entry strong {
     position: absolute;

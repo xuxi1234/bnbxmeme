@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { foundationCopy } from "@/lib/foundation-copy";
+import { FoundationGoldX } from "./foundation-gold-x";
 import { useLanguage } from "./language-provider";
 
 export function FoundationEntry() {
@@ -10,7 +11,7 @@ export function FoundationEntry() {
 
   return (
     <Link className="foundation-entry" href="/foundation" aria-label={copy.entry}>
-      <span className="foundation-entry-shield" aria-hidden="true">F</span>
+      <FoundationGoldX className="foundation-entry-mark" />
       <strong>{copy.entry}</strong>
     </Link>
   );
