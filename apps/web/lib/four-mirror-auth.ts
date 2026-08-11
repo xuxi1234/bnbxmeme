@@ -4,7 +4,6 @@ import { createHmac, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { isAddress, type Address, type Hex } from "viem";
 import {
-  buildFlapMirrorLoginMessage,
   decodeFlapMirrorSession,
   encodeFlapMirrorSession,
   FlapMirrorRateLimiter,
@@ -15,7 +14,7 @@ import {
   MAX_ADMIN_SIGNATURE_BYTES,
 } from "@/lib/comment-signature-core";
 
-const COOKIE = "bnbx_flap_mirror_session";
+const COOKIE = "bnbx_four_mirror_session";
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 const SESSION_TTL_SECONDS = 60 * 60;
 const prepareLimiter = new FlapMirrorRateLimiter({
@@ -23,12 +22,12 @@ const prepareLimiter = new FlapMirrorRateLimiter({
   windowMs: 10 * 60_000,
 });
 
-export class FlapMirrorAuthError extends Error {
+export class FourMirrorAuthError extends Error {
   status: number;
 
   constructor(message: string, status: number) {
     super(message);
-    this.name = "FlapMirrorAuthError";
+    this.name = "FourMirrorAuthError";
     this.status = status;
   }
 }
@@ -43,7 +42,7 @@ function secret() {
   return value;
 }
 
-export function flapMirrorFingerprint(request: Request) {
+function fingerprint(request: Request) {
   const ip =
     request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ??
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -55,10 +54,34 @@ export function flapMirrorFingerprint(request: Request) {
     .slice(0, 32);
 }
 
-export function createFlapMirrorChallenge(request: Request, address: string) {
+function loginMessage({
+  address,
+  nonce,
+  expiresAt,
+  origin,
+}: {
+  address: string;
+  nonce: string;
+  expiresAt: number;
+  origin: string;
+}) {
+  return [
+    "BNBX Four mirror access",
+    "",
+    `Origin: ${origin}`,
+    "Chain ID: 56",
+    `Wallet: ${address.toLowerCase()}`,
+    `Nonce: ${nonce}`,
+    `Expires: ${new Date(expiresAt).toISOString()}`,
+    "",
+    "This signature is gasless and does not authorize transactions.",
+  ].join("\n");
+}
+
+export function createFourMirrorChallenge(request: Request, address: string) {
   if (!isAddress(address)) {
-    throw new FlapMirrorAuthError(
-      "Flap mirror wallet must be a valid BSC address",
+    throw new FourMirrorAuthError(
+      "Four mirror wallet must be a valid BSC address",
       400,
     );
   }
@@ -67,18 +90,12 @@ export function createFlapMirrorChallenge(request: Request, address: string) {
   const nonce = randomBytes(18).toString("hex");
   const origin = new URL(request.url).origin;
   const token = encodeFlapMirrorSession(
-    {
-      address: normalizedAddress,
-      exp,
-      nonce,
-      fp: flapMirrorFingerprint(request),
-      origin,
-    },
+    { address: normalizedAddress, exp, nonce, fp: fingerprint(request), origin },
     secret(),
   );
   return {
     token,
-    message: buildFlapMirrorLoginMessage({
+    message: loginMessage({
       address: normalizedAddress,
       nonce,
       expiresAt: exp * 1_000,
@@ -88,7 +105,7 @@ export function createFlapMirrorChallenge(request: Request, address: string) {
   };
 }
 
-export async function establishFlapMirrorSession(
+export async function establishFourMirrorSession(
   request: Request,
   input: { token?: unknown; message?: unknown; signature?: unknown },
 ) {
@@ -97,18 +114,18 @@ export async function establishFlapMirrorSession(
     typeof input.message !== "string" ||
     typeof input.signature !== "string"
   ) {
-    throw new FlapMirrorAuthError("Invalid Flap mirror login", 400);
+    throw new FourMirrorAuthError("Invalid Four mirror login", 400);
   }
   const payload = decodeFlapMirrorSession(input.token, secret());
   if (
     !payload?.nonce ||
-    payload.fp !== flapMirrorFingerprint(request) ||
+    payload.fp !== fingerprint(request) ||
     payload.origin !== new URL(request.url).origin ||
     !isAddress(payload.address)
   ) {
-    throw new FlapMirrorAuthError("Flap mirror challenge expired", 401);
+    throw new FourMirrorAuthError("Four mirror challenge expired", 401);
   }
-  const expectedMessage = buildFlapMirrorLoginMessage({
+  const expectedMessage = loginMessage({
     address: payload.address,
     nonce: payload.nonce,
     expiresAt: payload.exp * 1_000,
@@ -118,14 +135,14 @@ export async function establishFlapMirrorSession(
     input.message !== expectedMessage ||
     !isSupportedWalletSignature(input.signature, MAX_ADMIN_SIGNATURE_BYTES)
   ) {
-    throw new FlapMirrorAuthError("Flap mirror challenge mismatch", 401);
+    throw new FourMirrorAuthError("Four mirror challenge mismatch", 401);
   }
   const verified = await verifyWalletMessage({
     address: payload.address as Address,
     message: expectedMessage,
     signature: input.signature as Hex,
   }).catch(() => false);
-  if (!verified) throw new FlapMirrorAuthError("Invalid wallet signature", 401);
+  if (!verified) throw new FourMirrorAuthError("Invalid wallet signature", 401);
 
   const exp = Math.floor(Date.now() / 1_000) + SESSION_TTL_SECONDS;
   (await cookies()).set(
@@ -138,31 +155,34 @@ export async function establishFlapMirrorSession(
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      path: "/api/flap-mirrors",
+      path: "/api/four-mirrors",
       maxAge: SESSION_TTL_SECONDS,
     },
   );
   return { address: payload.address.toLowerCase(), expiresAt: exp * 1_000 };
 }
 
-export async function requireFlapMirrorSession(request: Request) {
+export async function requireFourMirrorSession(request: Request) {
   const payload = decodeFlapMirrorSession(
     (await cookies()).get(COOKIE)?.value,
     secret(),
   );
   if (
     !payload ||
-    payload.fp !== flapMirrorFingerprint(request) ||
+    payload.fp !== fingerprint(request) ||
     !isAddress(payload.address)
   ) {
-    throw new FlapMirrorAuthError("Unauthorized Flap mirror session", 401);
+    throw new FourMirrorAuthError("Unauthorized Four mirror session", 401);
   }
   return payload.address.toLowerCase();
 }
 
-export function consumeFlapMirrorPrepareQuota(request: Request, wallet: string) {
-  const key = `${wallet}:${flapMirrorFingerprint(request)}`;
+export function consumeFourMirrorPrepareQuota(request: Request, wallet: string) {
+  const key = `${wallet}:${fingerprint(request)}`;
   if (!prepareLimiter.consume(key)) {
-    throw new FlapMirrorAuthError("Flap mirror preparation rate limit exceeded", 429);
+    throw new FourMirrorAuthError(
+      "Four mirror preparation rate limit exceeded",
+      429,
+    );
   }
 }

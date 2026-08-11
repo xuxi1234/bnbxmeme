@@ -7,12 +7,17 @@ import { decodeEventLog, isAddress, type Hex } from "viem";
 import {
   useAccount,
   useChainId,
+  useSignMessage,
   useSwitchChain,
   useWriteContract,
 } from "wagmi";
 import { bsc } from "wagmi/chains";
 import { WalletButton } from "@/components/wallet-button";
-import { buildFourMirrorCreateRequest } from "@/lib/four-mirror-deployment";
+import {
+  buildFourMirrorCreateRequest,
+  isSubmittedFourMirrorTransaction,
+  SubmittedFourMirrorTransactionError,
+} from "@/lib/four-mirror-deployment";
 import { resolveMirrorDeployBlocker } from "@/lib/four-mirror-page-core";
 import {
   isWalletRejection,
@@ -55,10 +60,15 @@ type PrepareResult = {
 };
 
 type QueueItemState = {
-  status: "waiting" | "preparing" | "wallet" | "confirming" | "success" | "failed" | "cancelled";
+  status: "waiting" | "preparing" | "wallet" | "confirming" | "submitted" | "success" | "failed" | "cancelled";
   message: string;
   transactionHash?: Hex;
   token?: `0x${string}`;
+};
+
+type MirrorSession = {
+  wallet: string;
+  expiresAt: number;
 };
 
 const reasonCopy: Record<string, string> = {
@@ -99,11 +109,7 @@ function walletMessage(error: unknown) {
   return message.split("\n")[0]?.slice(0, 240) || "部署失败";
 }
 
-export function FourMirrorDeployClient({
-  authorizedWallets,
-}: {
-  authorizedWallets: readonly string[];
-}) {
+export function FourMirrorDeployClient() {
   const [mirrors, setMirrors] = useState<MirrorCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -114,10 +120,12 @@ export function FourMirrorDeployClient({
   const [stage, setStage] = useState("");
   const [vanityProgress, setVanityProgress] = useState(0);
   const [actionError, setActionError] = useState("");
+  const [mirrorSession, setMirrorSession] = useState<MirrorSession | null>(null);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const { writeContractAsync, isPending } = useWriteContract();
+  const { signMessageAsync, isPending: isSigning } = useSignMessage();
 
   const loadMirrors = useCallback(async () => {
     setLoading(true);
@@ -165,7 +173,7 @@ export function FourMirrorDeployClient({
     return token;
   }
 
-  const globallyBusy = queueRunning || isPending;
+  const globallyBusy = queueRunning || isPending || isSigning;
   const eligibleCount = useMemo(
     () => mirrors.filter((mirror) => mirror.eligible).length,
     [mirrors],
@@ -205,18 +213,80 @@ export function FourMirrorDeployClient({
     throw new Error("本轮未找到 1111 尾号，请重新点击再试");
   }
 
+  async function ensureMirrorSession(force = false) {
+    if (!address) throw new Error("请先连接钱包");
+    if (
+      !force &&
+      mirrorSession?.wallet === address.toLowerCase() &&
+      mirrorSession.expiresAt > Date.now()
+    ) {
+      return;
+    }
+    setStage("请签署一次免 Gas 的钱包验证消息…");
+    const challengeResponse = await fetch(
+      `/api/four-mirrors/session?address=${encodeURIComponent(address)}`,
+      { cache: "no-store" },
+    );
+    const challenge = (await challengeResponse.json()) as {
+      token?: string;
+      message?: string;
+      error?: string;
+    };
+    if (!challengeResponse.ok || !challenge.token || !challenge.message) {
+      throw new Error(challenge.error ?? "钱包验证失败");
+    }
+    const signature = await signMessageAsync({ message: challenge.message });
+    const sessionResponse = await fetch("/api/four-mirrors/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: challenge.token,
+        message: challenge.message,
+        signature,
+      }),
+    });
+    const session = (await sessionResponse.json()) as {
+      address?: string;
+      expiresAt?: number;
+      error?: string;
+    };
+    if (
+      !sessionResponse.ok ||
+      typeof session.address !== "string" ||
+      typeof session.expiresAt !== "number"
+    ) {
+      throw new Error(session.error ?? "钱包会话建立失败");
+    }
+    setMirrorSession({
+      wallet: session.address.toLowerCase(),
+      expiresAt: session.expiresAt,
+    });
+  }
+
+  async function prepareMirror(sourceAddress: string, retryUnauthorized = true) {
+    const response = await fetch("/api/four-mirrors/prepare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceAddress }),
+    });
+    if (response.status === 401 && retryUnauthorized) {
+      setMirrorSession(null);
+      await ensureMirrorSession(true);
+      return prepareMirror(sourceAddress, false);
+    }
+    return {
+      response,
+      prepared: (await response.json()) as PrepareResult,
+    };
+  }
+
   async function deployMirrorTransaction(mirror: MirrorCandidate, index: number) {
     setActiveAddress(mirror.sourceAddress);
     setVanityProgress(0);
     const position = `${index + 1}/${selectedMirrors.length}`;
     setStage(`${position} · 正在准备 ${mirror.symbol} 的镜像资料…`);
     updateQueueState(mirror.sourceAddress, { status: "preparing", message: "准备资料与 1111 尾号" });
-    const response = await fetch("/api/four-mirrors/prepare", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sourceAddress: mirror.sourceAddress }),
-    });
-    const prepared = (await response.json()) as PrepareResult;
+    const { response, prepared } = await prepareMirror(mirror.sourceAddress);
     if (
       !response.ok ||
       !prepared.metadataURI ||
@@ -250,9 +320,17 @@ export function FourMirrorDeployClient({
       message: "等待链上确认",
       transactionHash: hash,
     });
-    const receipt = await testnetPublicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
-    const token = tokenFromReceipt(receipt);
-    if (!token) throw new Error("交易已确认，但未找到 TokenCreated 事件，请打开 BscScan 核对");
+    let receipt: Awaited<ReturnType<typeof testnetPublicClient.waitForTransactionReceipt>>;
+    let token: `0x${string}` | null;
+    try {
+      receipt = await testnetPublicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+      token = tokenFromReceipt(receipt);
+      if (!token) {
+        throw new Error("交易已确认，但未找到 TokenCreated 事件，请打开 BscScan 核对");
+      }
+    } catch (error) {
+      throw new SubmittedFourMirrorTransactionError(hash, error);
+    }
     updateQueueState(mirror.sourceAddress, {
       status: "success",
       message: "部署完成，已触发自动开源任务",
@@ -274,7 +352,6 @@ export function FourMirrorDeployClient({
     const blocker = resolveMirrorDeployBlocker({
       isConnected,
       address,
-      authorizedWallets,
       chainId,
       eligible: selectedMirrors.length > 0,
       busy: globallyBusy,
@@ -282,6 +359,14 @@ export function FourMirrorDeployClient({
     if (blocker || !address) return;
     setQueueRunning(true);
     setActionError("");
+    try {
+      await ensureMirrorSession();
+    } catch (error) {
+      setActionError(walletMessage(error));
+      setStage("");
+      setQueueRunning(false);
+      return;
+    }
     setQueueStates(Object.fromEntries(selectedMirrors.map((mirror) => [
       mirror.sourceAddress,
       { status: "waiting", message: "等待处理" } satisfies QueueItemState,
@@ -293,19 +378,26 @@ export function FourMirrorDeployClient({
           return await deployMirrorTransaction(mirror, index);
         } catch (error) {
           const cancelled = isWalletRejection(error);
+          const submitted = isSubmittedFourMirrorTransaction(error);
           updateQueueState(mirror.sourceAddress, {
-            status: cancelled ? "cancelled" : "failed",
-            message: walletMessage(error),
+            status: submitted ? "submitted" : cancelled ? "cancelled" : "failed",
+            message: submitted
+              ? "交易已发送，但回执状态不确定；队列已暂停，请先在 BscScan 核对"
+              : walletMessage(error),
+            transactionHash: submitted ? error.transactionHash : undefined,
           });
           throw error;
         }
       },
-      { shouldStop: isWalletRejection },
+      {
+        shouldStop: (error) =>
+          isWalletRejection(error) || isSubmittedFourMirrorTransaction(error),
+      },
     );
     const successCount = results.filter((result) => result.status === "success").length;
-    const cancelled = results.some((result) => result.status === "cancelled");
+    const stopped = results.some((result) => result.status === "cancelled");
     setStage(
-      cancelled
+      stopped
         ? `队列已暂停：成功 ${successCount} 枚，其余未发送`
         : `本轮完成：成功 ${successCount} / ${selectedMirrors.length}`,
     );
@@ -319,7 +411,7 @@ export function FourMirrorDeployClient({
     <main className="four-mirror-shell">
       <section className="four-mirror-hero">
         <div>
-          <p className="eyebrow">BNBX ADMIN · FOUR MIRROR PREVIEW</p>
+          <p className="eyebrow">BNBX · FOUR MIRROR</p>
           <h1>Four 毕业币镜像部署</h1>
           <p>
             自动读取 Four.meme 新毕业项目。勾选你喜欢的项目后，系统会按顺序逐枚弹出钱包确认，
@@ -336,11 +428,15 @@ export function FourMirrorDeployClient({
         </span>
       </section>
 
+      <p className="four-mirror-action-note">
+        任意钱包均可使用。开始批次时先签署一次免 Gas 的钱包验证消息；随后每枚代币只弹出一笔链上部署确认。
+      </p>
+
       <section className="four-mirror-statusbar">
         <div><small>正式 0 税 Factory</small><code>{shortAddress(zeroTaxFactoryAddress)}</code></div>
         <div>
-          <small>授权钱包</small>
-          <code>{authorizedWallets.map(shortAddress).join(" / ")}</code>
+          <small>钱包权限</small>
+          <strong>任意钱包可用</strong>
         </div>
         <div><small>本轮可选</small><strong>{eligibleCount} / {mirrors.length}</strong></div>
         <button className="button secondary" type="button" onClick={() => void loadMirrors()} disabled={loading || globallyBusy}>刷新项目</button>
@@ -372,7 +468,6 @@ export function FourMirrorDeployClient({
             disabled={Boolean(resolveMirrorDeployBlocker({
               isConnected,
               address,
-              authorizedWallets,
               chainId,
               eligible: selectedMirrors.length > 0,
               busy: globallyBusy,
@@ -389,11 +484,6 @@ export function FourMirrorDeployClient({
           当前不是 BNB Chain 主网。
           <button className="button" type="button" onClick={() => switchChain({ chainId: bsc.id })}>切换到 BSC</button>
         </section>
-      )}
-      {isConnected && !authorizedWallets.some(
-        (wallet) => wallet.toLowerCase() === address?.toLowerCase(),
-      ) && (
-        <p className="four-mirror-error" role="alert">当前钱包无部署权限，请连接指定的 BNBX 管理钱包。</p>
       )}
       {stage && (
         <p className="four-mirror-progress" role="status">

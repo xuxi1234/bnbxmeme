@@ -1,5 +1,10 @@
 # Flap Latest Graduated Mirror Deploy Implementation Plan
 
+> Production amendment: after Preview acceptance, the owner approved publishing
+> Four and Flap at `x.bnbx.meme` for any valid BSC wallet. Both routes stay hidden
+> from navigation/Sitemap and retain signed sessions, rate limits, revalidation,
+> and sequential wallet confirmation safeguards.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build an isolated BNBX Preview tool that lists current BSC Flap graduates and deploys selected community mirrors one transaction at a time through the production zero-tax Factory.

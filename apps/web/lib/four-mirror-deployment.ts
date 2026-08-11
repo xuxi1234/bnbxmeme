@@ -6,6 +6,24 @@ import { zeroTaxFactoryDeploymentAbi } from "./zero-tax-factory-deployment.ts";
 
 export const FOUR_MIRROR_CREATION_FEE = parseEther("0.001");
 
+export class SubmittedFourMirrorTransactionError extends Error {
+  transactionHash: `0x${string}`;
+
+  constructor(transactionHash: `0x${string}`, cause: unknown) {
+    super("Four mirror transaction was submitted; receipt status is uncertain", {
+      cause,
+    });
+    this.name = "SubmittedFourMirrorTransactionError";
+    this.transactionHash = transactionHash;
+  }
+}
+
+export function isSubmittedFourMirrorTransaction(
+  error: unknown,
+): error is SubmittedFourMirrorTransactionError {
+  return error instanceof SubmittedFourMirrorTransactionError;
+}
+
 export function buildFourMirrorCreateRequest({
   account,
   name,

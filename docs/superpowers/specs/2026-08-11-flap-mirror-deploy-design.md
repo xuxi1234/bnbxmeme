@@ -1,5 +1,15 @@
 # Flap Latest Graduated Mirror Deploy Design
 
+## Approved production amendment
+
+The owner approved Production release on `x.bnbx.meme` after Preview acceptance.
+Both Four and Flap mirror routes remain absent from public navigation and Sitemap,
+declare `noindex, nofollow`, and are disallowed in `robots.txt`. Any valid BSC
+wallet may use either tool. The former operator-wallet allowlist is removed;
+origin-bound wallet signatures, per-wallet/fingerprint preparation limits,
+source revalidation, sequential confirmation, and stop-after-broadcast safeguards
+remain in force.
+
 ## Goal
 
 Add an isolated BNBX preview tool at `/flap-mirror-deploy` that discovers the newest graduated Flap.sh tokens on BSC and lets an authorized BNBX operator create selected community mirrors through the existing production zero-tax Factory.

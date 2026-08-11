@@ -111,11 +111,7 @@ function walletMessage(error: unknown) {
   return message.split("\n")[0]?.slice(0, 240) || "部署失败";
 }
 
-export function FlapMirrorDeployClient({
-  authorizedWallets,
-}: {
-  authorizedWallets: readonly string[];
-}) {
+export function FlapMirrorDeployClient() {
   const [mirrors, setMirrors] = useState<MirrorCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -354,7 +350,6 @@ export function FlapMirrorDeployClient({
     const blocker = resolveMirrorDeployBlocker({
       isConnected,
       address,
-      authorizedWallets,
       chainId,
       eligible: selectedMirrors.length > 0,
       busy: globallyBusy,
@@ -414,7 +409,7 @@ export function FlapMirrorDeployClient({
     <main className="four-mirror-shell">
       <section className="four-mirror-hero">
         <div>
-          <p className="eyebrow">BNBX ADMIN · FLAP MIRROR PREVIEW</p>
+          <p className="eyebrow">BNBX · FLAP MIRROR</p>
           <h1>Flap 最新外盘镜像部署</h1>
           <p>
             自动读取 Flap.sh 在 BSC 上最新的已毕业外盘。勾选你喜欢的项目后，系统会按顺序逐枚弹出钱包确认，
@@ -438,8 +433,8 @@ export function FlapMirrorDeployClient({
       <section className="four-mirror-statusbar">
         <div><small>正式 0 税 Factory</small><code>{shortAddress(zeroTaxFactoryAddress)}</code></div>
         <div>
-          <small>授权钱包</small>
-          <code>{authorizedWallets.map(shortAddress).join(" / ")}</code>
+          <small>钱包权限</small>
+          <strong>任意钱包可用</strong>
         </div>
         <div><small>本轮可选</small><strong>{eligibleCount} / {mirrors.length}</strong></div>
         <button className="button secondary" type="button" onClick={() => void loadMirrors()} disabled={loading || globallyBusy}>刷新项目</button>
@@ -471,7 +466,6 @@ export function FlapMirrorDeployClient({
             disabled={Boolean(resolveMirrorDeployBlocker({
               isConnected,
               address,
-              authorizedWallets,
               chainId,
               eligible: selectedMirrors.length > 0,
               busy: globallyBusy,
@@ -488,11 +482,6 @@ export function FlapMirrorDeployClient({
           当前不是 BNB Chain 主网。
           <button className="button" type="button" onClick={() => switchChain({ chainId: bsc.id })}>切换到 BSC</button>
         </section>
-      )}
-      {isConnected && !authorizedWallets.some(
-        (wallet) => wallet.toLowerCase() === address?.toLowerCase(),
-      ) && (
-        <p className="four-mirror-error" role="alert">当前钱包无部署权限，请连接指定的 BNBX 管理钱包。</p>
       )}
       {stage && (
         <p className="four-mirror-progress" role="status">

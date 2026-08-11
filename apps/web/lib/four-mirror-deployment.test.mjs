@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseEther } from "viem";
-import { buildFourMirrorCreateRequest } from "./four-mirror-deployment.ts";
+import {
+  buildFourMirrorCreateRequest,
+  isSubmittedFourMirrorTransaction,
+  SubmittedFourMirrorTransactionError,
+} from "./four-mirror-deployment.ts";
 
 const account = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
 const vanitySalt = `0x${"12".repeat(32)}`;
@@ -62,4 +66,15 @@ test("rejects a changed target or non-IPFS prepared metadata", () => {
       }),
     /metadata URI/,
   );
+});
+
+test("marks a Four transaction as submitted when its receipt becomes uncertain", () => {
+  const hash = `0x${"56".repeat(32)}`;
+  const error = new SubmittedFourMirrorTransactionError(
+    hash,
+    new Error("RPC timeout"),
+  );
+  assert.equal(isSubmittedFourMirrorTransaction(error), true);
+  assert.equal(error.transactionHash, hash);
+  assert.equal(isSubmittedFourMirrorTransaction(new Error("before broadcast")), false);
 });

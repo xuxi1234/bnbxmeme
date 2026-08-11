@@ -20,7 +20,7 @@ test("wires an isolated noindex Flap mirror route and API surface", async () => 
   ]);
 
   assert.match(page, /FlapMirrorDeployClient/);
-  assert.match(page, /resolveFourMirrorAuthorizedWallets/);
+  assert.doesNotMatch(page, /BNBX_ADMIN_SIGNING_WALLET|resolveFourMirrorAuthorizedWallets/);
   assert.match(layout, /robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}/);
   assert.match(client, /\/api\/flap-mirrors/);
   assert.match(client, /\/api\/flap-mirrors\/prepare/);
@@ -54,8 +54,20 @@ test("exposes Flap graduation, source metrics, taxes, disclosure, and sequential
   assert.match(client, /resolveMirrorDeployBlocker/);
   assert.match(client, /buildFlapMirrorCreateRequest/);
   assert.match(client, /createVanityToken|findVanitySalt/);
-  assert.match(client, /当前钱包无部署权限/);
+  assert.match(client, /任意钱包/);
+  assert.doesNotMatch(client, /当前钱包无部署权限|授权钱包/);
   assert.match(client, /创建费合计/);
+});
+
+test("keeps signed Flap sessions open to every valid wallet", async () => {
+  const auth = await source("../lib/flap-mirror-auth.ts");
+
+  assert.doesNotMatch(
+    auth,
+    /BNBX_ADMIN_SIGNING_WALLET|resolveAdminSigningWallet|resolveFourMirrorAuthorizedWallets/,
+  );
+  assert.match(auth, /isAddress\(address\)/);
+  assert.match(auth, /Flap mirror wallet must be a valid BSC address/);
 });
 
 test("keeps the Flap operator route out of public navigation", async () => {
@@ -64,4 +76,14 @@ test("keeps the Flap operator route out of public navigation", async () => {
     source("../components/mobile-nav.tsx").catch(() => ""),
   ]);
   assert.doesNotMatch(navigationFiles.join("\n"), /flap-mirror-deploy/);
+});
+
+test("blocks both hidden mirror routes in robots while keeping them out of sitemap", async () => {
+  const [robots, sitemap] = await Promise.all([
+    source("../app/robots.ts"),
+    source("../app/sitemap.ts"),
+  ]);
+  assert.match(robots, /"\/four-mirror-deploy"/);
+  assert.match(robots, /"\/flap-mirror-deploy"/);
+  assert.doesNotMatch(sitemap, /four-mirror-deploy|flap-mirror-deploy/);
 });
