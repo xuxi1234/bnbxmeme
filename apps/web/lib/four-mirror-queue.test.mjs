@@ -47,6 +47,15 @@ test("continues after a preparation failure but stops after wallet rejection", a
   ]);
 });
 
+test("recognizes wallet rejection codes even when provider text is absent", () => {
+  assert.equal(isWalletRejection({ code: 4001, message: "Request failed" }), true);
+  assert.equal(
+    isWalletRejection({ cause: { code: 4001, message: "Request failed" } }),
+    true,
+  );
+  assert.equal(isWalletRejection({ code: -32000, message: "RPC failed" }), false);
+});
+
 test("shows the exact Factory fee for the selected token count", () => {
   assert.equal(selectedMirrorFeeBNB(0), "0.000");
   assert.equal(selectedMirrorFeeBNB(15), "0.015");
