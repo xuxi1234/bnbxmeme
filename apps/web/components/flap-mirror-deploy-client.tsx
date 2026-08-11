@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { decodeEventLog, isAddress, type Hex } from "viem";
+import type { Hex } from "viem";
 import {
   useAccount,
   useChainId,
@@ -26,9 +26,13 @@ import {
   runSequentialMirrorQueue,
   selectedMirrorFeeBNB,
 } from "@/lib/four-mirror-queue";
-import { blockExplorerUrl, factoryAbi, testnetPublicClient } from "@/lib/web3";
-import { zeroTaxFactoryAddress } from "@/lib/deployments";
+import { holderRewardsFactoryAddress } from "@/lib/deployments";
+import {
+  buildMirrorHolderRewardsVanityCall,
+  decodeMirrorHolderCreatedToken,
+} from "@/lib/mirror-holder-rewards";
 import { tokenProjectPath } from "@/lib/project-paths";
+import { blockExplorerUrl, testnetPublicClient } from "@/lib/web3";
 
 const VANITY_SEARCH_LIMIT = 500_000;
 const VANITY_SEARCH_CHUNK = 10_000;
@@ -157,23 +161,7 @@ export function FlapMirrorDeployClient() {
   }, [loadMirrors]);
 
   function tokenFromReceipt(receipt: Awaited<ReturnType<typeof testnetPublicClient.waitForTransactionReceipt>>) {
-    let token: `0x${string}` | null = null;
-    for (const log of receipt.logs) {
-      if (log.address.toLowerCase() !== zeroTaxFactoryAddress.toLowerCase()) continue;
-      try {
-        const decoded = decodeEventLog({
-          abi: factoryAbi,
-          data: log.data,
-          topics: log.topics,
-        });
-        if (decoded.eventName !== "TokenCreated") continue;
-        const args = decoded.args as { token?: `0x${string}` };
-        if (args.token && isAddress(args.token)) token = args.token;
-      } catch {
-        // The receipt also contains token, curve, and Pancake events.
-      }
-    }
-    return token;
+    return decodeMirrorHolderCreatedToken(receipt.logs);
   }
 
   const globallyBusy = queueRunning || isPending || isSigning;
@@ -193,21 +181,27 @@ export function FlapMirrorDeployClient() {
     }));
   }
 
-  async function findVanitySalt(mirror: MirrorCandidate) {
+  async function findVanitySalt({
+    name,
+    symbol,
+    metadataURI,
+  }: {
+    name: string;
+    symbol: string;
+    metadataURI: string;
+  }) {
     if (!address) throw new Error("请先连接钱包");
     const start = (BigInt(Date.now()) << 160n) | BigInt(address);
     for (let index = 0; index < VANITY_SEARCH_LIMIT; index += VANITY_SEARCH_CHUNK) {
-      const result = await testnetPublicClient.readContract({
-        address: zeroTaxFactoryAddress,
-        abi: factoryAbi,
-        functionName: "findVanitySalt",
-        args: [
-          mirror.name,
-          mirror.symbol,
-          start + BigInt(index),
-          BigInt(VANITY_SEARCH_CHUNK),
-        ],
-      });
+      const result = await testnetPublicClient.readContract(
+        buildMirrorHolderRewardsVanityCall({
+          name,
+          symbol,
+          metadataURI,
+          start: start + BigInt(index),
+          maxIterations: BigInt(VANITY_SEARCH_CHUNK),
+        }),
+      );
       setVanityProgress(
         Math.round(((index + VANITY_SEARCH_CHUNK) / VANITY_SEARCH_LIMIT) * 100),
       );
@@ -296,9 +290,9 @@ export function FlapMirrorDeployClient() {
     }
 
     const vanitySalt = await findVanitySalt({
-      ...mirror,
       name: prepared.name,
       symbol: prepared.symbol,
+      metadataURI: prepared.metadataURI,
     });
     setStage(`${position} · 请在钱包中确认部署 ${prepared.symbol}`);
     updateQueueState(mirror.sourceAddress, { status: "wallet", message: "等待钱包确认" });
@@ -413,7 +407,7 @@ export function FlapMirrorDeployClient() {
           <h1>Flap 最新外盘镜像部署</h1>
           <p>
             自动读取 Flap.sh 在 BSC 上最新的已毕业外盘。勾选你喜欢的项目后，系统会按顺序逐枚弹出钱包确认，
-            每次只发送一笔 BNBX 0 税部署交易。
+            每次只发送一笔 BNBX 持币分红 USDT 部署交易。
           </p>
         </div>
         <WalletButton connectLabel="连接部署钱包" />
@@ -431,7 +425,8 @@ export function FlapMirrorDeployClient() {
       </p>
 
       <section className="four-mirror-statusbar">
-        <div><small>正式 0 税 Factory</small><code>{shortAddress(zeroTaxFactoryAddress)}</code></div>
+        <div><small>正式持币分红 USDT Factory</small><code>{shortAddress(holderRewardsFactoryAddress)}</code></div>
+        <div><small>固定新币参数</small><strong>毕业 1 BNB · 买入 3% · 卖出 3%</strong></div>
         <div>
           <small>钱包权限</small>
           <strong>任意钱包可用</strong>
@@ -538,8 +533,8 @@ export function FlapMirrorDeployClient() {
                   <div><dt>24h 交易量</dt><dd>{formatUsd(mirror.volume24hUsd)}</dd></div>
                   <div><dt>流动性</dt><dd>{formatUsd(mirror.liquidityUsd)}</dd></div>
                   <div><dt>持币地址</dt><dd>{mirror.holderCount === null ? "暂无数据" : mirror.holderCount.toLocaleString()}</dd></div>
-                  <div><dt>买税</dt><dd>{formatTax(mirror.buyTaxPercent)}</dd></div>
-                  <div><dt>卖税</dt><dd>{formatTax(mirror.sellTaxPercent)}</dd></div>
+                  <div><dt>原币买税</dt><dd>{formatTax(mirror.buyTaxPercent)}</dd></div>
+                  <div><dt>原币卖税</dt><dd>{formatTax(mirror.sellTaxPercent)}</dd></div>
                 </dl>
                 {mirror.reasons.length > 0 && (
                   <ul className="four-mirror-reasons">

@@ -108,10 +108,10 @@ test("preserves unavailable metrics instead of presenting them as zero", () => {
   assert.equal(zeroTax.sellTaxPercent, 0);
 });
 
-test("assigns a deterministic integer graduation target from 1 through 18", () => {
+test("assigns the fixed one-BNB mirror graduation target", () => {
   assert.equal(
     stableFlapGraduationTarget("0x0000000000000000000000000000000000000001"),
-    2,
+    1,
   );
   assert.equal(
     stableFlapGraduationTarget("0x0000000000000000000000000000000000000012"),

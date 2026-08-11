@@ -1,8 +1,12 @@
 import { isAddress, parseEther } from "viem";
 import { bsc } from "wagmi/chains";
-import { STANDARD_CREATE_GAS_LIMIT } from "./advanced-template-config.ts";
-import { zeroTaxFactoryAddress } from "./deployments.ts";
-import { zeroTaxFactoryDeploymentAbi } from "./zero-tax-factory-deployment.ts";
+import { ADVANCED_CREATE_GAS_LIMIT } from "./advanced-template-config.ts";
+import { holderRewardsFactoryAddress } from "./deployments.ts";
+import { holderRewardsFactoryAbi } from "./holder-rewards-factory-deployment.ts";
+import {
+  buildMirrorHolderRewardsTokenRequest,
+  MIRROR_GRADUATION_TARGET_BNB,
+} from "./mirror-holder-rewards.ts";
 
 export const FLAP_MIRROR_CREATION_FEE = parseEther("0.001");
 
@@ -61,11 +65,7 @@ export function buildFlapMirrorCreateRequest({
   if (!symbol.trim() || symbol.trim().length > 10) {
     throw new Error("Invalid token symbol");
   }
-  if (
-    !Number.isInteger(graduationTargetBNB) ||
-    graduationTargetBNB < 1 ||
-    graduationTargetBNB > 18
-  ) {
+  if (graduationTargetBNB !== MIRROR_GRADUATION_TARGET_BNB) {
     throw new Error("Invalid graduation target");
   }
   if (
@@ -79,20 +79,19 @@ export function buildFlapMirrorCreateRequest({
   }
 
   return {
-    address: zeroTaxFactoryAddress,
-    abi: zeroTaxFactoryDeploymentAbi,
+    address: holderRewardsFactoryAddress,
+    abi: holderRewardsFactoryAbi,
     functionName: "createVanityToken",
     args: [
-      {
-        name: name.trim(),
-        symbol: symbol.trim(),
-        graduationTargetBNB,
+      buildMirrorHolderRewardsTokenRequest({
+        name,
+        symbol,
         metadataURI,
         vanitySalt,
-      },
+      }),
     ],
     value: FLAP_MIRROR_CREATION_FEE,
-    gas: STANDARD_CREATE_GAS_LIMIT,
+    gas: ADVANCED_CREATE_GAS_LIMIT,
     chain: bsc,
     account,
   } as const;

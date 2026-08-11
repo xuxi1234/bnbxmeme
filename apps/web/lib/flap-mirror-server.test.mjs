@@ -5,7 +5,7 @@ import {
   prepareFlapMirrorMetadataWith,
 } from "./flap-mirror-server.ts";
 
-const address = "0x0000000000000000000000000000000000000012";
+const address = "0x0000000000000000000000000000000000000001";
 
 function response(body, init = {}) {
   return new Response(JSON.stringify(body), {
