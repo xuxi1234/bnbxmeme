@@ -59,6 +59,18 @@ test("exposes Flap graduation, source metrics, taxes, disclosure, and sequential
   assert.match(client, /创建费合计/);
 });
 
+test("uses the fixed Holder-USDT policy for Flap vanity search and deployment", async () => {
+  const client = await source("../components/flap-mirror-deploy-client.tsx");
+
+  assert.match(client, /holderRewardsFactoryAddress/);
+  assert.match(client, /buildMirrorHolderRewardsVanityCall/);
+  assert.match(client, /decodeMirrorHolderCreatedToken/);
+  assert.doesNotMatch(client, /zeroTaxFactoryAddress/);
+  assert.match(client, /持币分红 USDT/);
+  assert.match(client, /毕业 1 BNB/);
+  assert.match(client, /买入 3% · 卖出 3%/);
+});
+
 test("keeps signed Flap sessions open to every valid wallet", async () => {
   const auth = await source("../lib/flap-mirror-auth.ts");
 

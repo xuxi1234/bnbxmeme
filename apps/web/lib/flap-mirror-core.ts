@@ -1,3 +1,5 @@
+import { MIRROR_GRADUATION_TARGET_BNB } from "./mirror-holder-rewards.ts";
+
 export const FLAP_MIRROR_MIN_LIQUIDITY_USD = 3_000;
 export const FLAP_MIRROR_MIN_VOLUME_24H_USD = 5_000;
 export const FLAP_MIRROR_MIN_HOLDERS = 30;
@@ -109,11 +111,7 @@ export function stableFlapGraduationTarget(address: string) {
   if (!/^[0-9a-f]{40}$/.test(hex)) {
     throw new Error("Invalid Flap token address");
   }
-  let total = 0;
-  for (let index = 0; index < hex.length; index += 2) {
-    total = (total + Number.parseInt(hex.slice(index, index + 2), 16)) % 18;
-  }
-  return total + 1;
+  return MIRROR_GRADUATION_TARGET_BNB;
 }
 
 export function normalizeFlapCandidate(

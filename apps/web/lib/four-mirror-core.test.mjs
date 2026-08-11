@@ -43,10 +43,10 @@ test("normalizes Four identity without treating the quote symbol as token symbol
   });
 });
 
-test("assigns a stable integer target from 1 through 18", () => {
+test("assigns the fixed one-BNB mirror graduation target", () => {
   assert.equal(
     stableGraduationTarget("0x0000000000000000000000000000000000000001"),
-    2,
+    1,
   );
   assert.equal(
     stableGraduationTarget("0x0000000000000000000000000000000000000012"),

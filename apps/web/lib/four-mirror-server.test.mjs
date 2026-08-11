@@ -5,7 +5,7 @@ import {
   prepareFourMirrorMetadataWith,
 } from "./four-mirror-server.ts";
 
-const address = "0x0000000000000000000000000000000000000012";
+const address = "0x0000000000000000000000000000000000000001";
 
 function response(body, init = {}) {
   return new Response(JSON.stringify(body), {
@@ -211,7 +211,7 @@ test("pins the original Four description separately from mirror disclosure", asy
   );
 });
 
-test("prepares a fresh zero-tax mirror even when the source contract has warnings", async () => {
+test("prepares a fresh holder-rewards mirror even when the source contract has warnings", async () => {
   const result = await prepareFourMirrorMetadataWith(address, {
     fetcher: createFetcher({
       security: { ...safeSecurity, is_honeypot: "1" },

@@ -11,29 +11,35 @@ import {
 const account = "0xbE37AB912De351B9312FA593C9f99e3279FDB0a2";
 const vanitySalt = `0x${"34".repeat(32)}`;
 
-test("builds one production zero-tax Factory request for one Flap mirror", () => {
+test("builds one fixed Holder-USDT Factory request for one Flap mirror", () => {
   const request = buildFlapMirrorCreateRequest({
     account,
     name: "Flap Golden Cat",
     symbol: "FGC",
-    graduationTargetBNB: 9,
+    graduationTargetBNB: 1,
     metadataURI: "ipfs://flap-mirror-metadata",
     vanitySalt,
   });
 
-  assert.equal(request.address, "0x26f43d62e1cfadc3d89ff0ffe58375ecbded7330");
+  assert.equal(request.address, "0x31ce11e80875e1d698089f71f06acbb27726db95");
   assert.equal(request.functionName, "createVanityToken");
   assert.equal(request.value, parseEther("0.001"));
-  assert.equal(request.gas, 8_000_000n);
+  assert.equal(request.gas, 12_000_000n);
   assert.equal(request.chain.id, 56);
   assert.equal(request.account, account);
   assert.deepEqual(request.args, [
     {
       name: "Flap Golden Cat",
       symbol: "FGC",
-      graduationTargetBNB: 9,
+      graduationTargetBNB: 1,
       metadataURI: "ipfs://flap-mirror-metadata",
       vanitySalt,
+      rewardToken: "0x55d398326f99059ff775485246999027b3197955",
+      taxes: {
+        buy: { liquidity: 0, rewards: 300, burn: 0 },
+        sell: { liquidity: 0, rewards: 300, burn: 0 },
+      },
+      minimumRewardBalance: 1_000_000n * 10n ** 18n,
     },
   ]);
   assert.equal(Array.isArray(request), false);
@@ -68,7 +74,7 @@ test("rejects values outside the reviewed Factory boundary", () => {
     account,
     name: "Flap Golden Cat",
     symbol: "FGC",
-    graduationTargetBNB: 9,
+    graduationTargetBNB: 1,
     metadataURI: "ipfs://flap-mirror-metadata",
     vanitySalt,
   };
@@ -81,7 +87,7 @@ test("rejects values outside the reviewed Factory boundary", () => {
     /token symbol/,
   );
   assert.throws(
-    () => buildFlapMirrorCreateRequest({ ...base, graduationTargetBNB: 19 }),
+    () => buildFlapMirrorCreateRequest({ ...base, graduationTargetBNB: 2 }),
     /graduation target/,
   );
   assert.throws(

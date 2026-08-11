@@ -73,3 +73,15 @@ test("requires a signed rate-limited session from any Four wallet before metadat
   assert.match(auth, /isAddress\(address\)/);
   assert.doesNotMatch(auth, /BNBX_ADMIN_SIGNING_WALLET|resolveAdminSigningWallet/);
 });
+
+test("uses the fixed Holder-USDT policy for Four vanity search and deployment", async () => {
+  const client = await source("../components/four-mirror-deploy-client.tsx");
+
+  assert.match(client, /holderRewardsFactoryAddress/);
+  assert.match(client, /buildMirrorHolderRewardsVanityCall/);
+  assert.match(client, /decodeMirrorHolderCreatedToken/);
+  assert.doesNotMatch(client, /zeroTaxFactoryAddress/);
+  assert.match(client, /持币分红 USDT/);
+  assert.match(client, /毕业 1 BNB/);
+  assert.match(client, /买入 3% · 卖出 3%/);
+});
