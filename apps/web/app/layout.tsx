@@ -12,6 +12,7 @@ import { AnnouncementBar } from "@/components/announcement-bar";
 import { LanguageMetadata } from "@/components/language-metadata";
 import { buildSiteMetadata } from "@/lib/seo";
 import { BnbxAiAssistant } from "@/components/bnbx-ai-assistant";
+import { FoundationEntry } from "@/components/foundation-entry";
 
 export const metadata: Metadata = buildSiteMetadata();
 
@@ -36,6 +37,7 @@ export default function RootLayout({
             <AnnouncementBar />
             {children}
             <SiteFooter />
+            <FoundationEntry />
             <BnbxAiAssistant />
             <Analytics />
             <SpeedInsights />
