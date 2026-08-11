@@ -184,7 +184,7 @@ function useTokenSnapshot(token: `0x${string}`) {
         if (!controller.signal.aborted) setIsLoading(false);
       }
     }
-    const stopPolling = startVisiblePolling(load, 15_000);
+    const stopPolling = startVisiblePolling(load, 60_000);
     return () => {
       controller.abort();
       stopPolling();

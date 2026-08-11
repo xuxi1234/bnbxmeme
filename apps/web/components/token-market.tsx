@@ -76,7 +76,7 @@ type MarketScore = {
 type MarketScoreResult = readonly [string, MarketScore, boolean];
 
 const SCORE_REQUEST_BATCH_SIZE = 8;
-const SCORE_POLL_INTERVAL_MS = 60_000;
+const SCORE_POLL_INTERVAL_MS = 300_000;
 const MARKET_PAGE_SIZE = 30;
 const FEATURED_BNBX_TOKEN =
   "0xfd87628840890c9ea4eb3a0053a691b29d3e1111" as const;
@@ -387,7 +387,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     const controller = new AbortController();
     const stopPolling = startVisiblePolling(
       () => loadMarket(controller.signal),
-      creator ? 60_000 : 15_000,
+      60_000,
     );
     return () => {
       controller.abort();
@@ -413,7 +413,10 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         // The official row remains visible with explicit unavailable metrics.
       }
     };
-    const stopPolling = startVisiblePolling(loadFeaturedScore, 60_000);
+    const stopPolling = startVisiblePolling(
+      loadFeaturedScore,
+      SCORE_POLL_INTERVAL_MS,
+    );
     return () => {
       controller.abort();
       stopPolling();
@@ -439,8 +442,6 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
   useEffect(() => {
     if (!scoreRefreshKey) return;
     const controller = new AbortController();
-    let retryTimer: number | undefined;
-    let needsIndexRetry = false;
     const loadScore = async (
       entry: MarketEntry,
     ): Promise<MarketScoreResult> => {
@@ -449,7 +450,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       }
       try {
         const response = await fetch(
-          `/api/chain-data?curve=${entry.curve}&token=${entry.token}${
+          `/api/chain-data?mode=cache&curve=${entry.curve}&token=${entry.token}${
             entry.state === 2 &&
             entry.liquidityPair &&
             entry.liquidityPair !== zeroAddress
@@ -487,7 +488,6 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
           };
         };
         if (data.index?.status === "backfilling") {
-          needsIndexRetry = true;
           return [
             entry.token,
             {
@@ -565,7 +565,6 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
       return result;
     };
     const refreshScores = async () => {
-      needsIndexRetry = false;
       const result = await loadScores();
       if (controller.signal.aborted) return;
       setScores((current) =>
@@ -577,13 +576,6 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         ),
       );
       setScoreLoadPartial(result.some(([, , complete]) => !complete));
-      if (needsIndexRetry) {
-        if (retryTimer !== undefined) window.clearTimeout(retryTimer);
-        retryTimer = window.setTimeout(
-          () => setIndexReloadKey((value) => value + 1),
-          15_000,
-        );
-      }
     };
     const stopPolling = startVisiblePolling(
       refreshScores,
@@ -592,7 +584,6 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     return () => {
       controller.abort();
       stopPolling();
-      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
   }, [indexReloadKey, scoreRefreshKey]);
 

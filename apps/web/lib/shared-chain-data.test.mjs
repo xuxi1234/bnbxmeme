@@ -29,6 +29,13 @@ test("builds one canonical URL and omits a zero pair", () => {
   );
 });
 
+test("supports a cache-only URL for read-only consumers", () => {
+  assert.equal(
+    chainDataUrl({ curve, token, pair, mode: "cache" }),
+    `/api/chain-data?mode=cache&curve=${curve}&token=${token}&pair=${pair}`,
+  );
+});
+
 test("coalesces identical concurrent requests", async () => {
   const originalFetch = globalThis.fetch;
   const response = deferred();

@@ -211,7 +211,7 @@ function successful<T>(result: MulticallResult | undefined) {
 
 function responseHeaders(status: "fresh" | "partial") {
   return {
-    "Cache-Control": "public, s-maxage=10, stale-while-revalidate=300",
+    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
     "X-BNBX-Data-Status": status,
   };
 }

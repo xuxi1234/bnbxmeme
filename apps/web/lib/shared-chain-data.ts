@@ -4,12 +4,15 @@ type ChainDataRequest = {
   curve: `0x${string}`;
   token?: `0x${string}`;
   pair?: `0x${string}`;
+  mode?: "cache";
 };
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
-export function chainDataUrl({ curve, token, pair }: ChainDataRequest) {
-  const search = new URLSearchParams({ curve });
+export function chainDataUrl({ curve, token, pair, mode }: ChainDataRequest) {
+  const search = new URLSearchParams();
+  if (mode) search.set("mode", mode);
+  search.set("curve", curve);
   if (token) search.set("token", token);
   if (pair && pair !== zeroAddress) search.set("pair", pair);
   return `/api/chain-data?${search.toString()}`;
