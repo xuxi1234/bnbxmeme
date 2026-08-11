@@ -20,7 +20,7 @@ export const foundationShareholders: readonly FoundationShareholder[] = [
   { id: "006", name: "平平淡淡才是真", shares: 1 },
   { id: "007", name: "~ &易碎的，心！", shares: 1 },
   { id: "008", name: "z道哥～V体系社区", shares: 1 },
-  { id: "009", name: "张先生", shares: 1 },
+  { id: "009", name: "张先生", shares: 5 },
   { id: "010", name: "七七（在用）", shares: 1 },
   { id: "011", name: "阿志", shares: 1 },
   { id: "012", name: "晚星", shares: 1 },
@@ -34,7 +34,8 @@ export const foundationShareholders: readonly FoundationShareholder[] = [
   { id: "020", name: "三年", shares: 1 },
   { id: "021", name: "爱笑的大叔", shares: 1 },
   { id: "022", name: "范总", shares: 10 },
-  { id: "023", name: "空白格", shares: 1 },
+  { id: "023", name: "杨爱华", shares: 1 },
+  { id: "024", name: "空白格", shares: 1 },
 ];
 
 const registeredShares = foundationShareholders.reduce(

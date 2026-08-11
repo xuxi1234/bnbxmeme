@@ -10,10 +10,10 @@ import {
 } from "./foundation-directory.ts";
 
 test("keeps the approved foundation registry in its original order", () => {
-  assert.equal(foundationShareholders.length, 23);
+  assert.equal(foundationShareholders.length, 24);
   assert.deepEqual(
     foundationShareholders.map(({ id }) => id),
-    Array.from({ length: 23 }, (_, index) => String(index + 1).padStart(3, "0")),
+    Array.from({ length: 24 }, (_, index) => String(index + 1).padStart(3, "0")),
   );
   assert.deepEqual(foundationShareholders[0], {
     id: "001",
@@ -25,6 +25,11 @@ test("keeps the approved foundation registry in its original order", () => {
     name: "霏霏老师",
     shares: 2,
   });
+  assert.deepEqual(foundationShareholders[8], {
+    id: "009",
+    name: "张先生",
+    shares: 5,
+  });
   assert.deepEqual(foundationShareholders[21], {
     id: "022",
     name: "范总",
@@ -32,6 +37,11 @@ test("keeps the approved foundation registry in its original order", () => {
   });
   assert.deepEqual(foundationShareholders[22], {
     id: "023",
+    name: "杨爱华",
+    shares: 1,
+  });
+  assert.deepEqual(foundationShareholders[23], {
+    id: "024",
     name: "空白格",
     shares: 1,
   });
@@ -41,12 +51,12 @@ test("derives the exact approved share and token totals", () => {
   assert.equal(SHARE_TOKEN_AMOUNT, 1_000_000);
   assert.equal(TOTAL_FOUNDATION_SHARES, 500);
   assert.deepEqual(foundationSummary, {
-    registeredShares: 33,
-    remainingShares: 467,
-    registeredTokenAmount: 33_000_000,
-    remainingTokenAmount: 467_000_000,
+    registeredShares: 38,
+    remainingShares: 462,
+    registeredTokenAmount: 38_000_000,
+    remainingTokenAmount: 462_000_000,
     totalTokenAmount: 500_000_000,
-    registrationPercent: 6.6,
+    registrationPercent: 7.6,
   });
 });
 
