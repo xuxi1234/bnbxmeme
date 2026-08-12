@@ -12,6 +12,7 @@ import {
   keccak256,
   padHex,
   parseEther,
+  toFunctionSelector,
   toHex,
 } from "viem";
 
@@ -34,9 +35,11 @@ const entrypoints = [
   "test/DividendTaxProcessingV4.t.sol",
   "test/BNBXRewardVault.t.sol",
   "test/FuturesTypes.t.sol",
+  "test/RiskEngine.t.sol",
 ];
 const isolatedEntrypoints = {
   FuturesTypesTest: ["test/FuturesTypes.t.sol"],
+  RiskEngineTest: ["test/RiskEngine.t.sol"],
 };
 const compilationEntrypoints =
   isolatedEntrypoints[suiteFilter] ?? entrypoints;
@@ -365,6 +368,22 @@ const suites = [
       "testRawReturnDependencyMockBoundsAndSignalsPayloads",
     ],
   },
+  {
+    source: "test/RiskEngine.t.sol",
+    contract: "RiskEngineTest",
+    tests: [
+      "testTakerFeeRoundsUpAndMakerFeeIsZero",
+      "testInitialMarginRoundsUpAtThirtyThreePointThreeFourPercent",
+      "testMaintenanceMarginRoundsUpAtTwentyPercent",
+      "testPairedPnlIsZeroSumForProfitLossAndNoPriceMove",
+      "testPairedPnlSupportsTheSignedBoundaryAndRejectsLargerMagnitude",
+      "testLiquidationUsesStrictRequirementEqualityAndNonPositiveEquity",
+      "testLiquidationPenaltyRoundsUpAndCannotExceedPositiveEquity",
+      "testFundingCapsRateAndTimeAndAssignsRoundingToInsurance",
+      "testMulDivHandlesA512BitProductAndRejectsInvalidQuotients",
+      "testDeployedRuntimeRejectsPrivilegedAndFallbackSelectors",
+    ],
+  },
 ];
 
 const selectedSuites = suiteFilter
@@ -380,6 +399,54 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
   // stale transaction/RPC state across the long-running integration matrix.
   if (suiteIndex > 3) await resetLocalChain();
   const artifact = output.contracts[suite.source][suite.contract];
+  if (suite.contract === "RiskEngineTest") {
+    const riskArtifact =
+      output.contracts["src/futures/RiskEngine.sol"].RiskEngine;
+    const expectedSelectors = new Set([
+      "0x0dea803f", // MAX_FUNDING_RATE_BPS()
+      "0x1119b6fe", // pairedPnl(uint256,uint256,uint256)
+      "0x1883118b", // orderFee(uint256,uint8)
+      "0x1f67f799", // liquidationPenalty(uint256,int256)
+      "0x2057bfa0", // TAKER_FEE_BPS()
+      "0x249d39e9", // BPS()
+      "0x28828131", // MAX_FUNDING_ELAPSED()
+      "0x2ac2959b", // maintenanceMargin(uint256)
+      "0x5838bff7", // MAINTENANCE_MARGIN_BPS()
+      "0x6a146024", // WAD()
+      "0x752057f6", // isLiquidatable(int256,uint256)
+      "0x7fffb9ab", // fundingPayment(uint256,int256,uint256)
+      "0x98032fd4", // initialMargin(uint256)
+      "0xa7bd8e13", // INITIAL_MARGIN_BPS()
+      "0xaa9a0912", // mulDiv(uint256,uint256,uint256)
+      "0xfc54ddfb", // LIQUIDATION_PENALTY_BPS()
+    ]);
+    const exposedFunctions = riskArtifact.abi.filter(
+      (item) => item.type === "function",
+    );
+    const actualSelectors = new Set(
+      exposedFunctions.map((item) => toFunctionSelector(item)),
+    );
+    check(
+      actualSelectors.size === expectedSelectors.size &&
+        [...expectedSelectors].every((selector) =>
+          actualSelectors.has(selector),
+        ),
+      "RiskEngine ABI exposes an undocumented selector",
+    );
+    check(
+      exposedFunctions.every((item) =>
+        ["pure", "view"].includes(item.stateMutability),
+      ),
+      "RiskEngine ABI exposes a state-changing function",
+    );
+    check(
+      !riskArtifact.abi.some((item) =>
+        ["fallback", "receive"].includes(item.type),
+      ),
+      "RiskEngine ABI exposes fallback or receive",
+    );
+    console.log("PASS RiskEngine ABI permission surface");
+  }
   const deploymentHash = await walletClient.deployContract({
     abi: artifact.abi,
     bytecode: `0x${artifact.evm.bytecode.object}`,
