@@ -16,6 +16,7 @@ import {
 } from "viem";
 
 const projectRoot = resolve(import.meta.dirname, "..");
+const suiteFilter = process.env.TEST_SUITE;
 const entrypoints = [
   "test/BNBXToken.t.sol",
   "test/FeeMath.t.sol",
@@ -32,7 +33,13 @@ const entrypoints = [
   "test/BNBXLPRewardsTemplate.t.sol",
   "test/DividendTaxProcessingV4.t.sol",
   "test/BNBXRewardVault.t.sol",
+  "test/FuturesTypes.t.sol",
 ];
+const isolatedEntrypoints = {
+  FuturesTypesTest: ["test/FuturesTypes.t.sol"],
+};
+const compilationEntrypoints =
+  isolatedEntrypoints[suiteFilter] ?? entrypoints;
 
 function loadSource(path) {
   return readFileSync(resolve(projectRoot, path), "utf8");
@@ -60,7 +67,7 @@ function findImports(importPath) {
 const input = {
   language: "Solidity",
   sources: Object.fromEntries(
-    entrypoints.map((path) => [path, { content: loadSource(path) }]),
+    compilationEntrypoints.map((path) => [path, { content: loadSource(path) }]),
   ),
   settings: {
     optimizer: { enabled: true, runs: 200 },
@@ -348,9 +355,18 @@ const suites = [
     contract: "TradingIntegrationTest",
     tests: ["testPartialBuyThenSellChargesFeeBothWays"],
   },
+  {
+    source: "test/FuturesTypes.t.sol",
+    contract: "FuturesTypesTest",
+    tests: [
+      "testKnownOrderHashBindsEverySignedField",
+      "testMarketStateDefaultsToCloseOnlyAndSidesAreStable",
+      "testCollateralMockSupportsAdversarialTransferModes",
+      "testRawReturnDependencyMockBoundsAndSignalsPayloads",
+    ],
+  },
 ];
 
-const suiteFilter = process.env.TEST_SUITE;
 const selectedSuites = suiteFilter
   ? suites.filter((suite) => suite.contract === suiteFilter)
   : suites;
