@@ -5,9 +5,16 @@ contract FuturesCollateralMock {
     enum TransferMode {
         Standard,
         FalseReturn,
+        FalseAfterTransfer,
         NoReturn,
         FeeOnTransfer,
-        Reenter
+        Reenter,
+        MalformedReturn,
+        ShortReturn,
+        OverlongReturn,
+        SenderFee,
+        RecipientBonus,
+        NegativeRebase
     }
 
     string public constant name = "Futures Collateral Mock";
@@ -26,6 +33,12 @@ contract FuturesCollateralMock {
     function mint(address to, uint256 amount) external {
         balanceOf[to] += amount;
         totalSupply += amount;
+    }
+
+    function forceSlash(address account, uint256 amount) external {
+        require(balanceOf[account] >= amount, "BALANCE");
+        balanceOf[account] -= amount;
+        totalSupply -= amount;
     }
 
     function setTransferMode(TransferMode mode) external {
@@ -69,13 +82,27 @@ contract FuturesCollateralMock {
         returns (bool)
     {
         if (transferMode == TransferMode.FalseReturn) return false;
-        require(balanceOf[from] >= amount, "BALANCE");
-        balanceOf[from] -= amount;
+        uint256 fee = (amount * feeBps) / 10_000;
+        uint256 senderDebit = transferMode == TransferMode.SenderFee
+            ? amount + fee
+            : amount;
+        require(balanceOf[from] >= senderDebit, "BALANCE");
+        balanceOf[from] -= senderDebit;
 
         if (transferMode == TransferMode.FeeOnTransfer) {
-            uint256 fee = (amount * feeBps) / 10_000;
             balanceOf[to] += amount - fee;
             totalSupply -= fee;
+        } else if (transferMode == TransferMode.SenderFee) {
+            balanceOf[to] += amount;
+            totalSupply -= fee;
+        } else if (transferMode == TransferMode.RecipientBonus) {
+            balanceOf[to] += amount + fee;
+            totalSupply += fee;
+        } else if (transferMode == TransferMode.NegativeRebase) {
+            balanceOf[to] += amount;
+            uint256 rebaseDebit = fee < balanceOf[from] ? fee : balanceOf[from];
+            balanceOf[from] -= rebaseDebit;
+            totalSupply -= rebaseDebit;
         } else {
             balanceOf[to] += amount;
         }
@@ -90,6 +117,26 @@ contract FuturesCollateralMock {
                 return(0, 0)
             }
         }
+        if (transferMode == TransferMode.MalformedReturn) {
+            assembly ("memory-safe") {
+                mstore(0, 2)
+                return(0, 32)
+            }
+        }
+        if (transferMode == TransferMode.ShortReturn) {
+            assembly ("memory-safe") {
+                mstore(0, 1)
+                return(1, 31)
+            }
+        }
+        if (transferMode == TransferMode.OverlongReturn) {
+            assembly ("memory-safe") {
+                mstore(0, 1)
+                mstore(32, 0xbeef)
+                return(0, 64)
+            }
+        }
+        if (transferMode == TransferMode.FalseAfterTransfer) return false;
         return true;
     }
 }
