@@ -10,10 +10,10 @@ import {
 } from "./foundation-directory.ts";
 
 test("keeps the approved foundation registry in its original order", () => {
-  assert.equal(foundationShareholders.length, 29);
+  assert.equal(foundationShareholders.length, 30);
   assert.deepEqual(
     foundationShareholders.map(({ id }) => id),
-    Array.from({ length: 29 }, (_, index) => String(index + 1).padStart(3, "0")),
+    Array.from({ length: 30 }, (_, index) => String(index + 1).padStart(3, "0")),
   );
   assert.deepEqual(foundationShareholders[0], {
     id: "001",
@@ -70,18 +70,23 @@ test("keeps the approved foundation registry in its original order", () => {
     name: "养猪仙人",
     shares: 1,
   });
+  assert.deepEqual(foundationShareholders[29], {
+    id: "030",
+    name: "相濡以沫大美女",
+    shares: 1,
+  });
 });
 
 test("derives the exact approved share and token totals", () => {
   assert.equal(SHARE_TOKEN_AMOUNT, 1_000_000);
   assert.equal(TOTAL_FOUNDATION_SHARES, 500);
   assert.deepEqual(foundationSummary, {
-    registeredShares: 48,
-    remainingShares: 452,
-    registeredTokenAmount: 48_000_000,
-    remainingTokenAmount: 452_000_000,
+    registeredShares: 49,
+    remainingShares: 451,
+    registeredTokenAmount: 49_000_000,
+    remainingTokenAmount: 451_000_000,
     totalTokenAmount: 500_000_000,
-    registrationPercent: 9.6,
+    registrationPercent: 9.8,
   });
 });
 
