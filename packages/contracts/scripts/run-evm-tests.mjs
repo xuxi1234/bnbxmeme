@@ -42,12 +42,14 @@ const entrypoints = [
   "test/RiskEngine.t.sol",
   "test/ClearingHouse.t.sol",
   "test/OrderBook.t.sol",
+  "test/FuturesOracle.t.sol",
 ];
 const isolatedEntrypoints = {
   FuturesTypesTest: ["test/FuturesTypes.t.sol"],
   RiskEngineTest: ["test/RiskEngine.t.sol"],
   ClearingHouseTest: ["test/ClearingHouse.t.sol"],
   OrderBookTest: ["test/OrderBook.t.sol"],
+  FuturesOracleTest: ["test/FuturesOracle.t.sol"],
 };
 const compilationEntrypoints = isolatedEntrypoints[suiteFilter] ?? entrypoints;
 
@@ -4023,6 +4025,1703 @@ async function runInitialOrderBookTest(fixtureAddress, fixtureArtifact) {
   );
 }
 
+function futuresOracleArtifacts() {
+  const testArtifacts = output.contracts["test/FuturesOracle.t.sol"];
+  return {
+    testArtifacts,
+    token: testArtifacts.OracleTokenMock,
+    pair: testArtifacts.OraclePairMock,
+    feed: testArtifacts.OracleFeedMock,
+    oracle: output.contracts["src/futures/FuturesOracle.sol"].FuturesOracle,
+  };
+}
+
+async function oracleWrite(
+  address,
+  abi,
+  functionName,
+  args = [],
+  gas = 5_000_000n,
+) {
+  const hash = await walletClient.writeContract({
+    address,
+    abi,
+    functionName,
+    args,
+    gas,
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  check(receipt.status === "success", `${functionName} transaction failed`);
+  return receipt;
+}
+
+async function oracleAdvance(seconds) {
+  await provider.request({ method: "evm_increaseTime", params: [seconds] });
+  await provider.request({ method: "evm_mine", params: [] });
+}
+
+async function oracleSetTimestamp(timestamp) {
+  await provider.request({
+    method: "evm_setTime",
+    params: [Number(timestamp * 1_000n)],
+  });
+  await provider.request({ method: "evm_mine", params: [] });
+  const block = await publicClient.getBlock();
+  check(
+    block.timestamp === timestamp,
+    `Unable to set exact oracle test timestamp: ${block.timestamp}/${timestamp}`,
+  );
+}
+
+async function deployOracleFixture({
+  reverse = false,
+  reserve0 = 64n * 10n ** 18n,
+  reserve1 = 1n * 10n ** 18n,
+  decimals = 8n,
+  answer = 60_000_000_000n,
+  guardian,
+} = {}) {
+  await resetLocalChain();
+  const artifacts = futuresOracleArtifacts();
+  const bnbx = await deploy(artifacts.token);
+  const wbnb = await deploy(artifacts.token);
+  const token0 = reverse ? wbnb : bnbx;
+  const token1 = reverse ? bnbx : wbnb;
+  const pair = await deploy(artifacts.pair, [token0, token1]);
+  const feed = await deploy(artifacts.feed);
+  await oracleWrite(pair, artifacts.pair.abi, "setReserves", [
+    reserve0,
+    reserve1,
+  ]);
+  if (decimals !== 8n) {
+    await oracleWrite(feed, artifacts.feed.abi, "setDecimals", [decimals]);
+  }
+  await oracleWrite(feed, artifacts.feed.abi, "setFreshAnswer", [answer]);
+  const oracle = await deploy(artifacts.oracle, [
+    pair,
+    feed,
+    bnbx,
+    wbnb,
+    guardian ?? account,
+  ]);
+  return { artifacts, bnbx, wbnb, pair, feed, oracle, answer };
+}
+
+async function deployConfigurableTokenOracleFixture() {
+  await resetLocalChain();
+  const artifacts = futuresOracleArtifacts();
+  const tokenArtifact = artifacts.testArtifacts.OracleTokenConfigurableMock;
+  const bnbx = await deploy(tokenArtifact, [18n]);
+  const wbnb = await deploy(tokenArtifact, [18n]);
+  const pair = await deploy(artifacts.pair, [bnbx, wbnb]);
+  const feed = await deploy(artifacts.feed);
+  await oracleWrite(pair, artifacts.pair.abi, "setReserves", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+  ]);
+  await oracleWrite(feed, artifacts.feed.abi, "setFreshAnswer", [
+    60_000_000_000n,
+  ]);
+  const oracle = await deploy(artifacts.oracle, [
+    pair,
+    feed,
+    bnbx,
+    wbnb,
+    account,
+  ]);
+  return {
+    artifacts,
+    tokenArtifact,
+    bnbx,
+    wbnb,
+    pair,
+    feed,
+    oracle,
+    answer: 60_000_000_000n,
+  };
+}
+
+function oracleUpdate(fixture) {
+  return oracleWrite(fixture.oracle, fixture.artifacts.oracle.abi, "update");
+}
+
+function oracleRead(fixture) {
+  return publicClient.readContract({
+    address: fixture.oracle,
+    abi: fixture.artifacts.oracle.abi,
+    functionName: "safeRead",
+    gas: 2_000_000n,
+  });
+}
+
+function oracleFreshFeed(fixture, answer = fixture.answer) {
+  fixture.answer = answer;
+  return oracleWrite(
+    fixture.feed,
+    fixture.artifacts.feed.abi,
+    "setFreshAnswer",
+    [answer],
+  );
+}
+
+async function oracleBuildWindow(fixture) {
+  const baselineReceipt = await oracleUpdate(fixture);
+  const baselineBlock = await publicClient.getBlock({
+    blockNumber: baselineReceipt.blockNumber,
+  });
+  let receipt;
+  for (let index = 1; index <= 6; index += 1) {
+    await oracleSetTimestamp(baselineBlock.timestamp + BigInt(index * 300));
+    await oracleFreshFeed(fixture);
+    receipt = await oracleUpdate(fixture);
+  }
+  return { receipt, value: await oracleRead(fixture) };
+}
+
+function checkOracleClose(value, label) {
+  check(
+    Number(value[0]) === 0 &&
+      value[1] === 0n &&
+      value[2] === 0n &&
+      value[3] === 0n &&
+      value[4] === 0n,
+    `${label} did not return a zeroed CloseOnly tuple`,
+  );
+}
+
+async function runFuturesOracleProgressionTest() {
+  const fixture = await deployOracleFixture();
+
+  const baselineReceipt = await oracleUpdate(fixture);
+  const baselineBlock = await publicClient.getBlock({
+    blockNumber: baselineReceipt.blockNumber,
+  });
+  const baselineAt = baselineBlock.timestamp;
+  checkOracleClose(await oracleRead(fixture), "Oracle baseline");
+  await oracleSetTimestamp(baselineAt + 299n);
+  await oracleFreshFeed(fixture);
+  await oracleUpdate(fixture);
+  checkOracleClose(await oracleRead(fixture), "Oracle too-early observation");
+  await oracleSetTimestamp(baselineAt + 300n);
+  await oracleFreshFeed(fixture);
+  await oracleUpdate(fixture);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle exact five-minute observation",
+  );
+  for (const offset of [600n, 900n]) {
+    await oracleSetTimestamp(baselineAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  checkOracleClose(await oracleRead(fixture), "Oracle intermediate");
+  for (const offset of [1_200n, 1_500n]) {
+    await oracleSetTimestamp(baselineAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  checkOracleClose(await oracleRead(fixture), "Oracle short window");
+  await oracleSetTimestamp(baselineAt + 1_800n);
+  await oracleFreshFeed(fixture);
+  const acceptedReceipt = await oracleUpdate(fixture);
+  const accepted = await oracleRead(fixture);
+  check(Number(accepted[0]) === 1, "Oracle did not open at thirty minutes");
+  check(
+    accepted[1] === 9_375_000_000_000_000_000n,
+    `Oracle mark mismatch: ${accepted[1]}`,
+  );
+  check(
+    accepted[2] === 15_625_000_000_000_000n,
+    `Oracle BNBX/BNB TWAP mismatch: ${accepted[2]}`,
+  );
+  check(
+    accepted[3] === 600_000_000_000_000_000_000n,
+    `Oracle BNB/USD normalization mismatch: ${accepted[3]}`,
+  );
+  const acceptedBlock = await publicClient.getBlock({
+    blockNumber: acceptedReceipt.blockNumber,
+  });
+  check(
+    accepted[4] === acceptedBlock.timestamp,
+    "Oracle accepted timestamp is not the update timestamp",
+  );
+  check(
+    Number(
+      await publicClient.readContract({
+        address: fixture.oracle,
+        abi: fixture.artifacts.oracle.abi,
+        functionName: "marketState",
+      }),
+    ) === 1,
+    "Oracle marketState provider did not expose Open",
+  );
+  console.log(
+    "PASS FuturesOracleProgression.baselineTooEarlyFifteenThirtyAndExactConversion",
+  );
+}
+
+async function runFuturesOracleMathAndWrapTests() {
+  const price0Selector = toFunctionSelector("price0CumulativeLast()");
+
+  let fixture = await deployOracleFixture({
+    reverse: true,
+    reserve0: 1n * 10n ** 18n,
+    reserve1: 64n * 10n ** 18n,
+  });
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setMode", [
+    price0Selector,
+    1,
+  ]);
+  let accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    Number(accepted[0]) === 1 &&
+      accepted[1] === 9_375_000_000_000_000_000n &&
+      accepted[2] === 15_625_000_000_000_000n,
+    "Reversed pair did not select price1 WBNB/BNBX cumulative",
+  );
+  console.log("PASS FuturesOracleMath.reversedPairSelectsPrice1");
+
+  fixture = await deployOracleFixture();
+  const manipulationBaselineReceipt = await oracleUpdate(fixture);
+  const manipulationBaselineBlock = await publicClient.getBlock({
+    blockNumber: manipulationBaselineReceipt.blockNumber,
+  });
+  for (let index = 1; index <= 5; index += 1) {
+    await oracleSetTimestamp(
+      manipulationBaselineBlock.timestamp + BigInt(index * 300),
+    );
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  await oracleSetTimestamp(manipulationBaselineBlock.timestamp + 1_740n);
+  const manipulationSwitchReceipt = await oracleWrite(
+    fixture.pair,
+    fixture.artifacts.pair.abi,
+    "setReserves",
+    [64n * 10n ** 18n, 2n * 10n ** 18n],
+  );
+  await oracleSetTimestamp(manipulationBaselineBlock.timestamp + 1_800n);
+  await oracleFreshFeed(fixture);
+  const manipulationEndReceipt = await oracleUpdate(fixture);
+  accepted = await oracleRead(fixture);
+  const [manipulationSwitchBlock, manipulationEndBlock] = await Promise.all(
+    [manipulationSwitchReceipt, manipulationEndReceipt].map((receipt) =>
+      publicClient.getBlock({ blockNumber: receipt.blockNumber }),
+    ),
+  );
+  const lowElapsed =
+    manipulationSwitchBlock.timestamp - manipulationBaselineBlock.timestamp;
+  const highElapsed =
+    manipulationEndBlock.timestamp - manipulationSwitchBlock.timestamp;
+  const manipulationElapsed = lowElapsed + highElapsed;
+  const expectedManipulationX112 =
+    ((1n << 106n) * lowElapsed + (1n << 107n) * highElapsed) /
+    manipulationElapsed;
+  const expectedManipulationTwap =
+    (expectedManipulationX112 * 10n ** 18n) / (1n << 112n);
+  const expectedManipulationMark = expectedManipulationTwap * 600n;
+  check(
+    accepted[2] === expectedManipulationTwap &&
+      accepted[1] === expectedManipulationMark &&
+      highElapsed >= 60n &&
+      highElapsed <= 61n &&
+      accepted[2] < 16_200_000_000_000_000n,
+    `One-minute manipulation was not time weighted: ${accepted[1]}/${accepted[2]}`,
+  );
+  console.log("PASS FuturesOracleMath.oneMinuteManipulationIsTimeWeighted");
+
+  fixture = await deployOracleFixture({
+    reserve0: 100n * 10n ** 18n,
+    reserve1: 1n * 10n ** 18n,
+  });
+  accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    accepted[2] === 9_999_999_999_999_999n &&
+      accepted[1] === 5_999_999_999_999_999_400n,
+    `Non-divisible UQ112x112 rounding mismatch: ${accepted[1]}/${accepted[2]}`,
+  );
+  console.log("PASS FuturesOracleMath.nonDivisibleUqRounding");
+
+  const maxUint112 = (1n << 112n) - 1n;
+  const largeFeedAnswer = 1n << 100n;
+  fixture = await deployOracleFixture({
+    reserve0: 1n,
+    reserve1: maxUint112,
+    decimals: 18n,
+    answer: largeFeedAnswer,
+  });
+  accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    accepted[2] === maxUint112 * 10n ** 18n,
+    "Full-precision TWAP conversion truncated a representable quotient",
+  );
+  check(
+    accepted[1] === maxUint112 << 100n,
+    "Full-precision USD multiplication failed a 512-bit intermediate",
+  );
+  console.log("PASS FuturesOracleMath.fullPrecision512BitConversion");
+
+  fixture = await deployOracleFixture();
+  let block = await publicClient.getBlock();
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setRawState", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+    Number(block.timestamp & ((1n << 32n) - 1n)),
+    100n,
+    0n,
+  ]);
+  const decreasingBaselineReceipt = await oracleUpdate(fixture);
+  const decreasingBaselineBlock = await publicClient.getBlock({
+    blockNumber: decreasingBaselineReceipt.blockNumber,
+  });
+  for (let index = 1; index <= 6; index += 1) {
+    const observedAt = decreasingBaselineBlock.timestamp + BigInt(index * 300);
+    await oracleSetTimestamp(observedAt);
+    await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setRawState", [
+      64n * 10n ** 18n,
+      1n * 10n ** 18n,
+      Number(observedAt & ((1n << 32n) - 1n)),
+      index === 6 ? 99n : 100n,
+      0n,
+    ]);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle physically impossible cumulative decrease",
+  );
+  console.log("PASS FuturesOracleMath.impossibleCumulativeDeltaFailsClosed");
+
+  fixture = await deployOracleFixture();
+  block = await publicClient.getBlock();
+  const priceX112 = 1n << 106n;
+  const wrappedStart = (1n << 256n) - 1n - priceX112 * 100n;
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setRawState", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+    Number(block.timestamp & ((1n << 32n) - 1n)),
+    wrappedStart,
+    0n,
+  ]);
+  accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    accepted[2] === 15_625_000_000_000_000n &&
+      accepted[1] === 9_375_000_000_000_000_000n,
+    "Uint256 cumulative wrap changed the TWAP",
+  );
+  console.log("PASS FuturesOracleMath.uint256CumulativeWrap");
+
+  fixture = await deployOracleFixture();
+  block = await publicClient.getBlock();
+  const nearUint32Wrap = (1n << 32n) - 1_000n;
+  check(
+    block.timestamp < nearUint32Wrap,
+    "Test chain started after the first uint32 timestamp wrap",
+  );
+  await oracleAdvance(Number(nearUint32Wrap - block.timestamp));
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setReserves", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+  ]);
+  await oracleFreshFeed(fixture);
+  accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    Number(accepted[0]) === 1 && accepted[2] === 15_625_000_000_000_000n,
+    "Uint32 block timestamp wrap changed or rejected a valid TWAP",
+  );
+  console.log("PASS FuturesOracleMath.uint32TimestampWrap");
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  check(Number(accepted[0]) === 1, "Future timestamp precondition failed");
+  block = await publicClient.getBlock();
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setRawState", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+    Number(block.timestamp + 30n),
+    0n,
+    0n,
+  ]);
+  checkOracleClose(await oracleRead(fixture), "Oracle future pair timestamp");
+  console.log("PASS FuturesOracleMath.futurePairTimestampFailsClosed");
+}
+
+async function runFuturesOracleFreshnessAndRecoveryTests() {
+  let fixture = await deployOracleFixture();
+  let accepted = (await oracleBuildWindow(fixture)).value;
+  const acceptedAt = accepted[4];
+  await oracleSetTimestamp(acceptedAt + 300n);
+  check(
+    Number((await oracleRead(fixture))[0]) === 1,
+    "Oracle rejected the exact five-minute feed/mark boundary",
+  );
+  await oracleSetTimestamp(acceptedAt + 301n);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle mark older than five minutes",
+  );
+  console.log("PASS FuturesOracleFreshness.exactMarkBoundaryAndStale");
+
+  for (const gap of [300n, 301n, 450n]) {
+    fixture = await deployOracleFixture();
+    accepted = (await oracleBuildWindow(fixture)).value;
+    const priorUpdatedAt = accepted[4];
+    await oracleSetTimestamp(priorUpdatedAt + gap);
+    if (gap === 300n) {
+      check(
+        Number((await oracleRead(fixture))[0]) === 1,
+        "Oracle rejected the exact stale-boundary pre-update read",
+      );
+    } else {
+      checkOracleClose(
+        await oracleRead(fixture),
+        `Oracle stale pre-update read at ${gap} seconds`,
+      );
+    }
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+    accepted = await oracleRead(fixture);
+    check(
+      Number(accepted[0]) === 1 &&
+        accepted[1] === 9_375_000_000_000_000_000n &&
+        accepted[4] === priorUpdatedAt + gap,
+      `Oracle did not roll an honest trailing candidate at ${gap} seconds`,
+    );
+  }
+  console.log(
+    "PASS FuturesOracleFreshness.staleReadStillAllowsHonestRollingUpdate",
+  );
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  const staleCandidateAt = accepted[4] + 301n;
+  await oracleSetTimestamp(staleCandidateAt);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle stale mark before invalid candidate update",
+  );
+  await oracleFreshFeed(fixture, 66_000_000_001n);
+  await oracleUpdate(fixture);
+  await oracleFreshFeed(fixture, 60_000_000_000n);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle invalid stale candidate did not latch rebuild",
+  );
+  for (let index = 1; index <= 5; index += 1) {
+    await oracleSetTimestamp(staleCandidateAt + BigInt(index * 300));
+    await oracleFreshFeed(fixture, 60_000_000_000n);
+    await oracleUpdate(fixture);
+    checkOracleClose(
+      await oracleRead(fixture),
+      "Oracle invalid stale candidate recovery before thirty minutes",
+    );
+  }
+  await oracleSetTimestamp(staleCandidateAt + 1_800n);
+  await oracleFreshFeed(fixture, 60_000_000_000n);
+  await oracleUpdate(fixture);
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 &&
+      accepted[1] === 9_375_000_000_000_000_000n &&
+      accepted[4] === staleCandidateAt + 1_800n,
+    "Oracle invalid stale candidate did not recover from its reseeded point",
+  );
+  console.log(
+    "PASS FuturesOracleFreshness.invalidStaleCandidateClearsAndReseeds",
+  );
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  await oracleWrite(
+    fixture.feed,
+    fixture.artifacts.feed.abi,
+    "setAnswerWithAge",
+    [60_000_000_000n, 300n],
+  );
+  check(
+    Number((await oracleRead(fixture))[0]) === 1,
+    "Oracle rejected feed data exactly five minutes old",
+  );
+  await oracleWrite(
+    fixture.feed,
+    fixture.artifacts.feed.abi,
+    "setAnswerWithAge",
+    [60_000_000_000n, 301n],
+  );
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle feed older than five minutes",
+  );
+  await oracleFreshFeed(fixture);
+  check(
+    Number((await oracleRead(fixture))[0]) === 1,
+    "Oracle did not expose a still-fresh accepted mark after feed recovery",
+  );
+  console.log("PASS FuturesOracleFreshness.exactFeedBoundaryAndRecovery");
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  const latestRoundSelector = toFunctionSelector("latestRoundData()");
+  await oracleWrite(fixture.feed, fixture.artifacts.feed.abi, "setMode", [
+    latestRoundSelector,
+    1,
+  ]);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle reverting live feed read",
+  );
+  await oracleUpdate(fixture);
+  await oracleWrite(fixture.feed, fixture.artifacts.feed.abi, "setMode", [
+    latestRoundSelector,
+    0,
+  ]);
+  check(
+    Number((await oracleRead(fixture))[0]) === 1,
+    "Oracle did not recover the still-fresh accepted mark",
+  );
+  await oracleAdvance(301);
+  await oracleFreshFeed(fixture);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle expired mark after dependency recovery",
+  );
+  await oracleUpdate(fixture);
+  for (let index = 0; index < 6; index += 1) {
+    await oracleAdvance(300);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 && accepted[1] === 9_375_000_000_000_000_000n,
+    "Oracle did not rebuild a complete window after mark expiry",
+  );
+  console.log("PASS FuturesOracleRecovery.faultThenFreshFullWindow");
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  let priorUpdatedAt = accepted[4];
+  for (let index = 0; index < 12; index += 1) {
+    await oracleSetTimestamp(priorUpdatedAt + 300n);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+    accepted = await oracleRead(fixture);
+    check(
+      Number(accepted[0]) === 1 && accepted[4] > priorUpdatedAt,
+      `Oracle rolling observation chain failed at refresh ${index}: ${accepted.join(",")}`,
+    );
+    priorUpdatedAt = accepted[4];
+  }
+  console.log("PASS FuturesOracleRecovery.rollingFixedObservationChain");
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  await oracleWrite(
+    fixture.oracle,
+    fixture.artifacts.oracle.abi,
+    "forceCloseOnly",
+  );
+  checkOracleClose(await oracleRead(fixture), "Oracle guardian forced close");
+  await oracleAdvance(1_800);
+  await oracleFreshFeed(fixture);
+  await oracleUpdate(fixture);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle guardian forced-close permanence",
+  );
+  console.log("PASS FuturesOracleSafety.guardianForceCloseIsPermanent");
+}
+
+async function runFuturesOracleObservationMutationTests() {
+  let fixture = await deployOracleFixture();
+  const baselineReceipt = await oracleUpdate(fixture);
+  const baselineBlock = await publicClient.getBlock({
+    blockNumber: baselineReceipt.blockNumber,
+  });
+  const baselineAt = baselineBlock.timestamp;
+  for (const offset of [300n, 600n, 900n, 1_800n, 2_100n, 2_400n]) {
+    await oracleSetTimestamp(baselineAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle window without a centered intermediate",
+  );
+  await oracleSetTimestamp(baselineAt + 2_700n);
+  await oracleFreshFeed(fixture);
+  await oracleUpdate(fixture);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle reused pre-fault history after a missing centered intermediate",
+  );
+  console.log(
+    "PASS FuturesOracleObservations.intermediateMustBeCenteredAndFresh",
+  );
+
+  fixture = await deployOracleFixture();
+  const irregularBaselineReceipt = await oracleUpdate(fixture);
+  const irregularBaselineBlock = await publicClient.getBlock({
+    blockNumber: irregularBaselineReceipt.blockNumber,
+  });
+  const irregularAt = irregularBaselineBlock.timestamp;
+  for (const offset of [300n, 600n, 900n, 1_200n, 1_500n, 2_400n]) {
+    await oracleSetTimestamp(irregularAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  check(
+    Number((await oracleRead(fixture))[0]) === 1,
+    "Oracle irregular-window fixture did not accept its valid centered window",
+  );
+  await oracleSetTimestamp(irregularAt + 2_700n);
+  await oracleFreshFeed(fixture);
+  const invalidWindowUpdate = await publicClient.simulateContract({
+    account,
+    address: fixture.oracle,
+    abi: fixture.artifacts.oracle.abi,
+    functionName: "update",
+  });
+  checkOracleClose(
+    invalidWindowUpdate.result,
+    "Oracle full ring without centered evidence update",
+  );
+  await oracleUpdate(fixture);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle full ring without centered evidence safeRead",
+  );
+  check(
+    Number(
+      await publicClient.readContract({
+        address: fixture.oracle,
+        abi: fixture.artifacts.oracle.abi,
+        functionName: "marketState",
+      }),
+    ) === 0,
+    "Oracle marketState reopened after an incomplete rolling window",
+  );
+  for (const offset of [3_000n, 3_300n, 3_600n, 3_900n, 4_200n]) {
+    await oracleSetTimestamp(irregularAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+    checkOracleClose(
+      await oracleRead(fixture),
+      "Oracle incomplete-window rebuild before thirty minutes",
+    );
+  }
+  await oracleSetTimestamp(irregularAt + 4_500n);
+  await oracleFreshFeed(fixture);
+  await oracleUpdate(fixture);
+  check(
+    Number((await oracleRead(fixture))[0]) === 1,
+    "Oracle did not recover exactly thirty minutes after reseeding an incomplete window",
+  );
+  console.log(
+    "PASS FuturesOracleObservations.invalidCompleteWindowLatchesRebuild",
+  );
+
+  fixture = await deployOracleFixture();
+  const rollingBaselineReceipt = await oracleUpdate(fixture);
+  const rollingBaselineBlock = await publicClient.getBlock({
+    blockNumber: rollingBaselineReceipt.blockNumber,
+  });
+  const rollingAt = rollingBaselineBlock.timestamp;
+  for (const offset of [300n, 600n, 900n]) {
+    await oracleSetTimestamp(rollingAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setReserves", [
+    64n * 10n ** 18n,
+    11n * 10n ** 17n,
+  ]);
+  for (const offset of [1_200n, 1_500n, 1_800n]) {
+    await oracleSetTimestamp(rollingAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  let accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 &&
+      accepted[2] === 16_406_249_999_999_999n &&
+      accepted[3] === 600_000_000_000_000_000_000n &&
+      accepted[1] === 9_843_749_999_999_999_400n,
+    "Oracle initial mixed-price window did not match literal expectation",
+  );
+  for (const offset of [2_100n, 2_400n, 2_700n]) {
+    await oracleSetTimestamp(rollingAt + offset);
+    await oracleFreshFeed(fixture);
+    await oracleUpdate(fixture);
+  }
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 &&
+      accepted[2] === 17_187_499_999_999_999n &&
+      accepted[1] === 10_312_499_999_999_999_400n,
+    `Oracle did not roll to a trailing thirty-minute window: ${accepted[1]}/${accepted[2]}`,
+  );
+  console.log("PASS FuturesOracleObservations.rollingWindowDropsGenesisPrice");
+}
+
+async function runFuturesOracleDeviationTests() {
+  let fixture = await deployOracleFixture();
+  let accepted = (await oracleBuildWindow(fixture)).value;
+  const initialMark = 9_375_000_000_000_000_000n;
+  check(accepted[1] === initialMark, "Deviation fixture mark mismatch");
+
+  const transientAcceptedAt = accepted[4];
+  await oracleSetTimestamp(transientAcceptedAt + 240n);
+  await oracleFreshFeed(fixture, 66_000_000_001n);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle transient live deviation before observation spacing",
+  );
+  const transientUpdate = await publicClient.simulateContract({
+    account,
+    address: fixture.oracle,
+    abi: fixture.artifacts.oracle.abi,
+    functionName: "update",
+  });
+  checkOracleClose(
+    transientUpdate.result,
+    "Oracle transient too-early deviation update",
+  );
+  await oracleUpdate(fixture);
+  await oracleFreshFeed(fixture, 60_000_000_000n);
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 &&
+      accepted[1] === initialMark &&
+      accepted[4] === transientAcceptedAt,
+    "Oracle latched or rewrote state for a recovered sub-spacing deviation",
+  );
+  console.log(
+    "PASS FuturesOracleDeviation.transientSubSpacingOutlierDoesNotLatch",
+  );
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  await oracleSetTimestamp(accepted[4] + 300n);
+  await oracleFreshFeed(fixture, 66_000_000_000n);
+  check(
+    Number((await oracleRead(fixture))[0]) === 1,
+    "Oracle live read rejected the exact positive ten-percent boundary",
+  );
+  await oracleUpdate(fixture);
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 && accepted[1] === 10_312_500_000_000_000_000n,
+    "Oracle candidate rejected the exact positive ten-percent boundary",
+  );
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  await oracleSetTimestamp(accepted[4] + 300n);
+  await oracleFreshFeed(fixture, 54_000_000_000n);
+  await oracleUpdate(fixture);
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 && accepted[1] === 8_437_500_000_000_000_000n,
+    "Oracle candidate rejected the exact negative ten-percent boundary",
+  );
+  console.log(
+    "PASS FuturesOracleDeviation.positiveAndNegativeEqualityAccepted",
+  );
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  const faultAt = accepted[4] + 300n;
+  await oracleSetTimestamp(faultAt);
+  await oracleFreshFeed(fixture, 66_000_000_001n);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle live mark just above ten percent",
+  );
+  const simulatedFault = await publicClient.simulateContract({
+    account,
+    address: fixture.oracle,
+    abi: fixture.artifacts.oracle.abi,
+    functionName: "update",
+  });
+  checkOracleClose(
+    simulatedFault.result,
+    "Oracle update candidate just above ten percent",
+  );
+  await oracleUpdate(fixture);
+  checkOracleClose(await oracleRead(fixture), "Oracle deviation latch");
+  for (let index = 1; index <= 5; index += 1) {
+    await oracleSetTimestamp(faultAt + BigInt(index * 300));
+    await oracleFreshFeed(fixture, 60_000_000_000n);
+    await oracleUpdate(fixture);
+  }
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle deviation recovery before thirty minutes",
+  );
+  await oracleSetTimestamp(faultAt + 1_800n);
+  await oracleFreshFeed(fixture, 60_000_000_000n);
+  await oracleUpdate(fixture);
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 && accepted[1] === initialMark,
+    "Oracle deviation recovery did not accept a full valid window",
+  );
+  console.log("PASS FuturesOracleDeviation.oneUnitAboveRejectsAndRebuilds");
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  await oracleWrite(
+    fixture.oracle,
+    fixture.artifacts.oracle.abi,
+    "lowerMaxDeviationBps",
+    [500],
+  );
+  await oracleSetTimestamp(accepted[4] + 300n);
+  await oracleFreshFeed(fixture, 63_000_000_000n);
+  await oracleUpdate(fixture);
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 && accepted[1] === 9_843_750_000_000_000_000n,
+    "Oracle rejected the guardian-lowered five-percent equality",
+  );
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  await oracleWrite(
+    fixture.oracle,
+    fixture.artifacts.oracle.abi,
+    "lowerMaxDeviationBps",
+    [500],
+  );
+  await oracleSetTimestamp(accepted[4] + 300n);
+  await oracleFreshFeed(fixture, 63_000_000_001n);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle live mark just above lowered deviation",
+  );
+  await oracleUpdate(fixture);
+  checkOracleClose(
+    await oracleRead(fixture),
+    "Oracle candidate just above lowered deviation",
+  );
+  console.log("PASS FuturesOracleDeviation.guardianLoweredEqualityIsStrict");
+
+  fixture = await deployOracleFixture();
+  accepted = (await oracleBuildWindow(fixture)).value;
+  const latestRoundSelector = toFunctionSelector("latestRoundData()");
+  await oracleWrite(fixture.feed, fixture.artifacts.feed.abi, "setMode", [
+    latestRoundSelector,
+    1,
+  ]);
+  await oracleUpdate(fixture);
+  await oracleWrite(fixture.feed, fixture.artifacts.feed.abi, "setMode", [
+    latestRoundSelector,
+    0,
+  ]);
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setReserves", [
+    64n * 10n ** 18n,
+    2n * 10n ** 18n,
+  ]);
+  const componentBaselineBlock = await publicClient.getBlock();
+  await oracleFreshFeed(fixture, 30_000_000_000n);
+  await oracleUpdate(fixture);
+  for (let index = 1; index <= 6; index += 1) {
+    await oracleSetTimestamp(
+      componentBaselineBlock.timestamp + BigInt(index * 300),
+    );
+    await oracleFreshFeed(fixture, 30_000_000_000n);
+    await oracleUpdate(fixture);
+  }
+  accepted = await oracleRead(fixture);
+  check(
+    Number(accepted[0]) === 1 &&
+      accepted[1] === initialMark &&
+      accepted[2] === 31_250_000_000_000_000n &&
+      accepted[3] === 300_000_000_000_000_000_000n,
+    "Oracle independently deviation-capped valid offsetting components",
+  );
+  console.log("PASS FuturesOracleDeviation.finalUsdMarkIsTheBoundedValue");
+}
+
+async function assertOracleDependencyFault(
+  fixture,
+  target,
+  targetAbi,
+  selector,
+  mode,
+  label,
+) {
+  await oracleWrite(target, targetAbi, "setMode", [selector, mode]);
+  checkOracleClose(await oracleRead(fixture), `${label} safeRead`);
+  const simulation = await publicClient.simulateContract({
+    account,
+    address: fixture.oracle,
+    abi: fixture.artifacts.oracle.abi,
+    functionName: "update",
+    gas: 2_000_000n,
+  });
+  checkOracleClose(simulation.result, `${label} update`);
+  const receipt = await oracleWrite(
+    fixture.oracle,
+    fixture.artifacts.oracle.abi,
+    "update",
+    [],
+    2_000_000n,
+  );
+  check(receipt.status === "success", `${label} update bubbled`);
+  await oracleWrite(target, targetAbi, "setMode", [selector, 0]);
+}
+
+async function runFuturesOracleDependencyBoundsTests() {
+  const modes = [
+    [6, "gas-burning"],
+    [1, "revert"],
+    [2, "short"],
+    [3, "overlong"],
+    [4, "malformed"],
+    [5, "bomb"],
+  ];
+  const selectors = {
+    token0: toFunctionSelector("token0()"),
+    token1: toFunctionSelector("token1()"),
+    reserves: toFunctionSelector("getReserves()"),
+    price0: toFunctionSelector("price0CumulativeLast()"),
+    price1: toFunctionSelector("price1CumulativeLast()"),
+    decimals: toFunctionSelector("decimals()"),
+    round: toFunctionSelector("latestRoundData()"),
+  };
+
+  for (const [selector, selectorLabel] of [
+    [selectors.token0, "token0"],
+    [selectors.token1, "token1"],
+  ]) {
+    const fixture = await deployOracleFixture();
+    await oracleBuildWindow(fixture);
+    for (const [mode, modeLabel] of modes) {
+      await assertOracleDependencyFault(
+        fixture,
+        fixture.pair,
+        fixture.artifacts.pair.abi,
+        selector,
+        mode,
+        `Oracle ${selectorLabel} ${modeLabel}`,
+      );
+    }
+  }
+
+  let fixture = await deployOracleFixture();
+  await oracleBuildWindow(fixture);
+  for (const [mode, modeLabel] of modes) {
+    if (mode === 4) {
+      for (const field of [0, 1, 2]) {
+        await oracleWrite(
+          fixture.pair,
+          fixture.artifacts.pair.abi,
+          "setReserveMalformedField",
+          [field],
+        );
+        await assertOracleDependencyFault(
+          fixture,
+          fixture.pair,
+          fixture.artifacts.pair.abi,
+          selectors.reserves,
+          mode,
+          `Oracle reserves malformed field ${field}`,
+        );
+      }
+    } else {
+      await assertOracleDependencyFault(
+        fixture,
+        fixture.pair,
+        fixture.artifacts.pair.abi,
+        selectors.reserves,
+        mode,
+        `Oracle reserves ${modeLabel}`,
+      );
+    }
+  }
+
+  fixture = await deployOracleFixture();
+  await oracleBuildWindow(fixture);
+  for (const [mode, modeLabel] of modes.filter(([mode]) => mode !== 4)) {
+    await assertOracleDependencyFault(
+      fixture,
+      fixture.pair,
+      fixture.artifacts.pair.abi,
+      selectors.price0,
+      mode,
+      `Oracle price0 cumulative ${modeLabel}`,
+    );
+  }
+
+  fixture = await deployOracleFixture({
+    reverse: true,
+    reserve0: 1n * 10n ** 18n,
+    reserve1: 64n * 10n ** 18n,
+  });
+  await oracleBuildWindow(fixture);
+  for (const [mode, modeLabel] of modes.filter(([mode]) => mode !== 4)) {
+    await assertOracleDependencyFault(
+      fixture,
+      fixture.pair,
+      fixture.artifacts.pair.abi,
+      selectors.price1,
+      mode,
+      `Oracle price1 cumulative ${modeLabel}`,
+    );
+  }
+
+  fixture = await deployOracleFixture();
+  await oracleBuildWindow(fixture);
+  for (const [mode, modeLabel] of modes) {
+    await assertOracleDependencyFault(
+      fixture,
+      fixture.feed,
+      fixture.artifacts.feed.abi,
+      selectors.decimals,
+      mode,
+      `Oracle feed decimals ${modeLabel}`,
+    );
+  }
+  fixture = await deployOracleFixture();
+  await oracleBuildWindow(fixture);
+  for (const [mode, modeLabel] of modes) {
+    if (mode === 4) {
+      for (const field of [0, 1]) {
+        await oracleWrite(
+          fixture.feed,
+          fixture.artifacts.feed.abi,
+          "setRoundMalformedField",
+          [field],
+        );
+        await assertOracleDependencyFault(
+          fixture,
+          fixture.feed,
+          fixture.artifacts.feed.abi,
+          selectors.round,
+          mode,
+          `Oracle latestRoundData malformed field ${field}`,
+        );
+      }
+    } else {
+      await assertOracleDependencyFault(
+        fixture,
+        fixture.feed,
+        fixture.artifacts.feed.abi,
+        selectors.round,
+        mode,
+        `Oracle latestRoundData ${modeLabel}`,
+      );
+    }
+  }
+
+  for (const tokenSide of ["bnbx", "wbnb"]) {
+    fixture = await deployConfigurableTokenOracleFixture();
+    await oracleBuildWindow(fixture);
+    const token = fixture[tokenSide];
+    for (const [mode, modeLabel] of modes) {
+      await oracleWrite(token, fixture.tokenArtifact.abi, "setMode", [mode]);
+      await assertOracleSafeAndUpdateClose(
+        fixture,
+        `Oracle ${tokenSide} decimals ${modeLabel}`,
+      );
+      await oracleWrite(token, fixture.tokenArtifact.abi, "setMode", [0]);
+    }
+  }
+  console.log(
+    "PASS FuturesOracleDependencies.everySelectorRejectsMalformedAndGasBurningReturns",
+  );
+}
+
+async function assertOracleSafeAndUpdateClose(fixture, label) {
+  checkOracleClose(await oracleRead(fixture), `${label} safeRead`);
+  const simulation = await publicClient.simulateContract({
+    account,
+    address: fixture.oracle,
+    abi: fixture.artifacts.oracle.abi,
+    functionName: "update",
+    gas: 2_000_000n,
+  });
+  checkOracleClose(simulation.result, `${label} update`);
+  const receipt = await oracleWrite(
+    fixture.oracle,
+    fixture.artifacts.oracle.abi,
+    "update",
+    [],
+    2_000_000n,
+  );
+  check(receipt.status === "success", `${label} update bubbled`);
+}
+
+async function runFuturesOracleDependencySemanticTests() {
+  let fixture = await deployOracleFixture({
+    decimals: 0n,
+    answer: 600n,
+  });
+  let accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    Number(accepted[0]) === 1 && accepted[3] === 600_000_000_000_000_000_000n,
+    "Oracle did not normalize a zero-decimal feed",
+  );
+  fixture = await deployOracleFixture({
+    decimals: 18n,
+    answer: 600n * 10n ** 18n,
+  });
+  accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    Number(accepted[0]) === 1 && accepted[3] === 600_000_000_000_000_000_000n,
+    "Oracle did not normalize an eighteen-decimal feed",
+  );
+  fixture = await deployOracleFixture({ decimals: 19n });
+  await assertOracleSafeAndUpdateClose(
+    fixture,
+    "Oracle unsupported nineteen-decimal feed",
+  );
+  console.log("PASS FuturesOracleFeed.decimalNormalizationAndUnsupportedRange");
+
+  const cases = [
+    {
+      label: "zero answer",
+      args: (now) => [2n, 0n, now, now, 2n],
+    },
+    {
+      label: "negative answer",
+      args: (now) => [2n, -1n, now, now, 2n],
+    },
+    {
+      label: "round inconsistency",
+      args: (now) => [3n, 60_000_000_000n, now, now, 2n],
+    },
+    {
+      label: "zero updatedAt",
+      args: (now) => [2n, 60_000_000_000n, 0n, 0n, 2n],
+    },
+    {
+      label: "startedAt after updatedAt",
+      args: (now) => [2n, 60_000_000_000n, now, now - 1n, 2n],
+    },
+    {
+      label: "future updatedAt",
+      args: (now) => [2n, 60_000_000_000n, now + 1n, now + 1n, 2n],
+    },
+    {
+      label: "stale updatedAt",
+      args: (now) => [2n, 60_000_000_000n, now - 301n, now - 301n, 2n],
+    },
+  ];
+  for (const testCase of cases) {
+    fixture = await deployOracleFixture();
+    await oracleBuildWindow(fixture);
+    const block = await publicClient.getBlock();
+    await oracleWrite(
+      fixture.feed,
+      fixture.artifacts.feed.abi,
+      "setRoundData",
+      testCase.args(block.timestamp),
+    );
+    await assertOracleSafeAndUpdateClose(
+      fixture,
+      `Oracle feed ${testCase.label}`,
+    );
+  }
+  console.log("PASS FuturesOracleFeed.roundAnswerAndTimestampValidation");
+
+  fixture = await deployOracleFixture({
+    decimals: 0n,
+    answer: (1n << 255n) - 1n,
+  });
+  await assertOracleSafeAndUpdateClose(
+    fixture,
+    "Oracle feed normalization overflow",
+  );
+
+  fixture = await deployOracleFixture();
+  await oracleBuildWindow(fixture);
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setReserves", [
+    0n,
+    1n * 10n ** 18n,
+  ]);
+  await assertOracleSafeAndUpdateClose(fixture, "Oracle zero reserve0");
+
+  fixture = await deployOracleFixture();
+  await oracleBuildWindow(fixture);
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setReserves", [
+    64n * 10n ** 18n,
+    0n,
+  ]);
+  await assertOracleSafeAndUpdateClose(fixture, "Oracle zero reserve1");
+
+  fixture = await deployOracleFixture();
+  await oracleBuildWindow(fixture);
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setTokens", [
+    fixture.wbnb,
+    fixture.bnbx,
+  ]);
+  await assertOracleSafeAndUpdateClose(
+    fixture,
+    "Oracle post-deployment pair orientation mutation",
+  );
+  console.log("PASS FuturesOraclePair.zeroReservesAndIdentityMutation");
+
+  const maxUint112 = (1n << 112n) - 1n;
+  fixture = await deployOracleFixture({
+    reserve0: 1n,
+    reserve1: maxUint112,
+    decimals: 18n,
+    answer: (1n << 255n) - 1n,
+  });
+  const overflowWindow = await oracleBuildWindow(fixture);
+  checkOracleClose(overflowWindow.value, "Oracle unrepresentable final mark");
+  console.log("PASS FuturesOracleMath.unrepresentableMarkFailsClosed");
+
+  fixture = await deployOracleFixture();
+  const postWrapAt = (1n << 32n) + 1_000n;
+  await oracleSetTimestamp(postWrapAt);
+  await oracleFreshFeed(fixture);
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setReserves", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+  ]);
+  accepted = (await oracleBuildWindow(fixture)).value;
+  check(
+    Number(accepted[0]) === 1,
+    "Oracle post-wrap future-timestamp fixture did not open",
+  );
+  const postWrapBlock = await publicClient.getBlock();
+  await oracleWrite(fixture.pair, fixture.artifacts.pair.abi, "setRawState", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+    Number((postWrapBlock.timestamp + 30n) & ((1n << 32n) - 1n)),
+    0n,
+    0n,
+  ]);
+  await assertOracleSafeAndUpdateClose(
+    fixture,
+    "Oracle post-wrap future reserve timestamp",
+  );
+  console.log("PASS FuturesOracleMath.postWrapFuturePairTimestampFailsClosed");
+}
+
+async function expectDeploymentRevert(artifact, args, label) {
+  let reverted = false;
+  try {
+    const hash = await walletClient.deployContract({
+      abi: artifact.abi,
+      bytecode: `0x${artifact.evm.bytecode.object}`,
+      args,
+      gas: 20_000_000n,
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    reverted = receipt.status === "reverted";
+  } catch {
+    reverted = true;
+  }
+  check(reverted, `${label} deployment unexpectedly succeeded`);
+}
+
+async function runFuturesOracleConstructorTests() {
+  await resetLocalChain();
+  const artifacts = futuresOracleArtifacts();
+  const bnbx = await deploy(artifacts.token);
+  const wbnb = await deploy(artifacts.token);
+  const outsider = await deploy(artifacts.token);
+  const feed = await deploy(artifacts.feed);
+  const pair = await deploy(artifacts.pair, [bnbx, wbnb]);
+  await oracleWrite(pair, artifacts.pair.abi, "setReserves", [
+    64n * 10n ** 18n,
+    1n * 10n ** 18n,
+  ]);
+  await oracleWrite(feed, artifacts.feed.abi, "setFreshAnswer", [
+    60_000_000_000n,
+  ]);
+  const goodArgs = [pair, feed, bnbx, wbnb, account];
+
+  for (let index = 0; index < goodArgs.length; index += 1) {
+    const args = [...goodArgs];
+    args[index] = "0x0000000000000000000000000000000000000000";
+    await expectDeploymentRevert(
+      artifacts.oracle,
+      args,
+      `Oracle zero constructor argument ${index}`,
+    );
+  }
+  for (const index of [0, 1, 2, 3]) {
+    const args = [...goodArgs];
+    args[index] = accounts[4];
+    await expectDeploymentRevert(
+      artifacts.oracle,
+      args,
+      `Oracle no-code constructor argument ${index}`,
+    );
+  }
+
+  let wrongPair = await deploy(artifacts.pair, [bnbx, outsider]);
+  await expectDeploymentRevert(
+    artifacts.oracle,
+    [wrongPair, feed, bnbx, wbnb, account],
+    "Oracle wrong pair tokens",
+  );
+  wrongPair = await deploy(artifacts.pair, [bnbx, bnbx]);
+  await expectDeploymentRevert(
+    artifacts.oracle,
+    [wrongPair, feed, bnbx, wbnb, account],
+    "Oracle duplicate pair tokens",
+  );
+  await expectDeploymentRevert(
+    artifacts.oracle,
+    [wrongPair, feed, bnbx, bnbx, account],
+    "Oracle identical expected token dependencies",
+  );
+
+  const configurableToken = artifacts.testArtifacts.OracleTokenConfigurableMock;
+  const wrongDecimals = await deploy(configurableToken, [17n]);
+  const wrongDecimalsPair = await deploy(artifacts.pair, [wrongDecimals, wbnb]);
+  await expectDeploymentRevert(
+    artifacts.oracle,
+    [wrongDecimalsPair, feed, wrongDecimals, wbnb, account],
+    "Oracle non-18 BNBX decimals",
+  );
+  for (const expectedSide of ["bnbx", "wbnb"]) {
+    const configurable = await deploy(configurableToken, [18n]);
+    const decimalPair =
+      expectedSide === "bnbx"
+        ? await deploy(artifacts.pair, [configurable, wbnb])
+        : await deploy(artifacts.pair, [bnbx, configurable]);
+    for (const [mode, modeLabel] of [
+      [6, "gas-burning"],
+      [1, "revert"],
+      [2, "short"],
+      [3, "overlong"],
+      [4, "malformed"],
+      [5, "bomb"],
+    ]) {
+      await oracleWrite(configurable, configurableToken.abi, "setMode", [mode]);
+      await expectDeploymentRevert(
+        artifacts.oracle,
+        [
+          decimalPair,
+          feed,
+          expectedSide === "bnbx" ? configurable : bnbx,
+          expectedSide === "wbnb" ? configurable : wbnb,
+          account,
+        ],
+        `Oracle ${expectedSide} decimals ${modeLabel}`,
+      );
+      await oracleWrite(configurable, configurableToken.abi, "setMode", [0]);
+    }
+  }
+
+  const token0Selector = toFunctionSelector("token0()");
+  const token1Selector = toFunctionSelector("token1()");
+  for (const [selector, label] of [
+    [token0Selector, "token0"],
+    [token1Selector, "token1"],
+  ]) {
+    for (const [mode, modeLabel] of [
+      [6, "gas-burning"],
+      [1, "revert"],
+      [2, "short"],
+      [3, "overlong"],
+      [4, "malformed"],
+      [5, "bomb"],
+    ]) {
+      await oracleWrite(pair, artifacts.pair.abi, "setMode", [selector, mode]);
+      await expectDeploymentRevert(
+        artifacts.oracle,
+        goodArgs,
+        `Oracle ${label} ${modeLabel}`,
+      );
+      await oracleWrite(pair, artifacts.pair.abi, "setMode", [selector, 0]);
+    }
+  }
+  console.log(
+    "PASS FuturesOracleConstructor.dependenciesIdentityDecimalsAndBounds",
+  );
+}
+
+async function runFuturesOracleOrderBookIntegrationTest() {
+  const fixture = await deployOracleFixture();
+  const testArtifacts = fixture.artifacts.testArtifacts;
+  const deployerArtifact = testArtifacts.OracleOrderBookFixtureDeployer;
+  const collateralArtifact =
+    output.contracts["test/futures/FuturesCollateralMock.sol"]
+      .FuturesCollateralMock;
+  const riskArtifact =
+    output.contracts["src/futures/RiskEngine.sol"].RiskEngine;
+  const clearingArtifact =
+    output.contracts["src/futures/ClearingHouse.sol"].ClearingHouse;
+  const orderBookArtifact =
+    output.contracts["src/futures/OrderBook.sol"].OrderBook;
+  const collateral = await deploy(collateralArtifact);
+  const riskEngine = await deploy(riskArtifact);
+  const fixtureDeployer = await deploy(deployerArtifact);
+  const cap = 10n ** 48n;
+  await oracleWrite(
+    fixtureDeployer,
+    deployerArtifact.abi,
+    "deploy",
+    [collateral, riskEngine, fixture.oracle, account, accounts[4], cap],
+    100_000_000n,
+  );
+  const [clearingHouse, orderBook] = await Promise.all(
+    ["clearingHouse", "orderBook"].map((functionName) =>
+      publicClient.readContract({
+        address: fixtureDeployer,
+        abi: deployerArtifact.abi,
+        functionName,
+      }),
+    ),
+  );
+
+  const traderWallets = [1, 2].map((index) =>
+    createWalletClient({
+      account: accounts[index],
+      chain: localChain,
+      transport: custom(provider),
+    }),
+  );
+  const deposit = 1_000n * 10n ** 18n;
+  for (let index = 0; index < traderWallets.length; index += 1) {
+    await oracleWrite(collateral, collateralArtifact.abi, "mint", [
+      accounts[index + 1],
+      deposit,
+    ]);
+    let hash = await traderWallets[index].writeContract({
+      address: collateral,
+      abi: collateralArtifact.abi,
+      functionName: "approve",
+      args: [clearingHouse, deposit],
+      gas: 1_000_000n,
+    });
+    let receipt = await publicClient.waitForTransactionReceipt({ hash });
+    check(receipt.status === "success", "Oracle integration approval failed");
+    hash = await traderWallets[index].writeContract({
+      address: clearingHouse,
+      abi: clearingArtifact.abi,
+      functionName: "deposit",
+      args: [deposit],
+      gas: 2_000_000n,
+    });
+    receipt = await publicClient.waitForTransactionReceipt({ hash });
+    check(receipt.status === "success", "Oracle integration deposit failed");
+  }
+
+  const quantity = 10n * 10n ** 18n;
+  const deadline = (1n << 64n) - 1n;
+  const openMaker = {
+    trader: accounts[1],
+    side: 0,
+    quantity,
+    limitPrice: 2n * 10n ** 18n,
+    leverage: 2,
+    nonce: 101n,
+    deadline,
+    reduceOnly: false,
+    role: 0,
+  };
+  const openTaker = {
+    trader: accounts[2],
+    side: 1,
+    quantity,
+    limitPrice: 2n * 10n ** 18n,
+    leverage: 3,
+    nonce: 201n,
+    deadline,
+    reduceOnly: false,
+    role: 1,
+  };
+  const signOrder = (order, signerIndex) =>
+    signingAccounts[signerIndex].signTypedData({
+      domain: orderDomain(orderBook),
+      types: orderTypes,
+      primaryType: "Order",
+      message: order,
+    });
+  const match = async (maker, taker, expectSuccess) => {
+    const makerIndex = accounts.findIndex(
+      (candidate) => candidate.toLowerCase() === maker.trader.toLowerCase(),
+    );
+    const takerIndex = accounts.findIndex(
+      (candidate) => candidate.toLowerCase() === taker.trader.toLowerCase(),
+    );
+    const [makerSignature, takerSignature] = await Promise.all([
+      signOrder(maker, makerIndex),
+      signOrder(taker, takerIndex),
+    ]);
+    let receipt;
+    try {
+      const hash = await walletClient.writeContract({
+        address: orderBook,
+        abi: orderBookArtifact.abi,
+        functionName: "matchOrders",
+        args: [maker, makerSignature, taker, takerSignature, quantity],
+        gas: 10_000_000n,
+      });
+      receipt = await publicClient.waitForTransactionReceipt({ hash });
+    } catch {
+      check(!expectSuccess, "Oracle integration match unexpectedly threw");
+      return;
+    }
+    check(
+      (receipt.status === "success") === expectSuccess,
+      `Oracle integration match status mismatch: ${receipt.status}`,
+    );
+  };
+
+  await match(openMaker, openTaker, false);
+  const preOpenState = await Promise.all([
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "netQuantity",
+      args: [accounts[1]],
+    }),
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "nextLotId",
+    }),
+    publicClient.readContract({
+      address: clearingHouse,
+      abi: clearingArtifact.abi,
+      functionName: "matchedOpenInterest",
+    }),
+  ]);
+  check(
+    preOpenState[0] === 0n && preOpenState[1] === 1n && preOpenState[2] === 0n,
+    "Incomplete oracle window changed OrderBook or ClearingHouse state",
+  );
+
+  await oracleBuildWindow(fixture);
+  await match(openMaker, openTaker, true);
+  let liveState = await Promise.all([
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "netQuantity",
+      args: [accounts[1]],
+    }),
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "netQuantity",
+      args: [accounts[2]],
+    }),
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "activeLotCount",
+      args: [accounts[1]],
+    }),
+    publicClient.readContract({
+      address: clearingHouse,
+      abi: clearingArtifact.abi,
+      functionName: "matchedOpenInterest",
+    }),
+  ]);
+  check(
+    liveState[0] === quantity &&
+      liveState[1] === -quantity &&
+      Number(liveState[2]) === 1 &&
+      liveState[3] === 20n * 10n ** 18n,
+    "Open oracle state did not permit one exact paired increase",
+  );
+
+  await oracleWrite(
+    fixture.oracle,
+    fixture.artifacts.oracle.abi,
+    "forceCloseOnly",
+  );
+  const blockedMaker = { ...openMaker, nonce: 102n };
+  const blockedTaker = { ...openTaker, nonce: 202n };
+  await match(blockedMaker, blockedTaker, false);
+  liveState = await Promise.all([
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "netQuantity",
+      args: [accounts[1]],
+    }),
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "nextLotId",
+    }),
+    publicClient.readContract({
+      address: clearingHouse,
+      abi: clearingArtifact.abi,
+      functionName: "matchedOpenInterest",
+    }),
+  ]);
+  check(
+    liveState[0] === quantity &&
+      liveState[1] === 2n &&
+      liveState[2] === 20n * 10n ** 18n,
+    "CloseOnly paired increase changed live position state",
+  );
+
+  const closeMaker = {
+    trader: accounts[1],
+    side: 1,
+    quantity,
+    limitPrice: 2n * 10n ** 18n,
+    leverage: 2,
+    nonce: 103n,
+    deadline,
+    reduceOnly: true,
+    role: 0,
+  };
+  const closeTaker = {
+    trader: accounts[2],
+    side: 0,
+    quantity,
+    limitPrice: 2n * 10n ** 18n,
+    leverage: 3,
+    nonce: 203n,
+    deadline,
+    reduceOnly: true,
+    role: 1,
+  };
+  await match(closeMaker, closeTaker, true);
+  const closedState = await Promise.all([
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "netQuantity",
+      args: [accounts[1]],
+    }),
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "netQuantity",
+      args: [accounts[2]],
+    }),
+    publicClient.readContract({
+      address: orderBook,
+      abi: orderBookArtifact.abi,
+      functionName: "activeLotCount",
+      args: [accounts[1]],
+    }),
+    publicClient.readContract({
+      address: clearingHouse,
+      abi: clearingArtifact.abi,
+      functionName: "matchedOpenInterest",
+    }),
+  ]);
+  check(
+    closedState[0] === 0n &&
+      closedState[1] === 0n &&
+      Number(closedState[2]) === 0 &&
+      closedState[3] === 0n,
+    "CloseOnly did not allow the exact paired reduction",
+  );
+  console.log(
+    "PASS FuturesOracleOrderBook.openWindowGateAndCloseOnlyReduction",
+  );
+}
+
 const suites = [
   {
     source: "test/BNBXLPRewardsTemplate.t.sol",
@@ -4317,6 +6016,15 @@ const suites = [
       "testDustNotionalRoundsUpAndInsufficientProceedsRollback",
     ],
   },
+  {
+    source: "test/FuturesOracle.t.sol",
+    contract: "FuturesOracleTest",
+    tests: [
+      "testStartsCloseOnlyAndBaselineDoesNotOpen",
+      "testSafeReadIsZeroBeforeACompleteWindow",
+      "testGuardianCanOnlyLowerDeviationAndForceClose",
+    ],
+  },
 ];
 
 const selectedSuites = suiteFilter
@@ -4520,6 +6228,58 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
     check(runtimeBytes <= 24_576, "OrderBook exceeds EIP-170 runtime size");
     console.log(
       `PASS OrderBook ABI permission surface and runtime ${runtimeBytes} bytes`,
+    );
+  }
+  if (suite.contract === "FuturesOracleTest") {
+    const oracleArtifact =
+      output.contracts["src/futures/FuturesOracle.sol"].FuturesOracle;
+    const expectedMutability = new Map(
+      [
+        ["bnbUsdFeed()", "view"],
+        ["bnbxIsToken0()", "view"],
+        ["bnbxToken()", "view"],
+        ["forceCloseOnly()", "nonpayable"],
+        ["forcedClose()", "view"],
+        ["guardian()", "view"],
+        ["lowerMaxDeviationBps(uint16)", "nonpayable"],
+        ["marketState()", "view"],
+        ["maxDeviationBps()", "view"],
+        ["pair()", "view"],
+        ["safeRead()", "view"],
+        ["update()", "nonpayable"],
+        ["wbnbToken()", "view"],
+      ].map(([signature, mutability]) => [
+        toFunctionSelector(signature),
+        mutability,
+      ]),
+    );
+    const exposedFunctions = oracleArtifact.abi.filter(
+      (item) => item.type === "function",
+    );
+    const actualMutability = new Map(
+      exposedFunctions.map((item) => [
+        toFunctionSelector(item),
+        item.stateMutability,
+      ]),
+    );
+    check(
+      actualMutability.size === expectedMutability.size &&
+        [...expectedMutability].every(
+          ([selector, mutability]) =>
+            actualMutability.get(selector) === mutability,
+        ),
+      "FuturesOracle ABI selector or mutability mismatch",
+    );
+    check(
+      !oracleArtifact.abi.some((item) =>
+        ["fallback", "receive"].includes(item.type),
+      ),
+      "FuturesOracle ABI exposes fallback or receive",
+    );
+    const runtimeBytes = oracleArtifact.evm.deployedBytecode.object.length / 2;
+    check(runtimeBytes <= 24_576, "FuturesOracle exceeds EIP-170 runtime size");
+    console.log(
+      `PASS FuturesOracle ABI permission surface and runtime ${runtimeBytes} bytes`,
     );
   }
   const deploymentHash = await walletClient.deployContract({
@@ -4855,6 +6615,17 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
       );
     }
     console.log(`PASS ${suite.contract}.${testName}`);
+  }
+  if (suite.contract === "FuturesOracleTest") {
+    await runFuturesOracleProgressionTest();
+    await runFuturesOracleMathAndWrapTests();
+    await runFuturesOracleFreshnessAndRecoveryTests();
+    await runFuturesOracleObservationMutationTests();
+    await runFuturesOracleDeviationTests();
+    await runFuturesOracleDependencyBoundsTests();
+    await runFuturesOracleDependencySemanticTests();
+    await runFuturesOracleConstructorTests();
+    await runFuturesOracleOrderBookIntegrationTest();
   }
 }
 
