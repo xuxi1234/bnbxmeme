@@ -23,7 +23,8 @@ contract ClearingHouse {
         uint256 longMarginReleased;
         uint256 shortMarginReleased;
         uint256 pnlAmount;
-        uint256 matchedNotionalReduction;
+        uint256 closeFeeNotional;
+        uint256 matchedOpenInterestReduction;
         uint256 takerFee;
     }
 
@@ -267,8 +268,11 @@ contract ClearingHouse {
             params.winner != params.longTrader
                 && params.winner != params.shortTrader
         ) revert InvalidPair();
-        if (params.matchedNotionalReduction == 0) revert ZeroAmount();
-        if (params.matchedNotionalReduction > matchedOpenInterest) {
+        if (
+            params.closeFeeNotional == 0
+                || params.matchedOpenInterestReduction == 0
+        ) revert ZeroAmount();
+        if (params.matchedOpenInterestReduction > matchedOpenInterest) {
             revert InvalidReduction();
         }
         if (
@@ -278,7 +282,7 @@ contract ClearingHouse {
         ) revert InsufficientBalance();
 
         uint256 requiredFee = riskEngine.orderFee(
-            params.matchedNotionalReduction,
+            params.closeFeeNotional,
             FuturesTypes.OrderRole.Taker
         );
         if (params.takerFee != requiredFee) revert InvalidFee();
@@ -314,7 +318,7 @@ contract ClearingHouse {
         lockedMargin[params.shortTrader] -= params.shortMarginReleased;
         totalLockedMargin -=
             params.longMarginReleased + params.shortMarginReleased;
-        matchedOpenInterest -= params.matchedNotionalReduction;
+        matchedOpenInterest -= params.matchedOpenInterestReduction;
         _creditReusableOrClaimable(params.longTrader, longProceeds);
         _creditReusableOrClaimable(params.shortTrader, shortProceeds);
 
