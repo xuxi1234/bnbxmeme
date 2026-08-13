@@ -36,10 +36,12 @@ const entrypoints = [
   "test/BNBXRewardVault.t.sol",
   "test/FuturesTypes.t.sol",
   "test/RiskEngine.t.sol",
+  "test/ClearingHouse.t.sol",
 ];
 const isolatedEntrypoints = {
   FuturesTypesTest: ["test/FuturesTypes.t.sol"],
   RiskEngineTest: ["test/RiskEngine.t.sol"],
+  ClearingHouseTest: ["test/ClearingHouse.t.sol"],
 };
 const compilationEntrypoints =
   isolatedEntrypoints[suiteFilter] ?? entrypoints;
@@ -77,7 +79,11 @@ const input = {
     evmVersion: "shanghai",
     outputSelection: {
       "*": {
-        "*": ["abi", "evm.bytecode.object"],
+        "*": [
+          "abi",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object",
+        ],
       },
     },
   },
@@ -384,6 +390,46 @@ const suites = [
       "testDeployedRuntimeRejectsPrivilegedAndFallbackSelectors",
     ],
   },
+  {
+    source: "test/ClearingHouse.t.sol",
+    contract: "ClearingHouseTest",
+    tests: [
+      "testConstructorRejectsInvalidDependenciesAndCaps",
+      "testConstructorAcceptsPredictedOrderBookAndControllerWithoutCode",
+      "testStandardAndNoReturnDepositsCreditExactAvailableLiability",
+      "testDepositRejectsZeroCapsFalseMalformedAndDeltaMismatchAtomically",
+      "testDepositRejectsCrossFunctionReentryWithoutPartialTransferOrCredit",
+      "testStandardAndNoReturnWithdrawalsDebitOnlyCallerAvailable",
+      "testWithdrawRejectsUnavailableAndAdversarialTransfersAtomically",
+      "testFundInsuranceIsExactCapBoundAndCreatesNoUserOrRevenueBalance",
+      "testPreexistingInsolvencyBlocksUserMoveDirectClaimAndController",
+      "testPreexistingInsolvencyBlocksRewardMoveAndDirectWithdrawal",
+      "testPreexistingInsolvencyBlocksOrderBookInternalReclassifications",
+      "testPreexistingInsolvencyBlocksInboundDepositAndInsuranceFunding",
+      "testPreexistingInsolvencyBlocksOutboundAvailableWithdrawal",
+      "testPreexistingInsolvencyBlocksFeeBearingOpenAndClose",
+      "testOpenPairLocksBothMarginsCountsNotionalOnceAndPaysOneExactFee",
+      "testOpenPairShortTakerDebitsOnlyShortAvailableAndPaysExactFee",
+      "testOpenPairRejectsUnauthorizedInvalidInsufficientAndOverCapCalls",
+      "testOpenPairFeeTransferFailureRollsBackEveryBalanceAndOpenInterest",
+      "testClosePairLongWinIsZeroSumBeforeFeeAndUsesOnlyCloseProceeds",
+      "testClosePairShortTakerDebitsOnlyShortGeneratedProceeds",
+      "testClosePairShortWinSpillsOnlyReceiverExcessToClaimable",
+      "testClosePairRejectsExcessPnlAndFeeWithoutUsingUnrelatedAvailable",
+      "testClosePairShortTakerRejectsFeeWithoutShortCloseProceeds",
+      "testClosePairTransferFailureRollsBackReleasePnlFeeAndOpenInterest",
+      "testStandalonePenaltyCannotFullyDepleteOrStrandOpenInterest",
+      "testClaimableCanMoveWithinCapOrWithdrawDirectlyOnlyByItsOwner",
+      "testRoundingResidualMovesOnlySpecifiedLockedFundsToInsurance",
+      "testPenaltyCapsAtRemainingEquityAndRoundsResidualToInsurance",
+      "testLiquidationRewardCanMoveWithinCapOrWithdrawDirectlyByOwner",
+      "testInsuranceCoversOnlyExplicitDeficitWithAccountCapSpill",
+      "testSafetyControllerCanOnlyStrictlyLowerCapsAboveLiveUsage",
+      "testUnauthorizedWalletsCannotMutateMatchedAccountingOrOtherClaims",
+      "testForcedDonationIsOnlySurplusAndLongSequenceStaysSolvent",
+      "testDeployedRuntimeRejectsFallbackReceiveAndForbiddenAuthority",
+    ],
+  },
 ];
 
 const selectedSuites = suiteFilter
@@ -446,6 +492,89 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
       "RiskEngine ABI exposes fallback or receive",
     );
     console.log("PASS RiskEngine ABI permission surface");
+  }
+  if (suite.contract === "ClearingHouseTest") {
+    const clearingArtifact =
+      output.contracts["src/futures/ClearingHouse.sol"].ClearingHouse;
+    const expectedMutability = new Map(
+      [
+        ["collateral()", "view"],
+        ["riskEngine()", "view"],
+        ["orderBook()", "view"],
+        ["safetyController()", "view"],
+        ["revenueRecipient()", "view"],
+        ["totalLiabilityCap()", "view"],
+        ["accountEquityCap()", "view"],
+        ["matchedOpenInterestCap()", "view"],
+        ["available(address)", "view"],
+        ["lockedMargin(address)", "view"],
+        ["claimable(address)", "view"],
+        ["liquidationReward(address)", "view"],
+        ["totalAvailable()", "view"],
+        ["totalLockedMargin()", "view"],
+        ["totalClaimable()", "view"],
+        ["totalLiquidationRewards()", "view"],
+        ["insuranceBalance()", "view"],
+        ["matchedOpenInterest()", "view"],
+        ["totalLiabilities()", "view"],
+        ["deposit(uint256)", "nonpayable"],
+        ["withdraw(uint256)", "nonpayable"],
+        ["moveClaimableToAvailable(uint256)", "nonpayable"],
+        ["moveLiquidationRewardToAvailable(uint256)", "nonpayable"],
+        ["withdrawClaimable(uint256)", "nonpayable"],
+        ["withdrawLiquidationReward(uint256)", "nonpayable"],
+        ["fundInsurance(uint256)", "nonpayable"],
+        [
+          "openMatchedPair((address,address,address,uint256,uint256,uint256,uint256))",
+          "nonpayable",
+        ],
+        [
+          "closeMatchedPair((address,address,address,address,uint256,uint256,uint256,uint256,uint256))",
+          "nonpayable",
+        ],
+        ["allocateRoundingResidual(address,uint256)", "nonpayable"],
+        [
+          "allocateLiquidationPenalty(address,address,uint256,uint256)",
+          "nonpayable",
+        ],
+        ["coverMatchedLossDeficit(address,uint256)", "nonpayable"],
+        ["lowerTotalLiabilityCap(uint256)", "nonpayable"],
+        ["lowerAccountEquityCap(uint256)", "nonpayable"],
+        ["lowerMatchedOpenInterestCap(uint256)", "nonpayable"],
+      ].map(([signature, mutability]) => [
+        toFunctionSelector(signature),
+        mutability,
+      ]),
+    );
+    const exposedFunctions = clearingArtifact.abi.filter(
+      (item) => item.type === "function",
+    );
+    const actualMutability = new Map(
+      exposedFunctions.map((item) => [
+        toFunctionSelector(item),
+        item.stateMutability,
+      ]),
+    );
+    check(
+      actualMutability.size === expectedMutability.size &&
+        [...expectedMutability].every(
+          ([selector, mutability]) =>
+            actualMutability.get(selector) === mutability,
+        ),
+      "ClearingHouse ABI selector or mutability mismatch",
+    );
+    check(
+      !clearingArtifact.abi.some((item) =>
+        ["fallback", "receive"].includes(item.type),
+      ),
+      "ClearingHouse ABI exposes fallback or receive",
+    );
+    const runtimeBytes =
+      clearingArtifact.evm.deployedBytecode.object.length / 2;
+    check(runtimeBytes <= 24_576, "ClearingHouse exceeds EIP-170 runtime size");
+    console.log(
+      `PASS ClearingHouse ABI permission surface and runtime ${runtimeBytes} bytes`,
+    );
   }
   const deploymentHash = await walletClient.deployContract({
     abi: artifact.abi,
