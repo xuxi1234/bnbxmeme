@@ -11,6 +11,7 @@
     "test:risk-engine": "TEST_SUITE=RiskEngineTest node scripts/run-evm-tests.mjs",
     "test:clearing-house": "TEST_SUITE=ClearingHouseTest node scripts/run-evm-tests.mjs",
     "test:order-book": "TEST_SUITE=OrderBookTest node scripts/run-evm-tests.mjs",
+    "test:futures-oracle": "TEST_SUITE=FuturesOracleTest node scripts/run-evm-tests.mjs",
     "audit:v3": "node scripts/audit-v3-artifacts.mjs",
     "audit:v4": "node scripts/audit-v4-artifacts.mjs",
     "audit:zero-tax": "node scripts/audit-zero-tax-template.mjs",
