@@ -846,6 +846,7 @@ contract ClearingHouseTest {
                 200,
                 50,
                 400,
+                400,
                 4
             );
         _assertOrderReverts(
@@ -1034,6 +1035,49 @@ contract ClearingHouseTest {
         _assertSolvent(clearingHouse);
     }
 
+    function testClosePairSeparatesExitFeeNotionalFromEntryOiReduction()
+        public
+    {
+        _deposit(alice, clearingHouse, 2_000);
+        _deposit(bob, clearingHouse, 2_000);
+        _open(
+            clearingHouse,
+            address(alice),
+            address(bob),
+            address(alice),
+            500,
+            500,
+            1_000,
+            10
+        );
+
+        _executeOrder(
+            clearingHouse,
+            abi.encodeWithSignature(
+                "closeMatchedPair((address,address,address,address,uint256,uint256,uint256,uint256,uint256,uint256))",
+                address(alice),
+                address(bob),
+                address(alice),
+                address(bob),
+                200,
+                200,
+                50,
+                700,
+                400,
+                7
+            )
+        );
+
+        assert(clearingHouse.available(address(alice)) == 1_740);
+        assert(clearingHouse.available(address(bob)) == 1_643);
+        assert(clearingHouse.lockedMargin(address(alice)) == 300);
+        assert(clearingHouse.lockedMargin(address(bob)) == 300);
+        assert(clearingHouse.matchedOpenInterest() == 600);
+        assert(collateral.balanceOf(address(revenueRecipient)) == 17);
+        assert(clearingHouse.totalLiabilities() == 3_983);
+        _assertSolvent(clearingHouse);
+    }
+
     function testClosePairShortTakerDebitsOnlyShortGeneratedProceeds()
         public
     {
@@ -1128,6 +1172,7 @@ contract ClearingHouseTest {
             34,
             35,
             100,
+            100,
             1
         );
         _assertOrderReverts(
@@ -1142,6 +1187,7 @@ contract ClearingHouseTest {
             34,
             34,
             34,
+            100,
             100,
             1
         );
@@ -1183,6 +1229,7 @@ contract ClearingHouseTest {
                 34,
                 34,
                 34,
+                100,
                 100,
                 1
             );
@@ -1227,6 +1274,7 @@ contract ClearingHouseTest {
             200,
             200,
             50,
+            400,
             400,
             4
         );
@@ -1778,7 +1826,7 @@ contract ClearingHouseTest {
         uint256 longMarginReleased,
         uint256 shortMarginReleased,
         uint256 pnlAmount,
-        uint256 matchedNotionalReduction,
+        uint256 matchedOpenInterestReduction,
         uint256 takerFee
     ) internal {
         ClearingHouse.CloseMatchedPairParams memory params = _closeParams(
@@ -1789,7 +1837,8 @@ contract ClearingHouseTest {
             longMarginReleased,
             shortMarginReleased,
             pnlAmount,
-            matchedNotionalReduction,
+            matchedOpenInterestReduction,
+            matchedOpenInterestReduction,
             takerFee
         );
         _executeOrder(
@@ -1850,7 +1899,8 @@ contract ClearingHouseTest {
         uint256 longMarginReleased,
         uint256 shortMarginReleased,
         uint256 pnlAmount,
-        uint256 matchedNotionalReduction,
+        uint256 closeFeeNotional,
+        uint256 matchedOpenInterestReduction,
         uint256 takerFee
     ) internal pure returns (ClearingHouse.CloseMatchedPairParams memory params) {
         params = ClearingHouse.CloseMatchedPairParams({
@@ -1861,7 +1911,8 @@ contract ClearingHouseTest {
             longMarginReleased: longMarginReleased,
             shortMarginReleased: shortMarginReleased,
             pnlAmount: pnlAmount,
-            matchedNotionalReduction: matchedNotionalReduction,
+            closeFeeNotional: closeFeeNotional,
+            matchedOpenInterestReduction: matchedOpenInterestReduction,
             takerFee: takerFee
         });
     }
