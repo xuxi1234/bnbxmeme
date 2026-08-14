@@ -63,6 +63,14 @@ contract Task6ShortReturnOracle {
     }
 }
 
+contract Task6LongReturnOracle {
+    fallback() external {
+        assembly ("memory-safe") {
+            return(0, 192)
+        }
+    }
+}
+
 contract Task6InvalidEnumOracle {
     fallback() external {
         assembly ("memory-safe") {
@@ -141,6 +149,7 @@ contract FundingLiquidationTest {
     Task6OracleMock public oracle;
     Task6MarketStateOnlyProvider public marketStateOnlyProvider;
     Task6ShortReturnOracle public shortReturnOracle;
+    Task6LongReturnOracle public longReturnOracle;
     Task6InvalidEnumOracle public invalidEnumOracle;
     ClearingHouse public clearingHouse;
     OrderBook public orderBook;
@@ -151,6 +160,7 @@ contract FundingLiquidationTest {
         oracle = new Task6OracleMock();
         marketStateOnlyProvider = new Task6MarketStateOnlyProvider();
         shortReturnOracle = new Task6ShortReturnOracle();
+        longReturnOracle = new Task6LongReturnOracle();
         invalidEnumOracle = new Task6InvalidEnumOracle();
         FundingLiquidationFixtureDeployer deployer =
             new FundingLiquidationFixtureDeployer();

@@ -171,12 +171,19 @@ const [collateral, clearingHouse, orderBook, oracle, riskEngine] =
       (functionName) => read(fixture, fixtureArtifact.abi, functionName),
     ),
   );
-const [marketStateOnlyProvider, shortReturnOracle, invalidEnumOracle] =
-  await Promise.all(
-    ["marketStateOnlyProvider", "shortReturnOracle", "invalidEnumOracle"].map(
-      (functionName) => read(fixture, fixtureArtifact.abi, functionName),
-    ),
-  );
+const [
+  marketStateOnlyProvider,
+  shortReturnOracle,
+  longReturnOracle,
+  invalidEnumOracle,
+] = await Promise.all(
+  [
+    "marketStateOnlyProvider",
+    "shortReturnOracle",
+    "longReturnOracle",
+    "invalidEnumOracle",
+  ].map((functionName) => read(fixture, fixtureArtifact.abi, functionName)),
+);
 
 // Mutation caught: accepting an immutable provider that cannot return one
 // canonical five-word safe read leaves liquidation permanently unusable.
@@ -184,6 +191,7 @@ for (const [providerAddress, label] of [
   [accounts[5], "no-code provider"],
   [marketStateOnlyProvider, "market-state-only provider"],
   [shortReturnOracle, "short-return provider"],
+  [longReturnOracle, "long-return provider"],
   [invalidEnumOracle, "invalid-enum provider"],
 ]) {
   const { result: rejected } = await publicClient.simulateContract({
