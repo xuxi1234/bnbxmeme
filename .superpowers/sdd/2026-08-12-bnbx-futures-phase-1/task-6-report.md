@@ -491,3 +491,130 @@ All four remain below the 24,576-byte EIP-170 limit.
   funding remains a separately reviewed future design.
 - Ganache's optional native `uws` binary is unavailable for this Node build;
   the documented JavaScript fallback affects speed only.
+
+---
+
+## Independent review fix round 2/5 (2026-08-14)
+
+Status: PASS
+
+Reviewed tree: `342a106e426e5c1ab11badd4cef19aa12ca6c46e`
+
+Gate fix commit: `35a59ac69f810910dfc0f34e8c2943bc36f1be29`
+
+### Finding and bounded correction
+
+The round-1 repository gate covered Futures Solidity, contract scripts,
+selected web source directories, and package manifests, but omitted two tracked
+integration inputs:
+
+- `packages/contracts/deployments/bsc-testnet.json`
+- `packages/chain-config/src/index.ts`
+
+Only `packages/contracts/scripts/run-task-6-tests.mjs` changed. The bounded
+text-input universe is now:
+
+- `packages/contracts/src/futures`
+- `packages/contracts/scripts`
+- `packages/contracts/deployments`
+- the complete `packages/chain-config` package
+- the complete `apps/web` application
+- `packages/contracts/package.json`
+
+The recursive collector continues to accept only Solidity, JavaScript,
+TypeScript, TSX, and JSON inputs. It explicitly excludes generated/vendor
+directories `node_modules`, `.next`, `.turbo`, `coverage`, `dist`, and `out`.
+Binary public assets and unrelated contract source/test trees remain outside
+the bounded integration universe.
+
+The exact Futures source, compiler artifact, ABI/mutability, runtime-size,
+fallback/receive, generated forbidden-selector, deployed-call, and empty Phase
+1 deployment-manifest gates are unchanged.
+
+### Mutation-first evidence
+
+Unsafe mutation for both cases: add a prohibited automatic deleveraging
+identifier to a tracked deployment/integration input. This would let a
+production integration expose a mechanism that the Phase 1 absence gate
+claims cannot exist.
+
+Exact command for every RED/GREEN cycle:
+
+`pnpm --filter @bnbx/contracts test:funding-liquidation`
+
+#### Previously omitted deployment manifest
+
+1. Added JSON entry `FuturesADL` to
+   `packages/contracts/deployments/bsc-testnet.json` while the old gate was
+   unchanged.
+2. Observed false-negative baseline: exit 0, all 17 Task 6 PASS lines, and the
+   final gate reported only `280 repository inputs`.
+3. Added `packages/contracts/deployments` to the bounded recursive inputs.
+4. Reapplied the identical mutation.
+5. Observed required RED: exit 1 with the exact path:
+   `Error: packages/contracts/deployments/bsc-testnet.json contains prohibited Futures identifier FuturesADL`.
+6. Restored the JSON via patch. `git diff` showed no remaining change to the
+   deployment manifest.
+
+#### Previously omitted chain configuration
+
+1. Exported `FuturesADL` from `packages/chain-config/src/index.ts` while the old
+   gate was unchanged.
+2. Observed false-negative baseline: exit 0, all 17 Task 6 PASS lines, and the
+   final gate again reported only `280 repository inputs`.
+3. Added the complete `packages/chain-config` package to the bounded recursive
+   inputs.
+4. Reapplied the identical mutation.
+5. Observed required RED: exit 1 with the exact path:
+   `Error: packages/chain-config/src/index.ts contains prohibited Futures identifier FuturesADL`.
+6. Restored the TypeScript file via patch. `git diff` showed no remaining
+   change to chain configuration.
+
+The web scan was simultaneously made complete at the application-package
+boundary rather than enumerating only `app`, `components`, and `lib`. The
+extension and generated/vendor exclusions keep this expansion bounded to real
+service/UI/integration text inputs.
+
+### GREEN and regression evidence
+
+- `pnpm --filter @bnbx/contracts test:funding-liquidation`
+  - Exit 0 after both tracked fixtures were restored.
+  - 16 deployed behavior PASS lines plus the exact gate.
+  - Gate inventory: 5 Futures sources, 7 compiler artifacts, and 288 bounded
+    repository inputs.
+  - Runtime sizes unchanged: OrderBook 18,974; ClearingHouse 11,637;
+    RiskEngine 1,788; FuturesOracle 6,731 bytes.
+- `node --test scripts/verification-compiler-input.test.mjs`
+  - Exit 0, 8/8.
+- `pnpm test:risk-engine`
+  - Exit 0, 10/10 behaviors plus exact permission/ABI gate.
+- `pnpm test:clearing-house`
+  - Exit 0, 35/35 behaviors plus exact ABI/runtime gate.
+- `pnpm test:order-book`
+  - Exit 0, 23/23 behaviors plus exact ABI/runtime gate.
+- `pnpm test:futures-oracle`
+  - Exit 0, 35/35 Oracle behaviors plus exact ABI/runtime gate.
+- `pnpm --filter @bnbx/contracts test`
+  - Exit 0 from the final restored tree.
+  - Compiler-input phase 8/8.
+  - Task 6 phase 17 PASS lines with 288 repository inputs.
+  - Complete EVM/artifact matrix passed through
+    `GraduationTarget.18BNB` (unchanged `PASS_COUNT 247`).
+- `pnpm exec prettier --write packages/contracts/scripts/run-task-6-tests.mjs`
+  - File already matched formatting.
+- `git diff --check`
+  - Exit 0.
+
+### ABI, runtime, security, and concerns
+
+- No production contract, ABI, bytecode, runtime size, custody, accounting,
+  authority, funding, liquidation, or Oracle behavior changed.
+- The actual tracked deployment and chain-configuration inputs are now scanned
+  by the same behaviorally mutation-proven identifier gate as Futures sources,
+  service code, UI code, and deployment scripts.
+- Both mutation targets were restored byte-for-byte before GREEN and are absent
+  from the committed diff.
+- The Phase 1 Futures deployment manifest remains exactly empty and no
+  prohibited deleveraging surface exists in the 288-input bounded universe.
+- The known optional Ganache `uws` warning remains test-performance-only; every
+  required command exited 0.
