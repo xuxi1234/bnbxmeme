@@ -139,7 +139,11 @@ contract OrderBook {
         ) revert ZeroAddress();
         if (
             clearingHouse_.code.length == 0 || riskEngine_.code.length == 0
+                || marketStateProvider_.code.length == 0
         ) revert DependencyHasNoCode();
+        if (!_canonicalOracleInterface(marketStateProvider_)) {
+            revert DependencyMismatch();
+        }
 
         ClearingHouse house = ClearingHouse(clearingHouse_);
         if (
@@ -151,6 +155,26 @@ contract OrderBook {
         riskEngine = RiskEngine(riskEngine_);
         marketStateProvider = marketStateProvider_;
         fundingUpdatedAt = _currentTimestamp();
+    }
+
+    function _canonicalOracleInterface(address provider)
+        private
+        view
+        returns (bool valid)
+    {
+        bool success;
+        uint256 returnSize;
+        uint256 state;
+        uint32 selector = uint32(IFuturesOracleRead.safeRead.selector);
+        assembly ("memory-safe") {
+            let pointer := mload(0x40)
+            mstore(pointer, shl(224, selector))
+            success := staticcall(gas(), provider, pointer, 4, pointer, 160)
+            returnSize := returndatasize()
+            state := mload(pointer)
+        }
+        valid = success && returnSize == 160
+            && state <= uint256(FuturesTypes.MarketState.Open);
     }
 
     modifier nonReentrant() {

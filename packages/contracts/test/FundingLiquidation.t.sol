@@ -45,6 +45,33 @@ contract Task6OracleMock {
     }
 }
 
+contract Task6MarketStateOnlyProvider {
+    function marketState()
+        external
+        pure
+        returns (FuturesTypes.MarketState)
+    {
+        return FuturesTypes.MarketState.Open;
+    }
+}
+
+contract Task6ShortReturnOracle {
+    fallback() external {
+        assembly ("memory-safe") {
+            return(0, 128)
+        }
+    }
+}
+
+contract Task6InvalidEnumOracle {
+    fallback() external {
+        assembly ("memory-safe") {
+            mstore(0, 2)
+            return(0, 160)
+        }
+    }
+}
+
 contract FundingLiquidationFixtureDeployer {
     bytes32 private constant ORDER_BOOK_SALT = keccak256("TASK_6_ORDER_BOOK");
 
@@ -84,7 +111,7 @@ contract FundingLiquidationFixtureDeployer {
             revenueRecipient,
             1e48,
             1_000e18,
-            100e18
+            150e18
         );
         assert(address(clearingHouse) == predictedClearingHouse);
         orderBook = new OrderBook{ salt: ORDER_BOOK_SALT }(
@@ -112,6 +139,9 @@ contract FundingLiquidationTest {
     FuturesCollateralMock public collateral;
     RiskEngine public riskEngine;
     Task6OracleMock public oracle;
+    Task6MarketStateOnlyProvider public marketStateOnlyProvider;
+    Task6ShortReturnOracle public shortReturnOracle;
+    Task6InvalidEnumOracle public invalidEnumOracle;
     ClearingHouse public clearingHouse;
     OrderBook public orderBook;
 
@@ -119,6 +149,9 @@ contract FundingLiquidationTest {
         collateral = new FuturesCollateralMock();
         riskEngine = new RiskEngine();
         oracle = new Task6OracleMock();
+        marketStateOnlyProvider = new Task6MarketStateOnlyProvider();
+        shortReturnOracle = new Task6ShortReturnOracle();
+        invalidEnumOracle = new Task6InvalidEnumOracle();
         FundingLiquidationFixtureDeployer deployer =
             new FundingLiquidationFixtureDeployer();
         (clearingHouse, orderBook) = deployer.deploy(
@@ -127,5 +160,37 @@ contract FundingLiquidationTest {
             address(oracle),
             address(0xBEEF)
         );
+    }
+
+    function providerConstructionRejected(address provider)
+        external
+        returns (bool rejected)
+    {
+        FundingLiquidationFixtureDeployer deployer =
+            new FundingLiquidationFixtureDeployer();
+        try deployer.deploy(
+            address(collateral),
+            address(riskEngine),
+            provider,
+            address(0xBEEF)
+        ) returns (ClearingHouse, OrderBook) {
+            return false;
+        } catch {
+            return true;
+        }
+    }
+
+    function liquidateAtOracleAge(
+        uint64 lotId,
+        FuturesTypes.LiquidationOrder calldata replacement,
+        bytes calldata signature,
+        uint64 age
+    ) external {
+        oracle.setRead(
+            FuturesTypes.MarketState.Open,
+            replacement.limitPrice,
+            uint64(block.timestamp) - age
+        );
+        orderBook.liquidate(lotId, replacement, signature);
     }
 }

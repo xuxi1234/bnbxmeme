@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { basename, extname, resolve } from "node:path";
 import ganache from "ganache";
 import solc from "solc";
 import {
@@ -37,6 +37,9 @@ const input = {
   sources: {
     "test/FundingLiquidation.t.sol": {
       content: loadSource("test/FundingLiquidation.t.sol"),
+    },
+    "src/futures/FuturesOracle.sol": {
+      content: loadSource("src/futures/FuturesOracle.sol"),
     },
   },
   settings: {
@@ -98,6 +101,9 @@ const clearingArtifact =
   output.contracts["src/futures/ClearingHouse.sol"].ClearingHouse;
 const orderBookArtifact =
   output.contracts["src/futures/OrderBook.sol"].OrderBook;
+const riskArtifact = output.contracts["src/futures/RiskEngine.sol"].RiskEngine;
+const futuresOracleArtifact =
+  output.contracts["src/futures/FuturesOracle.sol"].FuturesOracle;
 
 const tx = async (
   wallet,
@@ -159,10 +165,48 @@ const setupReceipt = await tx(
 );
 check(setupReceipt.status === "success", "Task 6 fixture setup failed");
 
-const [collateral, clearingHouse, orderBook, oracle] = await Promise.all(
-  ["collateral", "clearingHouse", "orderBook", "oracle"].map((functionName) =>
-    read(fixture, fixtureArtifact.abi, functionName),
-  ),
+const [collateral, clearingHouse, orderBook, oracle, riskEngine] =
+  await Promise.all(
+    ["collateral", "clearingHouse", "orderBook", "oracle", "riskEngine"].map(
+      (functionName) => read(fixture, fixtureArtifact.abi, functionName),
+    ),
+  );
+const [marketStateOnlyProvider, shortReturnOracle, invalidEnumOracle] =
+  await Promise.all(
+    ["marketStateOnlyProvider", "shortReturnOracle", "invalidEnumOracle"].map(
+      (functionName) => read(fixture, fixtureArtifact.abi, functionName),
+    ),
+  );
+
+// Mutation caught: accepting an immutable provider that cannot return one
+// canonical five-word safe read leaves liquidation permanently unusable.
+for (const [providerAddress, label] of [
+  [accounts[5], "no-code provider"],
+  [marketStateOnlyProvider, "market-state-only provider"],
+  [shortReturnOracle, "short-return provider"],
+  [invalidEnumOracle, "invalid-enum provider"],
+]) {
+  const { result: rejected } = await publicClient.simulateContract({
+    account: accounts[0],
+    address: fixture,
+    abi: fixtureArtifact.abi,
+    functionName: "providerConstructionRejected",
+    args: [providerAddress],
+    gas: 100_000_000n,
+  });
+  check(rejected, `OrderBook accepted ${label}`);
+}
+const { result: validProviderRejected } = await publicClient.simulateContract({
+  account: accounts[0],
+  address: fixture,
+  abi: fixtureArtifact.abi,
+  functionName: "providerConstructionRejected",
+  args: [oracle],
+  gas: 100_000_000n,
+});
+check(!validProviderRejected, "OrderBook rejected canonical Oracle interface");
+console.log(
+  "PASS FundingLiquidationTest.constructorRequiresCanonicalOracleInterface",
 );
 const deposit = 1_000n * 10n ** 18n;
 for (let index = 1; index <= 4; index += 1) {
@@ -339,7 +383,7 @@ check(
   ) === JSON.stringify(fundingBucketsBefore.map(String)),
   "zero funding moved custody buckets",
 );
-for (const rejectedRate of [1n, 30n, -1n, -30n]) {
+for (const rejectedRate of [1n, 30n, 31n, -1n, -30n, -31n]) {
   await expectRevert(
     () =>
       tx(wallets[0], orderBook, task6FundingAbi, "checkpointFunding", [
@@ -590,6 +634,52 @@ console.log(
 );
 
 await reset();
+// Mutation caught: rounding the liquidator's 80% share up instead of down.
+// One atomic-unit penalty must yield reward floor(1 * 4 / 5) = 0 and insurance 1.
+liquidationLotId = await openLot({ price: 7n });
+await setOracle(1, 6n);
+replacement = replacementOrder({ limitPrice: 6n, leverage: 3, nonce: 21n });
+receipt = await liquidate(
+  liquidationLotId,
+  replacement,
+  await signReplacement(replacement),
+);
+check(receipt.status === "success", "one-unit penalty liquidation reverted");
+const roundingState = await Promise.all([
+  read(clearingHouse, clearingArtifact.abi, "liquidationReward", [accounts[0]]),
+  read(clearingHouse, clearingArtifact.abi, "insuranceBalance"),
+  read(clearingHouse, clearingArtifact.abi, "available", [accounts[1]]),
+  read(clearingHouse, clearingArtifact.abi, "lockedMargin", [accounts[1]]),
+  read(clearingHouse, clearingArtifact.abi, "available", [accounts[2]]),
+  read(clearingHouse, clearingArtifact.abi, "lockedMargin", [accounts[2]]),
+  read(clearingHouse, clearingArtifact.abi, "claimable", [accounts[2]]),
+  read(clearingHouse, clearingArtifact.abi, "available", [accounts[3]]),
+  read(clearingHouse, clearingArtifact.abi, "lockedMargin", [accounts[3]]),
+  read(clearingHouse, clearingArtifact.abi, "matchedOpenInterest"),
+  read(collateral, collateralArtifact.abi, "balanceOf", [
+    "0x000000000000000000000000000000000000bEEF",
+  ]),
+]);
+const roundingExpected = [
+  0n,
+  1n,
+  deposit - 4n,
+  0n,
+  deposit - 3n,
+  3n,
+  1n,
+  deposit - 3n,
+  3n,
+  6n,
+  2n,
+];
+check(
+  roundingState.every((value, index) => value === roundingExpected[index]),
+  `one-unit reward rounding/accounting mismatch: ${roundingState.join(",")}`,
+);
+console.log("PASS FundingLiquidationTest.liquidatorRewardRoundsDown");
+
+await reset();
 // Mutations caught: insurance covering a non-deficit, underfunded insurance
 // partially mutating state, or a reverted attempt consuming nonce/checkpoint/lot.
 receipt = await fundInsurance(6_659_999_999_999_999_999n);
@@ -668,22 +758,57 @@ console.log("PASS FundingLiquidationTest.realDeficitInsuranceAndAtomicRetry");
 
 await reset();
 // Mutation caught: changing strict `<` eligibility to `<=` at maintenance plus fee.
-liquidationLotId = await openLot({ price: 4n });
-await setOracle(1, 4n);
-replacement = replacementOrder({ limitPrice: 4n, leverage: 3, nonce: 4n });
+// At entry 6 / mark 5 the 3-unit margin loses 1, so equity 2 is exactly
+// ceil(20% * 5) + ceil(1% * 5) = 2. This reaches the strict comparator.
+liquidationLotId = await openLot({ price: 6n });
+await setOracle(1, 5n);
+replacement = replacementOrder({ limitPrice: 5n, leverage: 3, nonce: 4n });
 replacementSignature = await signReplacement(replacement);
+const equalityState = () =>
+  Promise.all([
+    read(orderBook, task6FundingAbi, "fundingUpdatedAt"),
+    read(orderBook, task6FundingAbi, "cumulativeFundingIndex"),
+    read(orderBook, orderBookArtifact.abi, "nextLotId"),
+    read(orderBook, orderBookArtifact.abi, "lots", [liquidationLotId]),
+    read(orderBook, task6FundingAbi, "lotFundingCheckpoint", [
+      liquidationLotId,
+    ]),
+    ...[accounts[1], accounts[2], accounts[3]].flatMap((account) => [
+      read(orderBook, orderBookArtifact.abi, "netQuantity", [account]),
+      read(orderBook, orderBookArtifact.abi, "activeLotCount", [account]),
+      read(clearingHouse, clearingArtifact.abi, "available", [account]),
+      read(clearingHouse, clearingArtifact.abi, "lockedMargin", [account]),
+      read(clearingHouse, clearingArtifact.abi, "claimable", [account]),
+      read(clearingHouse, clearingArtifact.abi, "liquidationReward", [account]),
+    ]),
+    read(clearingHouse, clearingArtifact.abi, "totalAvailable"),
+    read(clearingHouse, clearingArtifact.abi, "totalLockedMargin"),
+    read(clearingHouse, clearingArtifact.abi, "totalClaimable"),
+    read(clearingHouse, clearingArtifact.abi, "insuranceBalance"),
+    read(clearingHouse, clearingArtifact.abi, "matchedOpenInterest"),
+    read(clearingHouse, clearingArtifact.abi, "totalLiabilities"),
+    read(collateral, collateralArtifact.abi, "balanceOf", [clearingHouse]),
+    read(collateral, collateralArtifact.abi, "balanceOf", [
+      "0x000000000000000000000000000000000000bEEF",
+    ]),
+    read(orderBook, liquidationAbi, "liquidationNonceUsed", [accounts[3], 4n]),
+  ]);
+const equalityBefore = await equalityState();
 await expectRevert(
   () => liquidate(liquidationLotId, replacement, replacementSignature),
   "maintenance-plus-fee equality was liquidated",
 );
+const equalityAfter = await equalityState();
 check(
-  !(await read(orderBook, liquidationAbi, "liquidationNonceUsed", [
-    accounts[3],
-    4n,
-  ])),
-  "equality rejection consumed the replacement nonce",
+  JSON.stringify(equalityAfter, (_, value) =>
+    typeof value === "bigint" ? value.toString() : value,
+  ) ===
+    JSON.stringify(equalityBefore, (_, value) =>
+      typeof value === "bigint" ? value.toString() : value,
+    ),
+  "equality rejection did not roll back the complete lot/custody/nonce state",
 );
-await setOracle(1, 3n);
+await setOracle(1, 4n);
 receipt = await liquidate(liquidationLotId, replacement, replacementSignature);
 check(
   receipt.status === "success",
@@ -831,6 +956,28 @@ console.log(
 );
 
 await reset();
+// Mutation caught: rejecting an Oracle read at the inclusive five-minute
+// freshness boundary. The fixture sets the age and liquidates in one block.
+liquidationLotId = await openLot();
+replacement = replacementOrder({ nonce: 25n });
+receipt = await tx(
+  wallets[0],
+  fixture,
+  fixtureArtifact.abi,
+  "liquidateAtOracleAge",
+  [liquidationLotId, replacement, await signReplacement(replacement), 300],
+  20_000_000n,
+);
+check(
+  receipt.status === "success" &&
+    (await read(orderBook, orderBookArtifact.abi, "activeLotCount", [
+      accounts[1],
+    ])) === 0,
+  "exactly 300-second-old Oracle read was rejected",
+);
+console.log("PASS FundingLiquidationTest.oracleFreshnessExactBoundary");
+
+await reset();
 // Mutation caught: using any replacement balance other than its fresh available margin.
 liquidationLotId = await openLot();
 receipt = await tx(
@@ -872,12 +1019,204 @@ console.log(
 );
 
 await reset();
-// Mutation caught: bypassing the replacement OI cap during a rising-mark short liquidation.
+// Mutation caught: applying a long delta to the new maker in the short
+// replacement branch. The rising mark remains below the immutable OI cap.
 liquidationLotId = await openLot({ targetSide: 1 });
 await setOracle(1, 120n * e18);
 replacement = replacementOrder({
   side: 1,
   limitPrice: 120n * e18,
+  leverage: 2,
+  nonce: 22n,
+});
+receipt = await liquidate(
+  liquidationLotId,
+  replacement,
+  await signReplacement(replacement),
+);
+check(receipt.status === "success", "valid short liquidation reverted");
+const shortNewLotId = await read(
+  orderBook,
+  orderBookArtifact.abi,
+  "activeLotId",
+  [accounts[2], 0],
+);
+const shortNewLot = await read(orderBook, orderBookArtifact.abi, "lots", [
+  shortNewLotId,
+]);
+const [shortNewCheckpoint, shortCurrentFundingTime] = await Promise.all([
+  read(orderBook, task6FundingAbi, "lotFundingCheckpoint", [shortNewLotId]),
+  read(orderBook, task6FundingAbi, "fundingUpdatedAt"),
+]);
+const shortState = await Promise.all([
+  read(orderBook, orderBookArtifact.abi, "netQuantity", [accounts[1]]),
+  read(orderBook, orderBookArtifact.abi, "netQuantity", [accounts[2]]),
+  read(orderBook, orderBookArtifact.abi, "netQuantity", [accounts[3]]),
+  read(orderBook, orderBookArtifact.abi, "activeLotCount", [accounts[1]]),
+  read(orderBook, orderBookArtifact.abi, "activeLotCount", [accounts[2]]),
+  read(orderBook, orderBookArtifact.abi, "activeLotCount", [accounts[3]]),
+  read(orderBook, orderBookArtifact.abi, "activeLotId", [accounts[3], 0]),
+  read(clearingHouse, clearingArtifact.abi, "available", [accounts[1]]),
+  read(clearingHouse, clearingArtifact.abi, "lockedMargin", [accounts[1]]),
+  read(clearingHouse, clearingArtifact.abi, "available", [accounts[2]]),
+  read(clearingHouse, clearingArtifact.abi, "lockedMargin", [accounts[2]]),
+  read(clearingHouse, clearingArtifact.abi, "claimable", [accounts[2]]),
+  read(clearingHouse, clearingArtifact.abi, "available", [accounts[3]]),
+  read(clearingHouse, clearingArtifact.abi, "lockedMargin", [accounts[3]]),
+  read(clearingHouse, clearingArtifact.abi, "matchedOpenInterest"),
+  read(clearingHouse, clearingArtifact.abi, "liquidationReward", [accounts[0]]),
+  read(clearingHouse, clearingArtifact.abi, "insuranceBalance"),
+  read(collateral, collateralArtifact.abi, "balanceOf", [
+    "0x000000000000000000000000000000000000bEEF",
+  ]),
+]);
+const shortExpected = [
+  0n,
+  e18,
+  -e18,
+  0,
+  1,
+  1,
+  shortNewLotId,
+  976_600_000_000_000_000_000n,
+  0n,
+  959_992_000_000_000_000_000n,
+  40_008_000_000_000_000_000n,
+  20n * e18,
+  940n * e18,
+  60n * e18,
+  120n * e18,
+  960_000_000_000_000_000n,
+  240_000_000_000_000_000n,
+  2_200_000_000_000_000_000n,
+];
+check(
+  shortNewLotId !== liquidationLotId &&
+    shortNewLot[1].toLowerCase() === accounts[2].toLowerCase() &&
+    shortNewLot[2].toLowerCase() === accounts[3].toLowerCase() &&
+    shortNewLot[3] === e18 &&
+    shortNewLot[4] === 120n * e18 &&
+    shortNewLot[5] === 40_008_000_000_000_000_000n &&
+    shortNewLot[6] === 60n * e18 &&
+    shortNewLot[7] === 120n * e18 &&
+    shortNewCheckpoint[0] === 0n &&
+    shortNewCheckpoint[1] === shortCurrentFundingTime &&
+    shortState.every((value, index) => value === shortExpected[index]),
+  `short replacement orientation/accounting mismatch: ${shortState.join(",")}`,
+);
+console.log("PASS FundingLiquidationTest.successfulShortReplacementAccounting");
+
+await reset();
+// Mutation caught: replacing bounded middle/tail removal with a FIFO-only pop.
+// Liquidating the second and then third original lots must retain queue order.
+const quarterQuantity = e18 / 4n;
+await openLot({ quantity: quarterQuantity });
+await openLot({ quantity: quarterQuantity });
+await openLot({ quantity: quarterQuantity });
+const originalQueue = await Promise.all(
+  [0, 1, 2].map((index) =>
+    read(orderBook, orderBookArtifact.abi, "activeLotId", [accounts[1], index]),
+  ),
+);
+await setOracle(1, 75n * e18);
+const middleReplacement = replacementOrder({
+  quantity: quarterQuantity,
+  nonce: 23n,
+});
+receipt = await liquidate(
+  originalQueue[1],
+  middleReplacement,
+  await signReplacement(middleReplacement),
+);
+check(receipt.status === "success", "middle-lot liquidation reverted");
+const firstReplacementId = await read(
+  orderBook,
+  orderBookArtifact.abi,
+  "activeLotId",
+  [accounts[3], 0],
+);
+const tailReplacement = replacementOrder({
+  quantity: quarterQuantity,
+  nonce: 24n,
+});
+receipt = await liquidate(
+  originalQueue[2],
+  tailReplacement,
+  await signReplacement(tailReplacement),
+);
+check(receipt.status === "success", "tail-lot liquidation reverted");
+const secondReplacementId = await read(
+  orderBook,
+  orderBookArtifact.abi,
+  "activeLotId",
+  [accounts[3], 1],
+);
+const [targetQueue, survivorQueue, replacementQueue] = await Promise.all([
+  Promise.all(
+    [0].map((index) =>
+      read(orderBook, orderBookArtifact.abi, "activeLotId", [
+        accounts[1],
+        index,
+      ]),
+    ),
+  ),
+  Promise.all(
+    [0, 1, 2].map((index) =>
+      read(orderBook, orderBookArtifact.abi, "activeLotId", [
+        accounts[2],
+        index,
+      ]),
+    ),
+  ),
+  Promise.all(
+    [0, 1].map((index) =>
+      read(orderBook, orderBookArtifact.abi, "activeLotId", [
+        accounts[3],
+        index,
+      ]),
+    ),
+  ),
+]);
+const removedLots = await Promise.all([
+  read(orderBook, orderBookArtifact.abi, "lots", [originalQueue[1]]),
+  read(orderBook, orderBookArtifact.abi, "lots", [originalQueue[2]]),
+]);
+const middleTailState = await Promise.all([
+  read(orderBook, orderBookArtifact.abi, "activeLotCount", [accounts[1]]),
+  read(orderBook, orderBookArtifact.abi, "activeLotCount", [accounts[2]]),
+  read(orderBook, orderBookArtifact.abi, "activeLotCount", [accounts[3]]),
+  read(orderBook, orderBookArtifact.abi, "netQuantity", [accounts[1]]),
+  read(orderBook, orderBookArtifact.abi, "netQuantity", [accounts[2]]),
+  read(orderBook, orderBookArtifact.abi, "netQuantity", [accounts[3]]),
+  read(clearingHouse, clearingArtifact.abi, "matchedOpenInterest"),
+]);
+check(
+  targetQueue[0] === originalQueue[0] &&
+    survivorQueue[0] === originalQueue[0] &&
+    survivorQueue[1] === firstReplacementId &&
+    survivorQueue[2] === secondReplacementId &&
+    replacementQueue[0] === firstReplacementId &&
+    replacementQueue[1] === secondReplacementId &&
+    removedLots[0][0] === 0n &&
+    removedLots[1][0] === 0n &&
+    middleTailState[0] === 1 &&
+    middleTailState[1] === 3 &&
+    middleTailState[2] === 2 &&
+    middleTailState[3] === quarterQuantity &&
+    middleTailState[4] === -(3n * quarterQuantity) &&
+    middleTailState[5] === 2n * quarterQuantity &&
+    middleTailState[6] === 62_500_000_000_000_000_000n,
+  "middle/tail liquidation corrupted bounded active-lot queues",
+);
+console.log("PASS FundingLiquidationTest.middleAndTailLiquidationQueues");
+
+await reset();
+// Mutation caught: bypassing the replacement OI cap during a rising-mark short liquidation.
+liquidationLotId = await openLot({ targetSide: 1 });
+await setOracle(1, 160n * e18);
+replacement = replacementOrder({
+  side: 1,
+  limitPrice: 160n * e18,
   leverage: 3,
   nonce: 10n,
 });
@@ -1094,36 +1433,184 @@ exactAbiGate(
   ]),
   "ClearingHouse",
 );
+exactAbiGate(
+  riskArtifact,
+  selectorMap([
+    ["BPS()", "view"],
+    ["INITIAL_MARGIN_BPS()", "view"],
+    ["LIQUIDATION_PENALTY_BPS()", "view"],
+    ["MAINTENANCE_MARGIN_BPS()", "view"],
+    ["MAX_FUNDING_ELAPSED()", "view"],
+    ["MAX_FUNDING_RATE_BPS()", "view"],
+    ["TAKER_FEE_BPS()", "view"],
+    ["WAD()", "view"],
+    ["fundingPayment(uint256,int256,uint256)", "pure"],
+    ["initialMargin(uint256)", "pure"],
+    ["isLiquidatable(int256,uint256)", "pure"],
+    ["liquidationPenalty(uint256,int256)", "pure"],
+    ["maintenanceMargin(uint256)", "pure"],
+    ["mulDiv(uint256,uint256,uint256)", "pure"],
+    ["orderFee(uint256,uint8)", "pure"],
+    ["pairedPnl(uint256,uint256,uint256)", "pure"],
+  ]),
+  "RiskEngine",
+);
+exactAbiGate(
+  futuresOracleArtifact,
+  selectorMap([
+    ["bnbUsdFeed()", "view"],
+    ["bnbxIsToken0()", "view"],
+    ["bnbxToken()", "view"],
+    ["forceCloseOnly()", "nonpayable"],
+    ["forcedClose()", "view"],
+    ["guardian()", "view"],
+    ["lowerMaxDeviationBps(uint16)", "nonpayable"],
+    ["marketState()", "view"],
+    ["maxDeviationBps()", "view"],
+    ["pair()", "view"],
+    ["safeRead()", "view"],
+    ["update()", "nonpayable"],
+    ["wbnbToken()", "view"],
+  ]),
+  "FuturesOracle",
+);
+
+const expectedFuturesSources = [
+  "ClearingHouse.sol",
+  "FuturesOracle.sol",
+  "FuturesTypes.sol",
+  "OrderBook.sol",
+  "RiskEngine.sol",
+];
+const enumerateRelativeFiles = (absoluteDirectory, prefix = "") =>
+  readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    return entry.isDirectory()
+      ? enumerateRelativeFiles(
+          resolve(absoluteDirectory, entry.name),
+          relativePath,
+        )
+      : entry.isFile()
+        ? [relativePath]
+        : [];
+  });
+const actualFuturesSources = enumerateRelativeFiles(
+  resolve(projectRoot, "src/futures"),
+).sort();
+check(
+  JSON.stringify(actualFuturesSources) ===
+    JSON.stringify(expectedFuturesSources),
+  `Futures source manifest mismatch: ${actualFuturesSources.join(",")}`,
+);
+const expectedArtifactManifest = {
+  "src/futures/ClearingHouse.sol": ["ClearingHouse"],
+  "src/futures/FuturesOracle.sol": ["FuturesOracle"],
+  "src/futures/FuturesTypes.sol": ["FuturesTypes"],
+  "src/futures/OrderBook.sol": [
+    "IFuturesOracleRead",
+    "IMarketStateProvider",
+    "OrderBook",
+  ],
+  "src/futures/RiskEngine.sol": ["RiskEngine"],
+};
+const actualArtifactManifest = Object.fromEntries(
+  Object.entries(output.contracts)
+    .filter(([source]) => source.startsWith("src/futures/"))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([source, artifacts]) => [source, Object.keys(artifacts).sort()]),
+);
+check(
+  JSON.stringify(actualArtifactManifest) ===
+    JSON.stringify(expectedArtifactManifest),
+  `Futures compiler artifact manifest mismatch: ${JSON.stringify(actualArtifactManifest)}`,
+);
 const orderRuntime = orderBookArtifact.evm.deployedBytecode.object;
 const clearingRuntime = clearingArtifact.evm.deployedBytecode.object;
+const riskRuntime = riskArtifact.evm.deployedBytecode.object;
+const oracleRuntime = futuresOracleArtifact.evm.deployedBytecode.object;
 const orderRuntimeBytes = orderRuntime.length / 2;
 const clearingRuntimeBytes = clearingRuntime.length / 2;
-check(orderRuntimeBytes <= 24_576, "OrderBook exceeds EIP-170 runtime size");
-check(
-  clearingRuntimeBytes <= 24_576,
-  "ClearingHouse exceeds EIP-170 runtime size",
-);
-const forbiddenSelectors = [
-  "0xa1645137",
-  "0xc21cb08d",
-  "0x45286166",
-  "0xa37757c0",
-  "0x19ea65c3",
-  "0x8da5cb5b",
-  "0xf2fde38b",
-  "0x4f1ef286",
-  "0x1cff79cd",
-  "0xf3fef3a3",
-];
-for (const [address, runtime, label] of [
-  [orderBook, orderRuntime, "OrderBook"],
-  [clearingHouse, clearingRuntime, "ClearingHouse"],
+const riskRuntimeBytes = riskRuntime.length / 2;
+const oracleRuntimeBytes = oracleRuntime.length / 2;
+for (const [runtimeBytes, label] of [
+  [orderRuntimeBytes, "OrderBook"],
+  [clearingRuntimeBytes, "ClearingHouse"],
+  [riskRuntimeBytes, "RiskEngine"],
+  [oracleRuntimeBytes, "FuturesOracle"],
 ]) {
+  check(runtimeBytes <= 24_576, `${label} exceeds EIP-170 runtime size`);
+}
+
+const decodeIdentifier = (hex) => Buffer.from(hex, "hex").toString("utf8");
+const forbiddenContractIdentifiers = [
+  "61646c",
+  "6175746f44656c65766572616765",
+  "6578656375746541646c",
+  "7375626d697441646c",
+  "636c61696d41646c",
+  "6f776e6572",
+  "7472616e736665724f776e657273686970",
+  "75706772616465546f",
+  "75706772616465546f416e6443616c6c",
+  "696e697469616c697a65",
+  "73657441646d696e",
+  "61646d696e",
+  "726573637565546f6b656e73",
+  "7377656570",
+].map(decodeIdentifier);
+const forbiddenArgumentShapes = [
+  "()",
+  "(address)",
+  "(uint64)",
+  "(uint256)",
+  "(bytes32)",
+  "(bytes)",
+  "(address,uint256)",
+  "(uint64,uint256)",
+  "(uint64,address)",
+  "(address,bytes)",
+  "(uint256,bytes)",
+  "(address,address,uint256)",
+];
+const forbiddenSelectors = new Set(
+  forbiddenContractIdentifiers.flatMap((name) =>
+    forbiddenArgumentShapes.map((shape) =>
+      toFunctionSelector(`${name}${shape}`),
+    ),
+  ),
+);
+const productionArtifacts = Object.entries(actualArtifactManifest).flatMap(
+  ([source, names]) =>
+    names.map((name) => ({
+      label: name,
+      source,
+      artifact: output.contracts[source][name],
+    })),
+);
+for (const { artifact, label } of productionArtifacts) {
+  const functions = artifact.abi.filter(({ type }) => type === "function");
+  check(
+    !functions.some(({ name }) => forbiddenContractIdentifiers.includes(name)),
+    `${label} ABI exposed a prohibited authority or deleveraging function`,
+  );
+  check(
+    !artifact.abi.some(({ type }) => type === "fallback" || type === "receive"),
+    `${label} artifact exposed fallback or receive`,
+  );
+  const runtime = artifact.evm.deployedBytecode.object;
   for (const selector of forbiddenSelectors) {
     check(
       !runtime.includes(`63${selector.slice(2)}`),
-      `${label} runtime contains forbidden selector ${selector}`,
+      `${label} runtime contains prohibited selector ${selector}`,
     );
+  }
+}
+for (const [address, label] of [
+  [orderBook, "OrderBook"],
+  [clearingHouse, "ClearingHouse"],
+  [riskEngine, "RiskEngine"],
+]) {
+  for (const selector of forbiddenSelectors) {
     await expectRevert(async () => {
       await publicClient.call({
         account: accounts[0],
@@ -1131,13 +1618,109 @@ for (const [address, runtime, label] of [
         data: `${selector}${"00".repeat(96)}`,
       });
       return { status: "success" };
-    }, `${label} executed forbidden selector ${selector}`);
+    }, `${label} executed prohibited selector ${selector}`);
   }
   await expectRevert(async () => {
     await publicClient.call({ account: accounts[0], to: address, data: "0x" });
     return { status: "success" };
   }, `${label} accepted empty calldata`);
 }
+
+const repositoryRoot = resolve(projectRoot, "../..");
+const scannedExtensions = new Set([
+  ".sol",
+  ".js",
+  ".mjs",
+  ".ts",
+  ".tsx",
+  ".json",
+]);
+const repositorySurfaceFiles = [];
+const collectSurfaceFiles = (relativeDirectory) => {
+  for (const entry of readdirSync(resolve(repositoryRoot, relativeDirectory), {
+    withFileTypes: true,
+  })) {
+    const relativePath = `${relativeDirectory}/${entry.name}`;
+    if (entry.isDirectory()) {
+      if (entry.name !== "node_modules") collectSurfaceFiles(relativePath);
+    } else if (entry.isFile() && scannedExtensions.has(extname(entry.name))) {
+      repositorySurfaceFiles.push(relativePath);
+    }
+  }
+};
+for (const root of [
+  "packages/contracts/src/futures",
+  "packages/contracts/scripts",
+  "apps/web/app",
+  "apps/web/components",
+  "apps/web/lib",
+]) {
+  collectSurfaceFiles(root);
+}
+repositorySurfaceFiles.push(
+  "packages/contracts/package.json",
+  "apps/web/package.json",
+);
+repositorySurfaceFiles.sort();
+
+const identifierTokens = (contents) =>
+  contents.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [];
+const shortForbiddenStem = forbiddenContractIdentifiers[0].toLowerCase();
+const longForbiddenStem = forbiddenContractIdentifiers[1]
+  .slice(4)
+  .toLowerCase();
+const prohibitedRepositoryIdentifier = (identifier) => {
+  const normalized = identifier.toLowerCase();
+  return (
+    normalized === shortForbiddenStem ||
+    normalized.startsWith(shortForbiddenStem) ||
+    normalized.endsWith(shortForbiddenStem) ||
+    normalized.includes(longForbiddenStem)
+  );
+};
+const repositoryContents = new Map(
+  repositorySurfaceFiles.map((relativePath) => [
+    relativePath,
+    readFileSync(resolve(repositoryRoot, relativePath), "utf8"),
+  ]),
+);
+for (const [relativePath, contents] of repositoryContents) {
+  const identifier = identifierTokens(contents).find(
+    prohibitedRepositoryIdentifier,
+  );
+  check(
+    identifier === undefined,
+    `${relativePath} contains prohibited Futures identifier ${identifier}`,
+  );
+}
+
+const deploymentFilePattern =
+  /(deploy|deployment|artifact|manifest|abi|bytecode)/i;
+const futuresStem = decodeIdentifier("66757475726573").toLowerCase();
+const currentDeploymentManifest = repositorySurfaceFiles.filter(
+  (relativePath) =>
+    deploymentFilePattern.test(basename(relativePath)) &&
+    identifierTokens(repositoryContents.get(relativePath)).some((identifier) =>
+      identifier.toLowerCase().includes(futuresStem),
+    ),
+);
+const contractPackage = JSON.parse(
+  repositoryContents.get("packages/contracts/package.json"),
+);
+for (const [scriptName, command] of Object.entries(contractPackage.scripts)) {
+  if (
+    /(build|deploy|export|manifest|artifact)/i.test(scriptName) &&
+    /src\/futures\/|Futures(?:Oracle|Types)/.test(command)
+  ) {
+    currentDeploymentManifest.push(
+      `packages/contracts/package.json#${scriptName}`,
+    );
+  }
+}
+check(
+  currentDeploymentManifest.length === 0,
+  `Phase-1 Futures deployment manifest changed: ${currentDeploymentManifest.join(",")}`,
+);
 console.log(
-  `PASS FundingLiquidationTest.exactAbiRuntimeAndForbiddenSelectors (${orderRuntimeBytes} / ${clearingRuntimeBytes} bytes)`,
+  `PASS FundingLiquidationTest.exactAbiRuntimeAndForbiddenSelectors (${orderRuntimeBytes} / ${clearingRuntimeBytes} / ${riskRuntimeBytes} / ${oracleRuntimeBytes} bytes; ${actualFuturesSources.length} sources; ${productionArtifacts.length} artifacts; ${repositorySurfaceFiles.length} repository inputs)`,
 );

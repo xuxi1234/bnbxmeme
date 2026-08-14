@@ -14,6 +14,20 @@ contract MarketStateProviderMock {
         return _marketState;
     }
 
+    function safeRead()
+        external
+        view
+        returns (
+            FuturesTypes.MarketState state,
+            uint256 markPriceWad,
+            uint256 twapBnbPerTokenWad,
+            uint256 bnbUsdWad,
+            uint256 updatedAt
+        )
+    {
+        return (_marketState, 1e18, 1e18, 1e18, block.timestamp);
+    }
+
     function setMarketState(FuturesTypes.MarketState newState) external {
         _marketState = newState;
     }
