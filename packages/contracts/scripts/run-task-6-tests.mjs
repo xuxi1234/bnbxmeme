@@ -1643,6 +1643,14 @@ const scannedExtensions = new Set([
   ".tsx",
   ".json",
 ]);
+const ignoredSurfaceDirectories = new Set([
+  "node_modules",
+  ".next",
+  ".turbo",
+  "coverage",
+  "dist",
+  "out",
+]);
 const repositorySurfaceFiles = [];
 const collectSurfaceFiles = (relativeDirectory) => {
   for (const entry of readdirSync(resolve(repositoryRoot, relativeDirectory), {
@@ -1650,7 +1658,9 @@ const collectSurfaceFiles = (relativeDirectory) => {
   })) {
     const relativePath = `${relativeDirectory}/${entry.name}`;
     if (entry.isDirectory()) {
-      if (entry.name !== "node_modules") collectSurfaceFiles(relativePath);
+      if (!ignoredSurfaceDirectories.has(entry.name)) {
+        collectSurfaceFiles(relativePath);
+      }
     } else if (entry.isFile() && scannedExtensions.has(extname(entry.name))) {
       repositorySurfaceFiles.push(relativePath);
     }
@@ -1659,16 +1669,13 @@ const collectSurfaceFiles = (relativeDirectory) => {
 for (const root of [
   "packages/contracts/src/futures",
   "packages/contracts/scripts",
-  "apps/web/app",
-  "apps/web/components",
-  "apps/web/lib",
+  "packages/contracts/deployments",
+  "packages/chain-config",
+  "apps/web",
 ]) {
   collectSurfaceFiles(root);
 }
-repositorySurfaceFiles.push(
-  "packages/contracts/package.json",
-  "apps/web/package.json",
-);
+repositorySurfaceFiles.push("packages/contracts/package.json");
 repositorySurfaceFiles.sort();
 
 const identifierTokens = (contents) =>
