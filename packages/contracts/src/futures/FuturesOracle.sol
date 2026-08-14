@@ -35,6 +35,7 @@ contract FuturesOracle {
     uint32 private constant PRICE1_CUMULATIVE_SELECTOR = 0x5a3d5493;
     uint32 private constant DECIMALS_SELECTOR = 0x313ce567;
     uint32 private constant LATEST_ROUND_DATA_SELECTOR = 0xfeaf968c;
+    uint32 private constant CONTROLLER_ORACLE_SELECTOR = 0x7dc0d1d0;
     uint256 private constant WAD = 1e18;
     uint256 private constant Q112 = 1 << 112;
     uint256 private constant BPS = 10_000;
@@ -53,6 +54,7 @@ contract FuturesOracle {
     uint256 private constant FEED_DECIMALS_CALL_GAS = 30_000;
     uint256 private constant LATEST_ROUND_DATA_CALL_GAS = 100_000;
     uint256 private constant CALLER_GAS_RESERVE = 250_000;
+    uint256 private constant CONTROLLER_READ_GAS = 30_000;
 
     address public immutable pair;
     address public immutable bnbUsdFeed;
@@ -151,21 +153,62 @@ contract FuturesOracle {
     }
 
     function forceCloseOnly() external {
-        if (msg.sender != guardian) revert Unauthorized();
+        _requireController();
         forcedClose = true;
     }
 
     function clearForcedClose() external {
-        if (msg.sender != guardian) revert Unauthorized();
+        _requireController();
         forcedClose = false;
     }
 
     function lowerMaxDeviationBps(uint16 newBps) external {
-        if (msg.sender != guardian) revert Unauthorized();
+        _requireController();
         if (newBps == 0 || newBps >= maxDeviationBps) {
             revert InvalidDeviation();
         }
         maxDeviationBps = newBps;
+    }
+
+    function _requireController() private view {
+        address caller = msg.sender;
+        if (
+            caller != guardian || caller.code.length == 0
+                || !_controllerOracleMatches(caller)
+        ) revert Unauthorized();
+    }
+
+    function _controllerOracleMatches(address controller)
+        private
+        view
+        returns (bool valid)
+    {
+        assembly ("memory-safe") {
+            let pointer := mload(0x40)
+            mstore(pointer, shl(224, CONTROLLER_ORACLE_SELECTOR))
+            let success := staticcall(
+                CONTROLLER_READ_GAS,
+                controller,
+                pointer,
+                4,
+                pointer,
+                32
+            )
+            let value := mload(pointer)
+            valid := and(
+                and(success, eq(returndatasize(), 32)),
+                and(
+                    iszero(shr(160, value)),
+                    eq(
+                        and(
+                            value,
+                            0xffffffffffffffffffffffffffffffffffffffff
+                        ),
+                        address()
+                    )
+                )
+            )
+        }
     }
 
     function update()

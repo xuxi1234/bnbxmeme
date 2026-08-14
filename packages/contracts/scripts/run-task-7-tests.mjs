@@ -47,6 +47,65 @@ pragma solidity 0.8.30;
 contract SafetyControllerProbe {
     uint256 public touches;
     function touch() external payable { touches += 1; }
+}
+contract OracleGuardianProbe {
+    enum Mode { Correct, Wrong, HighBits, Short, Overlong }
+    address private immutable _target;
+    Mode public mode;
+
+    constructor(address target_) { _target = target_; }
+    function setMode(Mode mode_) external { mode = mode_; }
+    function oracle() external view {
+        Mode current = mode;
+        address target = _target;
+        assembly ("memory-safe") {
+            let word := target
+            let size := 32
+            switch current
+            case 1 { word := 0xdead }
+            case 2 { word := or(word, shl(200, 1)) }
+            case 3 { size := 31 }
+            case 4 { size := 64 }
+            mstore(0, word)
+            mstore(32, 0xfeed)
+            return(0, size)
+        }
+    }
+    function invoke(address target, bytes calldata data) external {
+        (bool success, bytes memory returnData) = target.call(data);
+        if (!success) {
+            assembly ("memory-safe") {
+                revert(add(returnData, 32), mload(returnData))
+            }
+        }
+    }
+}
+contract BindingClearingProbe {
+    address public immutable safetyController;
+    constructor(address safetyController_) { safetyController = safetyController_; }
+}
+contract BindingOracleProbe {
+    address public immutable guardian;
+    bool public immutable failClear;
+    uint256 public clearAttempts;
+
+    constructor(address guardian_, bool failClear_) {
+        guardian = guardian_;
+        failClear = failClear_;
+    }
+    function clearForcedClose() external {
+        if (msg.sender != guardian) revert();
+        clearAttempts += 1;
+        if (failClear) revert();
+    }
+}
+contract CombinedBindingProbe {
+    address public immutable safetyController;
+    address public immutable guardian;
+    constructor(address controller_) {
+        safetyController = controller_;
+        guardian = controller_;
+    }
 }`,
     },
   },
@@ -55,7 +114,12 @@ contract SafetyControllerProbe {
     evmVersion: "shanghai",
     outputSelection: {
       "*": {
-        "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"],
+        "*": [
+          "abi",
+          "storageLayout",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object",
+        ],
       },
     },
   },
@@ -120,6 +184,21 @@ const check = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 const sameAddress = (left, right) => left.toLowerCase() === right.toLowerCase();
+const expectRevert = async (operation, message) => {
+  try {
+    const failedReceipt = await operation();
+    check(failedReceipt.status === "reverted", message);
+  } catch (error) {
+    if (
+      /revert|reverted|execution/i.test(
+        `${error.shortMessage ?? ""} ${error.message ?? ""}`,
+      )
+    ) {
+      return;
+    }
+    throw error;
+  }
+};
 
 const tokenArtifact = artifact("test/FuturesOracle.t.sol", "OracleTokenMock");
 const pairArtifact = artifact("test/FuturesOracle.t.sol", "OraclePairMock");
@@ -128,6 +207,77 @@ const oracleArtifact = artifact(
   "src/futures/FuturesOracle.sol",
   "FuturesOracle",
 );
+const oracleStorageLayout = oracleArtifact.storageLayout;
+const requiredOracleStorageLabels = [
+  "maxDeviationBps",
+  "forcedClose",
+  "_observations",
+  "_observationHead",
+  "_observationCount",
+  "_accepted",
+  "_acceptanceFault",
+  "_rebuilding",
+];
+check(
+  requiredOracleStorageLabels.every((label) =>
+    oracleStorageLayout.storage.some((entry) => entry.label === label),
+  ),
+  "compiler storage layout omitted required Oracle mutable state",
+);
+const oracleStorageSlots = [
+  ...new Set(
+    oracleStorageLayout.storage.flatMap((entry) => {
+      const firstSlot = BigInt(entry.slot);
+      const byteLength = BigInt(
+        oracleStorageLayout.types[entry.type].numberOfBytes,
+      );
+      const slotCount = (byteLength + 31n) / 32n;
+      return Array.from(
+        { length: Number(slotCount) },
+        (_, index) => firstSlot + BigInt(index),
+      );
+    }),
+  ),
+].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+const forcedCloseLayout = oracleStorageLayout.storage.find(
+  ({ label }) => label === "forcedClose",
+);
+const forcedCloseBitMask =
+  ((1n <<
+    (8n *
+      BigInt(
+        oracleStorageLayout.types[forcedCloseLayout.type].numberOfBytes,
+      ))) -
+    1n) <<
+  (8n * BigInt(forcedCloseLayout.offset));
+const snapshotOracleStorage = async (oracleAddress) =>
+  Promise.all(
+    oracleStorageSlots.map(async (slot) => {
+      const word = await provider.request({
+        method: "eth_getStorageAt",
+        params: [oracleAddress, `0x${slot.toString(16)}`, "latest"],
+      });
+      return [slot, BigInt(word === "0x" ? "0x0" : word)];
+    }),
+  );
+const checkOnlyForcedCloseChanged = (before, after) => {
+  const afterBySlot = new Map(after);
+  for (const [slot, beforeWord] of before) {
+    const afterWord = afterBySlot.get(slot);
+    if (slot === BigInt(forcedCloseLayout.slot)) {
+      check(
+        (beforeWord & ~forcedCloseBitMask) ===
+          (afterWord & ~forcedCloseBitMask),
+        "Oracle unlatch changed packed mutable storage beyond forcedClose",
+      );
+    } else {
+      check(
+        beforeWord === afterWord,
+        `Oracle unlatch changed compiler-layout storage slot ${slot}`,
+      );
+    }
+  }
+};
 const token0 = await deploy(tokenArtifact);
 const token1 = await deploy(tokenArtifact);
 const pair = await deploy(pairArtifact, [token0, token1]);
@@ -140,31 +290,25 @@ const oracle = await deploy(oracleArtifact, [
   accounts[0],
 ]);
 
-let receipt = await tx(
-  wallets[0],
-  oracle,
-  oracleArtifact.abi,
-  "forceCloseOnly",
-);
-check(receipt.status === "success", "controller could not latch the Oracle");
+let receipt;
+// Mutations caught: address-only authorization or a missing code/backreference
+// check lets an EOA configured as guardian mutate Oracle safety state directly.
+for (const [functionName, args] of [
+  ["forceCloseOnly", []],
+  ["lowerMaxDeviationBps", [500]],
+  ["clearForcedClose", []],
+]) {
+  await expectRevert(
+    () => tx(wallets[0], oracle, oracleArtifact.abi, functionName, args),
+    `EOA-configured guardian executed Oracle.${functionName}`,
+  );
+}
 check(
-  await read(oracle, oracleArtifact.abi, "forcedClose"),
-  "Oracle force-close latch was not set",
+  !(await read(oracle, oracleArtifact.abi, "forcedClose")) &&
+    (await read(oracle, oracleArtifact.abi, "maxDeviationBps")) === 1_000,
+  "EOA-configured Oracle rejection changed safety state",
 );
-
-// Mutation caught: deleting the controller-only unlatch strands every valid
-// delayed recovery after the force-close latch has been set.
-const clearForcedCloseAbi = parseAbi(["function clearForcedClose()"]);
-receipt = await tx(wallets[0], oracle, clearForcedCloseAbi, "clearForcedClose");
-check(
-  receipt.status === "success",
-  "configured Oracle controller could not clear only its force-close latch",
-);
-check(
-  !(await read(oracle, oracleArtifact.abi, "forcedClose")),
-  "Oracle remained force-closed after the controller unlatch",
-);
-console.log("PASS SafetyControllerTest.oracleControllerOnlyUnlatchEffect");
+console.log("PASS SafetyControllerTest.oracleRejectsEoaConfiguredGuardian");
 
 const collateralArtifact = artifact(
   "test/futures/FuturesCollateralMock.sol",
@@ -183,6 +327,134 @@ const controllerArtifact = artifact(
 const probeArtifact = artifact(
   "test/futures/SafetyControllerProbe.sol",
   "SafetyControllerProbe",
+);
+const guardianProbeArtifact = artifact(
+  "test/futures/SafetyControllerProbe.sol",
+  "OracleGuardianProbe",
+);
+const bindingClearingArtifact = artifact(
+  "test/futures/SafetyControllerProbe.sol",
+  "BindingClearingProbe",
+);
+const bindingOracleArtifact = artifact(
+  "test/futures/SafetyControllerProbe.sol",
+  "BindingOracleProbe",
+);
+const combinedBindingArtifact = artifact(
+  "test/futures/SafetyControllerProbe.sol",
+  "CombinedBindingProbe",
+);
+
+const malformedOracleNonce = BigInt(
+  await publicClient.getTransactionCount({ address: accounts[0] }),
+);
+const predictedMalformedOracle = getContractAddress({
+  from: accounts[0],
+  nonce: malformedOracleNonce,
+});
+const predictedGuardianProbe = getContractAddress({
+  from: accounts[0],
+  nonce: malformedOracleNonce + 1n,
+});
+const malformedOracle = await deploy(oracleArtifact, [
+  pair,
+  feed,
+  token0,
+  token1,
+  predictedGuardianProbe,
+]);
+const guardianProbe = await deploy(guardianProbeArtifact, [malformedOracle]);
+check(
+  sameAddress(malformedOracle, predictedMalformedOracle) &&
+    sameAddress(guardianProbe, predictedGuardianProbe),
+  "Oracle guardian-probe prediction mismatch",
+);
+const forceData = encodeFunctionData({
+  abi: oracleArtifact.abi,
+  functionName: "forceCloseOnly",
+});
+const clearData = encodeFunctionData({
+  abi: oracleArtifact.abi,
+  functionName: "clearForcedClose",
+});
+for (const [mode, label] of [
+  [1, "wrong backreference"],
+  [2, "non-canonical high bits"],
+  [3, "short return"],
+  [4, "overlong return"],
+]) {
+  receipt = await tx(
+    wallets[0],
+    guardianProbe,
+    guardianProbeArtifact.abi,
+    "setMode",
+    [0],
+  );
+  check(receipt.status === "success", `correct-mode setup failed for ${label}`);
+  receipt = await tx(
+    wallets[0],
+    guardianProbe,
+    guardianProbeArtifact.abi,
+    "invoke",
+    [malformedOracle, forceData],
+  );
+  check(receipt.status === "success", `wired force setup failed for ${label}`);
+  check(
+    await read(malformedOracle, oracleArtifact.abi, "forcedClose"),
+    `wired force did not latch before ${label}`,
+  );
+  const deviationBeforeRejectedClear = await read(
+    malformedOracle,
+    oracleArtifact.abi,
+    "maxDeviationBps",
+  );
+  receipt = await tx(
+    wallets[0],
+    guardianProbe,
+    guardianProbeArtifact.abi,
+    "setMode",
+    [mode],
+  );
+  check(receipt.status === "success", `mode setup failed for ${label}`);
+  await expectRevert(
+    () =>
+      tx(wallets[0], guardianProbe, guardianProbeArtifact.abi, "invoke", [
+        malformedOracle,
+        clearData,
+      ]),
+    `Oracle accepted ${label} controller response`,
+  );
+  check(
+    (await read(malformedOracle, oracleArtifact.abi, "forcedClose")) &&
+      (await read(malformedOracle, oracleArtifact.abi, "maxDeviationBps")) ===
+        deviationBeforeRejectedClear,
+    `${label} rejection changed Oracle state`,
+  );
+  receipt = await tx(
+    wallets[0],
+    guardianProbe,
+    guardianProbeArtifact.abi,
+    "setMode",
+    [0],
+  );
+  check(
+    receipt.status === "success",
+    `correct-mode restore failed for ${label}`,
+  );
+  receipt = await tx(
+    wallets[0],
+    guardianProbe,
+    guardianProbeArtifact.abi,
+    "invoke",
+    [malformedOracle, clearData],
+  );
+  check(
+    receipt.status === "success",
+    `wired clear restore failed for ${label}`,
+  );
+}
+console.log(
+  "PASS SafetyControllerTest.oracleRequiresCanonicalControllerBackreference",
 );
 
 const collateral = await deploy(collateralArtifact);
@@ -324,6 +596,92 @@ for (const [args, label] of [
 }
 console.log("PASS SafetyControllerTest.constructorRejectsUnsafeBindings");
 
+const deployBindingController = async ({
+  guardianKind = "human",
+  wrongClearing = false,
+  wrongOracle = false,
+  aliasedDependencies = false,
+} = {}) => {
+  const nonce = BigInt(
+    await publicClient.getTransactionCount({ address: accounts[0] }),
+  );
+  if (aliasedDependencies) {
+    const predictedDependency = getContractAddress({
+      from: accounts[0],
+      nonce,
+    });
+    const predictedBoundController = getContractAddress({
+      from: accounts[0],
+      nonce: nonce + 1n,
+    });
+    const dependency = await deploy(combinedBindingArtifact, [
+      predictedBoundController,
+    ]);
+    check(
+      sameAddress(dependency, predictedDependency),
+      "combined dependency prediction mismatch",
+    );
+    return deployAttempt(controllerArtifact, [
+      accounts[1],
+      dependency,
+      dependency,
+    ]);
+  }
+
+  const predictedClearing = getContractAddress({
+    from: accounts[0],
+    nonce,
+  });
+  const predictedOracle = getContractAddress({
+    from: accounts[0],
+    nonce: nonce + 1n,
+  });
+  const predictedBoundController = getContractAddress({
+    from: accounts[0],
+    nonce: nonce + 2n,
+  });
+  const clearing = await deploy(bindingClearingArtifact, [
+    wrongClearing ? accounts[2] : predictedBoundController,
+  ]);
+  const oracleDependency = await deploy(bindingOracleArtifact, [
+    wrongOracle ? accounts[2] : predictedBoundController,
+    false,
+  ]);
+  check(
+    sameAddress(clearing, predictedClearing) &&
+      sameAddress(oracleDependency, predictedOracle),
+    "binding fixture prediction mismatch",
+  );
+  const guardian =
+    guardianKind === "self"
+      ? predictedBoundController
+      : guardianKind === "clearing"
+        ? clearing
+        : guardianKind === "oracle"
+          ? oracleDependency
+          : accounts[1];
+  return deployAttempt(controllerArtifact, [
+    guardian,
+    clearing,
+    oracleDependency,
+  ]);
+};
+
+for (const [options, label] of [
+  [{ guardianKind: "self" }, "predicted self guardian"],
+  [{ guardianKind: "clearing" }, "guardian/ClearingHouse alias"],
+  [{ guardianKind: "oracle" }, "guardian/Oracle alias"],
+  [{ aliasedDependencies: true }, "ClearingHouse/Oracle alias"],
+  [{ wrongClearing: true }, "only ClearingHouse backreference mismatch"],
+  [{ wrongOracle: true }, "only Oracle backreference mismatch"],
+]) {
+  const result = await deployBindingController(options);
+  check(result.status === "reverted", `SafetyController accepted ${label}`);
+}
+console.log(
+  "PASS SafetyControllerTest.constructorRejectsSelfAliasesAndIndependentMismatches",
+);
+
 const mineAfter = async (seconds) => {
   await provider.request({ method: "evm_increaseTime", params: [seconds] });
   await provider.request({ method: "evm_mine", params: [] });
@@ -340,21 +698,110 @@ const setTimestamp = async (timestamp) => {
     `unable to set exact Task 7 timestamp: ${block.timestamp}/${timestamp}`,
   );
 };
-const expectRevert = async (operation, message) => {
-  try {
-    const failedReceipt = await operation();
-    check(failedReceipt.status === "reverted", message);
-  } catch (error) {
-    if (
-      /revert|reverted|execution/i.test(
-        `${error.shortMessage ?? ""} ${error.message ?? ""}`,
-      )
-    ) {
-      return;
-    }
-    throw error;
-  }
-};
+
+const dependencyFailureSnapshot = await provider.request({
+  method: "evm_snapshot",
+  params: [],
+});
+const failingNonce = BigInt(
+  await publicClient.getTransactionCount({ address: accounts[0] }),
+);
+const predictedFailingClearing = getContractAddress({
+  from: accounts[0],
+  nonce: failingNonce,
+});
+const predictedFailingOracle = getContractAddress({
+  from: accounts[0],
+  nonce: failingNonce + 1n,
+});
+const predictedFailingController = getContractAddress({
+  from: accounts[0],
+  nonce: failingNonce + 2n,
+});
+const failingClearing = await deploy(bindingClearingArtifact, [
+  predictedFailingController,
+]);
+const failingOracle = await deploy(bindingOracleArtifact, [
+  predictedFailingController,
+  true,
+]);
+const failingController = await deploy(controllerArtifact, [
+  accounts[1],
+  failingClearing,
+  failingOracle,
+]);
+check(
+  sameAddress(failingClearing, predictedFailingClearing) &&
+    sameAddress(failingOracle, predictedFailingOracle) &&
+    sameAddress(failingController, predictedFailingController),
+  "failing dependency fixture prediction mismatch",
+);
+receipt = await tx(
+  wallets[1],
+  failingController,
+  controllerArtifact.abi,
+  "queueReopen",
+);
+check(receipt.status === "success", "failing dependency queue setup failed");
+const failingQueueEpoch = await read(
+  failingController,
+  controllerArtifact.abi,
+  "queuedReopenEpoch",
+);
+const failingQueueTime = await read(
+  failingController,
+  controllerArtifact.abi,
+  "reopenExecutableAt",
+);
+const failingSafetyEpoch = await read(
+  failingController,
+  controllerArtifact.abi,
+  "safetyEpoch",
+);
+await setTimestamp(failingQueueTime);
+await expectRevert(
+  () =>
+    tx(wallets[3], failingController, controllerArtifact.abi, "executeReopen"),
+  "SafetyController swallowed downstream Oracle unlatch failure",
+);
+check(
+  (await read(
+    failingController,
+    controllerArtifact.abi,
+    "queuedReopenEpoch",
+  )) === failingQueueEpoch &&
+    (await read(
+      failingController,
+      controllerArtifact.abi,
+      "reopenExecutableAt",
+    )) === failingQueueTime &&
+    (await read(failingController, controllerArtifact.abi, "safetyEpoch")) ===
+      failingSafetyEpoch &&
+    sameAddress(
+      await read(failingController, controllerArtifact.abi, "guardian"),
+      accounts[1],
+    ) &&
+    sameAddress(
+      await read(failingController, controllerArtifact.abi, "clearingHouse"),
+      failingClearing,
+    ) &&
+    sameAddress(
+      await read(failingController, controllerArtifact.abi, "oracle"),
+      failingOracle,
+    ) &&
+    (await read(failingOracle, bindingOracleArtifact.abi, "clearAttempts")) ===
+      0n,
+  "downstream Oracle failure left partial controller/dependency state",
+);
+check(
+  await provider.request({
+    method: "evm_revert",
+    params: [dependencyFailureSnapshot],
+  }),
+  "failed to restore dependency-failure fixture snapshot",
+);
+console.log("PASS SafetyControllerTest.downstreamOracleFailureIsFullyAtomic");
+
 const freshFeed = () =>
   tx(wallets[0], feed, feedArtifact.abi, "setFreshAnswer", [60_000_000_000n]);
 const oracleUpdate = () =>
@@ -421,6 +868,39 @@ let baseSnapshot = await provider.request({
 const reset = async () => {
   await provider.request({ method: "evm_revert", params: [baseSnapshot] });
   baseSnapshot = await provider.request({ method: "evm_snapshot", params: [] });
+};
+const auditControllerTrace = async (transactionReceipt, label, targets) => {
+  const trace = await provider.request({
+    method: "debug_traceTransaction",
+    params: [
+      transactionReceipt.transactionHash,
+      { disableMemory: true, disableStorage: true },
+    ],
+  });
+  const calls = [];
+  for (const log of trace.structLogs) {
+    check(
+      log.op !== "CALLCODE" && log.op !== "DELEGATECALL",
+      `${label} executed forbidden ${log.op}`,
+    );
+    if (log.op !== "CALL") continue;
+    const destinationWord = BigInt(`0x${log.stack.at(-2)}`);
+    const value = BigInt(`0x${log.stack.at(-3)}`);
+    const destination = `0x${destinationWord
+      .toString(16)
+      .slice(-40)
+      .padStart(40, "0")}`;
+    check(value === 0n, `${label} executed CALL with nonzero value ${value}`);
+    check(
+      targets.some((target) => sameAddress(target, destination)),
+      `${label} executed CALL to arbitrary target ${destination}`,
+    );
+    calls.push(destination);
+  }
+  check(
+    calls.length === targets.length,
+    `${label} executed ${calls.length} CALLs instead of ${targets.length}`,
+  );
 };
 
 // Mutations caught: removing guardian checks from any typed safety entry point,
@@ -571,6 +1051,15 @@ for (const [functionName, args, stateName, literalAfter] of invalidatingCalls) {
     args,
   );
   check(receipt.status === "success", `${functionName} failed`);
+  await auditControllerTrace(
+    receipt,
+    functionName,
+    stateName === "totalLiabilityCap" ||
+      stateName === "accountEquityCap" ||
+      stateName === "matchedOpenInterestCap"
+      ? [clearingHouse]
+      : [systemOracle],
+  );
   check(
     (await read(controller, controllerArtifact.abi, "safetyEpoch")) === 1n &&
       (await read(controller, controllerArtifact.abi, "queuedReopenEpoch")) ===
@@ -608,6 +1097,7 @@ receipt = await tx(
   "queueReopen",
 );
 check(receipt.status === "success", "first reopen queue failed");
+await auditControllerTrace(receipt, "queueReopen", []);
 const firstExecution = await read(
   controller,
   controllerArtifact.abi,
@@ -674,6 +1164,7 @@ check(
   "early execution was not atomic",
 );
 await setTimestamp(executeAt);
+const oracleStorageBeforeUnlatch = await snapshotOracleStorage(systemOracle);
 receipt = await tx(
   wallets[3],
   controller,
@@ -681,6 +1172,12 @@ receipt = await tx(
   "executeReopen",
 );
 check(receipt.status === "success", "permissionless equality execution failed");
+await auditControllerTrace(receipt, "executeReopen", [systemOracle]);
+const oracleStorageAfterUnlatch = await snapshotOracleStorage(systemOracle);
+checkOnlyForcedCloseChanged(
+  oracleStorageBeforeUnlatch,
+  oracleStorageAfterUnlatch,
+);
 check(
   !(await read(systemOracle, oracleArtifact.abi, "forcedClose")) &&
     (await read(controller, controllerArtifact.abi, "queuedReopenEpoch")) ===
@@ -948,6 +1445,7 @@ for (const [contractArtifact, label] of [
   const runtimeBytes = runtime.length / 2;
   const opcodes = runtimeOpcodeCounts(runtime);
   check(runtimeBytes <= 24_576, `${label} exceeds EIP-170: ${runtimeBytes}`);
+  check((opcodes.get(0xf2) ?? 0) === 0, `${label} contains CALLCODE`);
   check((opcodes.get(0xf4) ?? 0) === 0, `${label} contains DELEGATECALL`);
 }
 check(

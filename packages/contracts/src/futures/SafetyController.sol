@@ -8,6 +8,7 @@ contract SafetyController {
     error ZeroAddress();
     error DependencyHasNoCode();
     error DependencyMismatch();
+    error InvalidRoleAlias();
     error Unauthorized();
     error ReopenNotQueued();
     error ReopenNotReady();
@@ -32,6 +33,10 @@ contract SafetyController {
             guardian_ == address(0) || clearingHouse_ == address(0)
                 || oracle_ == address(0)
         ) revert ZeroAddress();
+        if (
+            guardian_ == address(this) || guardian_ == clearingHouse_
+                || guardian_ == oracle_ || clearingHouse_ == oracle_
+        ) revert InvalidRoleAlias();
         if (
             clearingHouse_.code.length == 0 || oracle_.code.length == 0
         ) revert DependencyHasNoCode();

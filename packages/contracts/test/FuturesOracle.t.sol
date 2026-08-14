@@ -7,6 +7,7 @@ import { ClearingHouse } from "../src/futures/ClearingHouse.sol";
 import { OrderBook } from "../src/futures/OrderBook.sol";
 import { RiskEngine } from "../src/futures/RiskEngine.sol";
 import { FuturesCollateralMock } from "./futures/FuturesCollateralMock.sol";
+import { SafetyController } from "../src/futures/SafetyController.sol";
 
 contract OracleTokenMock {
     uint8 public constant decimals = 18;
@@ -369,6 +370,58 @@ contract OracleUnauthorizedCaller {
     }
 }
 
+contract OracleSafetyFixtureDeployer {
+    function deploy(
+        address pair,
+        address feed,
+        address bnbx,
+        address wbnb,
+        address humanGuardian
+    )
+        external
+        returns (FuturesOracle oracle, SafetyController controller)
+    {
+        FuturesCollateralMock collateral = new FuturesCollateralMock();
+        RiskEngine riskEngine = new RiskEngine();
+        address predictedClearing = _createAddress(address(this), 3);
+        address predictedOracle = _createAddress(address(this), 4);
+        address predictedController = _createAddress(address(this), 5);
+        ClearingHouse clearingHouse = new ClearingHouse(
+            address(collateral),
+            address(riskEngine),
+            address(0xBEEF),
+            predictedController,
+            address(0xCAFE),
+            1e48,
+            1e48,
+            1e48
+        );
+        assert(address(clearingHouse) == predictedClearing);
+        oracle = new FuturesOracle(pair, feed, bnbx, wbnb, predictedController);
+        assert(address(oracle) == predictedOracle);
+        controller = new SafetyController(
+            humanGuardian, address(clearingHouse), address(oracle)
+        );
+        assert(address(controller) == predictedController);
+    }
+
+    function _createAddress(address creator, uint8 nonce)
+        private
+        pure
+        returns (address)
+    {
+        return address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(hex"d694", creator, bytes1(nonce))
+                    )
+                )
+            )
+        );
+    }
+}
+
 contract OracleOrderBookFixtureDeployer {
     bytes32 private constant ORDER_BOOK_SALT = keccak256("ORACLE_ORDER_BOOK");
 
@@ -448,6 +501,7 @@ contract FuturesOracleTest {
     OraclePairMock public pair;
     OracleFeedMock public feed;
     FuturesOracle public oracle;
+    SafetyController public safetyController;
 
     function setUp() external {
         bnbx = new OracleTokenMock();
@@ -456,7 +510,9 @@ contract FuturesOracleTest {
         feed = new OracleFeedMock();
         pair.setReserves(100 ether, 1 ether);
         feed.setFreshAnswer(60_000_000_000);
-        oracle = new FuturesOracle(
+        OracleSafetyFixtureDeployer deployer =
+            new OracleSafetyFixtureDeployer();
+        (oracle, safetyController) = deployer.deploy(
             address(pair),
             address(feed),
             address(bnbx),
@@ -498,17 +554,18 @@ contract FuturesOracleTest {
 
     function testGuardianCanOnlyLowerDeviationAndForceClose() public {
         assert(oracle.maxDeviationBps() == 1_000);
-        oracle.lowerMaxDeviationBps(500);
+        safetyController.lowerMaxDeviationBps(500);
         assert(oracle.maxDeviationBps() == 500);
 
-        (bool equalSuccess, bytes memory equalData) = address(oracle).call(
-            abi.encodeCall(oracle.lowerMaxDeviationBps, (500))
+        (bool equalSuccess, bytes memory equalData) = address(safetyController)
+            .call(abi.encodeCall(safetyController.lowerMaxDeviationBps, (500)));
+        (bool increaseSuccess, bytes memory increaseData) = address(
+            safetyController
+        ).call(
+            abi.encodeCall(safetyController.lowerMaxDeviationBps, (501))
         );
-        (bool increaseSuccess, bytes memory increaseData) = address(oracle).call(
-            abi.encodeCall(oracle.lowerMaxDeviationBps, (501))
-        );
-        (bool zeroSuccess, bytes memory zeroData) = address(oracle).call(
-            abi.encodeCall(oracle.lowerMaxDeviationBps, (0))
+        (bool zeroSuccess, bytes memory zeroData) = address(safetyController).call(
+            abi.encodeCall(safetyController.lowerMaxDeviationBps, (0))
         );
         assert(!equalSuccess && !increaseSuccess && !zeroSuccess);
         assert(bytes4(equalData) == FuturesOracle.InvalidDeviation.selector);
@@ -522,9 +579,9 @@ contract FuturesOracleTest {
         (bool forceSuccess, bytes4 forceError) = caller.force(address(oracle));
         assert(!lowerSuccess && lowerError == FuturesOracle.Unauthorized.selector);
         assert(!forceSuccess && forceError == FuturesOracle.Unauthorized.selector);
-        oracle.forceCloseOnly();
+        safetyController.forceCloseOnly();
         assert(oracle.forcedClose());
-        oracle.forceCloseOnly();
+        safetyController.forceCloseOnly();
         assert(oracle.forcedClose());
     }
 }

@@ -4033,6 +4033,13 @@ function futuresOracleArtifacts() {
     pair: testArtifacts.OraclePairMock,
     feed: testArtifacts.OracleFeedMock,
     oracle: output.contracts["src/futures/FuturesOracle.sol"].FuturesOracle,
+    collateral:
+      output.contracts["test/futures/FuturesCollateralMock.sol"]
+        .FuturesCollateralMock,
+    risk: output.contracts["src/futures/RiskEngine.sol"].RiskEngine,
+    clearing: output.contracts["src/futures/ClearingHouse.sol"].ClearingHouse,
+    controller:
+      output.contracts["src/futures/SafetyController.sol"].SafetyController,
   };
 }
 
@@ -4097,14 +4104,61 @@ async function deployOracleFixture({
     await oracleWrite(feed, artifacts.feed.abi, "setDecimals", [decimals]);
   }
   await oracleWrite(feed, artifacts.feed.abi, "setFreshAnswer", [answer]);
+  const collateral = await deploy(artifacts.collateral);
+  const risk = await deploy(artifacts.risk);
+  const deploymentNonce = BigInt(
+    await publicClient.getTransactionCount({ address: account }),
+  );
+  const predictedClearing = getContractAddress({
+    from: account,
+    nonce: deploymentNonce,
+  });
+  const predictedOracle = getContractAddress({
+    from: account,
+    nonce: deploymentNonce + 1n,
+  });
+  const predictedController = getContractAddress({
+    from: account,
+    nonce: deploymentNonce + 2n,
+  });
+  const clearing = await deploy(artifacts.clearing, [
+    collateral,
+    risk,
+    accounts[4],
+    predictedController,
+    accounts[3],
+    10n ** 48n,
+    10n ** 48n,
+    10n ** 48n,
+  ]);
   const oracle = await deploy(artifacts.oracle, [
     pair,
     feed,
     bnbx,
     wbnb,
-    guardian ?? account,
+    predictedController,
   ]);
-  return { artifacts, bnbx, wbnb, pair, feed, oracle, answer };
+  const controller = await deploy(artifacts.controller, [
+    guardian ?? account,
+    clearing,
+    oracle,
+  ]);
+  check(
+    clearing.toLowerCase() === predictedClearing.toLowerCase() &&
+      oracle.toLowerCase() === predictedOracle.toLowerCase() &&
+      controller.toLowerCase() === predictedController.toLowerCase(),
+    "Oracle fixture deterministic controller wiring mismatch",
+  );
+  return {
+    artifacts,
+    bnbx,
+    wbnb,
+    pair,
+    feed,
+    oracle,
+    controller,
+    answer,
+  };
 }
 
 async function deployConfigurableTokenOracleFixture() {
@@ -4143,6 +4197,15 @@ async function deployConfigurableTokenOracleFixture() {
 
 function oracleUpdate(fixture) {
   return oracleWrite(fixture.oracle, fixture.artifacts.oracle.abi, "update");
+}
+
+function oracleSafetyWrite(fixture, functionName, args = []) {
+  return oracleWrite(
+    fixture.controller,
+    fixture.artifacts.controller.abi,
+    functionName,
+    args,
+  );
 }
 
 function oracleRead(fixture) {
@@ -4617,11 +4680,7 @@ async function runFuturesOracleFreshnessAndRecoveryTests() {
 
   fixture = await deployOracleFixture();
   accepted = (await oracleBuildWindow(fixture)).value;
-  await oracleWrite(
-    fixture.oracle,
-    fixture.artifacts.oracle.abi,
-    "forceCloseOnly",
-  );
+  await oracleSafetyWrite(fixture, "forceCloseOnly");
   checkOracleClose(await oracleRead(fixture), "Oracle guardian forced close");
   await oracleAdvance(1_800);
   await oracleFreshFeed(fixture);
@@ -4872,12 +4931,7 @@ async function runFuturesOracleDeviationTests() {
 
   fixture = await deployOracleFixture();
   accepted = (await oracleBuildWindow(fixture)).value;
-  await oracleWrite(
-    fixture.oracle,
-    fixture.artifacts.oracle.abi,
-    "lowerMaxDeviationBps",
-    [500],
-  );
+  await oracleSafetyWrite(fixture, "lowerMaxDeviationBps", [500]);
   await oracleSetTimestamp(accepted[4] + 300n);
   await oracleFreshFeed(fixture, 63_000_000_000n);
   await oracleUpdate(fixture);
@@ -4889,12 +4943,7 @@ async function runFuturesOracleDeviationTests() {
 
   fixture = await deployOracleFixture();
   accepted = (await oracleBuildWindow(fixture)).value;
-  await oracleWrite(
-    fixture.oracle,
-    fixture.artifacts.oracle.abi,
-    "lowerMaxDeviationBps",
-    [500],
-  );
+  await oracleSafetyWrite(fixture, "lowerMaxDeviationBps", [500]);
   await oracleSetTimestamp(accepted[4] + 300n);
   await oracleFreshFeed(fixture, 63_000_000_001n);
   checkOracleClose(
@@ -5629,11 +5678,7 @@ async function runFuturesOracleOrderBookIntegrationTest() {
     "Open oracle state did not permit one exact paired increase",
   );
 
-  await oracleWrite(
-    fixture.oracle,
-    fixture.artifacts.oracle.abi,
-    "forceCloseOnly",
-  );
+  await oracleSafetyWrite(fixture, "forceCloseOnly");
   const blockedMaker = { ...openMaker, nonce: 102n };
   const blockedTaker = { ...openTaker, nonce: 202n };
   await match(blockedMaker, blockedTaker, false);
