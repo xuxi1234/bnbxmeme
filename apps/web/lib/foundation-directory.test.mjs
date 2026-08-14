@@ -47,7 +47,7 @@ test("keeps the approved foundation registry in its original order", () => {
   });
   assert.deepEqual(foundationShareholders[24], {
     id: "025",
-    name: "神秘大佬",
+    name: "神秘大佬、",
     shares: 6,
   });
   assert.deepEqual(foundationShareholders[25], {
