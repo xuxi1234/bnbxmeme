@@ -9,6 +9,19 @@ interface IMarketStateProvider {
     function marketState() external view returns (FuturesTypes.MarketState);
 }
 
+interface IFuturesOracleRead {
+    function safeRead()
+        external
+        view
+        returns (
+            FuturesTypes.MarketState state,
+            uint256 markPriceWad,
+            uint256 twapBnbPerTokenWad,
+            uint256 bnbUsdWad,
+            uint256 updatedAt
+        );
+}
+
 contract OrderBook {
     struct Lot {
         uint64 id;
@@ -50,6 +63,19 @@ contract OrderBook {
         int256 longPnl;
     }
 
+    struct LiquidationPlan {
+        Lot oldLot;
+        address survivor;
+        bool targetIsLong;
+        uint256 targetMargin;
+        uint256 survivorMargin;
+        uint128 markPrice;
+        uint256 newOpenInterest;
+        int256 targetPnl;
+        uint256 survivorNewMargin;
+        uint256 replacementMargin;
+    }
+
     error ZeroAddress();
     error DependencyHasNoCode();
     error DependencyMismatch();
@@ -68,8 +94,14 @@ contract OrderBook {
     error Cancelled();
     error InsufficientPairedLots();
     error InsufficientCloseProceeds();
+    error NonzeroFundingRate();
+    error TimestampOverflow();
+    error InvalidOracleRead();
+    error NotLiquidatable();
+    error LiquidationNonceUnavailable();
 
     uint256 private constant WAD = 1e18;
+    uint256 private constant MAX_ORACLE_AGE = 5 minutes;
     uint256 private constant SECP256K1N_HALF =
         0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
     bytes32 private constant NAME_HASH = keccak256("BNBX Futures");
@@ -84,7 +116,15 @@ contract OrderBook {
     mapping(address trader => int256 quantity) public netQuantity;
     mapping(uint64 id => Lot lot) public lots;
     mapping(address trader => LotQueue queue) private _lotQueues;
+    mapping(uint64 id => int256 index) private _lotFundingIndices;
+    mapping(uint64 id => uint64 updatedAt) private _lotFundingUpdatedAts;
+    mapping(address maker => mapping(uint64 nonce => bool used))
+        public liquidationNonceUsed;
+    mapping(address maker => mapping(uint64 nonce => bool isCancelled))
+        public liquidationNonceCancelled;
     uint64 public nextLotId = 1;
+    int256 public cumulativeFundingIndex;
+    uint64 public fundingUpdatedAt;
 
     uint256 private _reentrancyState = 1;
 
@@ -110,6 +150,7 @@ contract OrderBook {
         clearingHouse = house;
         riskEngine = RiskEngine(riskEngine_);
         marketStateProvider = marketStateProvider_;
+        fundingUpdatedAt = _currentTimestamp();
     }
 
     modifier nonReentrant() {
@@ -144,13 +185,57 @@ contract OrderBook {
         );
     }
 
+    function liquidationOrderHash(
+        FuturesTypes.LiquidationOrder calldata order
+    ) public view returns (bytes32) {
+        FuturesTypes.LiquidationOrder memory orderCopy = order;
+        return keccak256(
+            abi.encodePacked(
+                hex"1901",
+                domainSeparator(),
+                FuturesTypes.hashLiquidationOrder(orderCopy)
+            )
+        );
+    }
+
     function activeLotCount(address trader) external view returns (uint8) {
         return _lotQueues[trader].count;
+    }
+
+    function lotFundingCheckpoint(uint64 lotId)
+        external
+        view
+        returns (int256 index, uint64 updatedAt)
+    {
+        return (_lotFundingIndices[lotId], _lotFundingUpdatedAts[lotId]);
+    }
+
+    function checkpointFunding(int256 rateBps) external nonReentrant {
+        _advanceFunding(rateBps);
+    }
+
+    function settleFunding(uint64 lotId) external nonReentrant {
+        if (lots[lotId].remainingQuantity == 0) {
+            revert InsufficientPairedLots();
+        }
+        _advanceFunding(0);
+        _lotFundingIndices[lotId] = cumulativeFundingIndex;
+        _lotFundingUpdatedAts[lotId] = fundingUpdatedAt;
     }
 
     function cancel(FuturesTypes.Order calldata order) external nonReentrant {
         if (msg.sender != order.trader) revert Unauthorized();
         cancelled[orderHash(order)] = true;
+    }
+
+    function cancelLiquidationOrder(
+        FuturesTypes.LiquidationOrder calldata order
+    ) external nonReentrant {
+        if (msg.sender != order.maker) revert Unauthorized();
+        if (liquidationNonceUsed[order.maker][order.nonce]) {
+            revert LiquidationNonceUnavailable();
+        }
+        liquidationNonceCancelled[order.maker][order.nonce] = true;
     }
 
     function activeLotId(address trader, uint8 index)
@@ -170,6 +255,7 @@ contract OrderBook {
         bytes calldata takerSignature,
         uint128 fillQuantity
     ) external nonReentrant {
+        _advanceFunding(0);
         (bytes32 makerHash, bytes32 takerHash) = _validateOrders(
             maker,
             makerSignature,
@@ -178,6 +264,57 @@ contract OrderBook {
             fillQuantity
         );
         _matchValidated(maker, taker, fillQuantity, makerHash, takerHash);
+    }
+
+    function liquidate(
+        uint64 lotId,
+        FuturesTypes.LiquidationOrder calldata replacement,
+        bytes calldata signature
+    ) external nonReentrant {
+        _advanceFunding(0);
+        LiquidationPlan memory plan;
+        plan.oldLot = lots[lotId];
+        if (plan.oldLot.remainingQuantity == 0) {
+            revert InsufficientPairedLots();
+        }
+        (
+            plan.survivor,
+            plan.targetIsLong,
+            plan.targetMargin,
+            plan.survivorMargin
+        ) = _validateLiquidationOrder(plan.oldLot, replacement, signature);
+        uint256 markPrice = _currentOracleMark();
+        if (
+            (plan.targetIsLong && markPrice > replacement.limitPrice)
+                || (!plan.targetIsLong && markPrice < replacement.limitPrice)
+        ) revert PriceDoesNotCross();
+        plan.markPrice = uint128(markPrice);
+        plan.newOpenInterest = _executionNotional(
+            plan.oldLot.remainingQuantity, plan.markPrice
+        );
+        (int256 longPnl,) = riskEngine.pairedPnl(
+            plan.oldLot.remainingQuantity, plan.oldLot.entryPrice, markPrice
+        );
+        plan.targetPnl = plan.targetIsLong ? longPnl : -longPnl;
+        if (plan.targetPnl >= 0) revert NotLiquidatable();
+        int256 targetEquity = int256(plan.targetMargin) + plan.targetPnl;
+        if (!riskEngine.isLiquidatable(targetEquity, plan.newOpenInterest)) {
+            revert NotLiquidatable();
+        }
+        if (
+            _lotQueues[replacement.maker].count == 8
+                || nextLotId == type(uint64).max
+        ) revert TooManyActiveLots();
+
+        plan.survivorNewMargin = riskEngine.initialMargin(
+            plan.newOpenInterest
+        );
+        plan.replacementMargin = _marginForLeverage(
+            plan.newOpenInterest, replacement.leverage
+        );
+        _settleLiquidation(plan, replacement, msg.sender);
+        _replaceLiquidatedLot(plan, replacement);
+        liquidationNonceUsed[replacement.maker][replacement.nonce] = true;
     }
 
     function _matchValidated(
@@ -243,6 +380,8 @@ contract OrderBook {
         nextLotId = lotId + 1;
         lot.id = lotId;
         lots[lotId] = lot;
+        _lotFundingIndices[lotId] = cumulativeFundingIndex;
+        _lotFundingUpdatedAts[lotId] = fundingUpdatedAt;
         _pushLot(_lotQueues[maker.trader], lotId);
         _pushLot(_lotQueues[taker.trader], lotId);
         netQuantity[maker.trader] += makerDelta;
@@ -427,6 +566,8 @@ contract OrderBook {
             Lot storage lot = lots[id];
             if (plan.quantities[index] == lot.remainingQuantity) {
                 delete lots[id];
+                delete _lotFundingIndices[id];
+                delete _lotFundingUpdatedAts[id];
                 _popLot(_lotQueues[longTrader], id);
                 _popLot(_lotQueues[shortTrader], id);
             } else {
@@ -434,8 +575,20 @@ contract OrderBook {
                 lot.longMargin -= plan.longMargins[index];
                 lot.shortMargin -= plan.shortMargins[index];
                 lot.remainingOpenInterest -= plan.openInterests[index];
+                _lotFundingIndices[id] = cumulativeFundingIndex;
+                _lotFundingUpdatedAts[id] = fundingUpdatedAt;
             }
         }
+    }
+
+    function _advanceFunding(int256 rateBps) private {
+        if (rateBps != 0) revert NonzeroFundingRate();
+        fundingUpdatedAt = _currentTimestamp();
+    }
+
+    function _currentTimestamp() private view returns (uint64 timestamp) {
+        if (block.timestamp > type(uint64).max) revert TimestampOverflow();
+        timestamp = uint64(block.timestamp);
     }
 
     function _accountOpen(
@@ -533,6 +686,143 @@ contract OrderBook {
         _requireSignature(takerHash, taker.trader, takerSignature);
     }
 
+    function _validateLiquidationOrder(
+        Lot memory oldLot,
+        FuturesTypes.LiquidationOrder calldata replacement,
+        bytes calldata signature
+    )
+        private
+        view
+        returns (
+            address survivor,
+            bool targetIsLong,
+            uint256 targetMargin,
+            uint256 survivorMargin
+        )
+    {
+        if (
+            replacement.maker == address(0)
+                || replacement.target == address(0)
+                || replacement.maker == replacement.target
+                || replacement.quantity == 0 || replacement.limitPrice == 0
+                || replacement.leverage == 0 || replacement.leverage > 3
+        ) revert InvalidOrder();
+        if (block.timestamp > replacement.deadline) revert Expired();
+        if (replacement.target == oldLot.longTrader) {
+            targetIsLong = true;
+            survivor = oldLot.shortTrader;
+            targetMargin = oldLot.longMargin;
+            survivorMargin = oldLot.shortMargin;
+        } else if (replacement.target == oldLot.shortTrader) {
+            survivor = oldLot.longTrader;
+            targetMargin = oldLot.shortMargin;
+            survivorMargin = oldLot.longMargin;
+        } else {
+            revert InvalidPair();
+        }
+        if (
+            replacement.maker == survivor
+                || replacement.quantity != oldLot.remainingQuantity
+                || uint8(replacement.side) != (targetIsLong ? 0 : 1)
+        ) revert InvalidPair();
+        int256 makerDelta = replacement.side == FuturesTypes.Side.Long
+            ? int256(uint256(replacement.quantity))
+            : -int256(uint256(replacement.quantity));
+        if (!_increasesExposure(netQuantity[replacement.maker], makerDelta)) {
+            revert InvalidPair();
+        }
+        if (
+            liquidationNonceUsed[replacement.maker][replacement.nonce]
+                || liquidationNonceCancelled[replacement.maker][replacement.nonce]
+        ) revert LiquidationNonceUnavailable();
+        _requireSignature(
+            liquidationOrderHash(replacement), replacement.maker, signature
+        );
+    }
+
+    function _currentOracleMark() private view returns (uint256 markPrice) {
+        (FuturesTypes.MarketState state, uint256 mark,,, uint256 updatedAt) =
+            IFuturesOracleRead(marketStateProvider).safeRead();
+        if (
+            state != FuturesTypes.MarketState.Open || mark == 0
+                || mark > type(uint128).max || updatedAt == 0
+                || updatedAt > block.timestamp
+                || block.timestamp - updatedAt > MAX_ORACLE_AGE
+        ) revert InvalidOracleRead();
+        markPrice = mark;
+    }
+
+    function _settleLiquidation(
+        LiquidationPlan memory plan,
+        FuturesTypes.LiquidationOrder calldata replacement,
+        address liquidator
+    ) private {
+        clearingHouse.liquidateAndReplace(
+            ClearingHouse.LiquidateAndReplaceParams({
+                target: replacement.target,
+                survivor: plan.survivor,
+                replacementMaker: replacement.maker,
+                liquidator: liquidator,
+                targetMarginReleased: plan.targetMargin,
+                survivorMarginReleased: plan.survivorMargin,
+                losingPnl: uint256(-plan.targetPnl),
+                oldOpenInterest: plan.oldLot.remainingOpenInterest,
+                newOpenInterest: plan.newOpenInterest,
+                survivorNewMargin: plan.survivorNewMargin,
+                replacementMargin: plan.replacementMargin
+            })
+        );
+    }
+
+    function _replaceLiquidatedLot(
+        LiquidationPlan memory plan,
+        FuturesTypes.LiquidationOrder calldata replacement
+    ) private {
+        Lot memory oldLot = plan.oldLot;
+        uint64 oldId = oldLot.id;
+        delete lots[oldId];
+        delete _lotFundingIndices[oldId];
+        delete _lotFundingUpdatedAts[oldId];
+        _removeLot(_lotQueues[oldLot.longTrader], oldId);
+        _removeLot(_lotQueues[oldLot.shortTrader], oldId);
+
+        int256 quantity = int256(uint256(oldLot.remainingQuantity));
+        if (replacement.side == FuturesTypes.Side.Long) {
+            netQuantity[replacement.target] -= quantity;
+            netQuantity[replacement.maker] += quantity;
+        } else {
+            netQuantity[replacement.target] += quantity;
+            netQuantity[replacement.maker] -= quantity;
+        }
+
+        uint64 newId = nextLotId;
+        nextLotId = newId + 1;
+        bool replacementIsLong = replacement.side == FuturesTypes.Side.Long;
+        Lot memory newLot = Lot({
+            id: newId,
+            longTrader: replacementIsLong
+                ? replacement.maker
+                : plan.survivor,
+            shortTrader: replacementIsLong
+                ? plan.survivor
+                : replacement.maker,
+            remainingQuantity: oldLot.remainingQuantity,
+            entryPrice: plan.markPrice,
+            longMargin: replacementIsLong
+                ? plan.replacementMargin
+                : plan.survivorNewMargin,
+            shortMargin: replacementIsLong
+                ? plan.survivorNewMargin
+                : plan.replacementMargin,
+            remainingOpenInterest: plan.newOpenInterest
+        });
+        lots[newId] = newLot;
+        _lotFundingIndices[newId] = cumulativeFundingIndex;
+        _lotFundingUpdatedAts[newId] = fundingUpdatedAt;
+        _pushLot(_lotQueues[plan.survivor], newId);
+        _pushLot(_lotQueues[replacement.maker], newId);
+    }
+
     function _requireSignature(
         bytes32 digest,
         address expectedSigner,
@@ -622,5 +912,25 @@ contract OrderBook {
         queue.ids[head] = 0;
         queue.head = uint8((uint256(head) + 1) % 8);
         queue.count -= 1;
+    }
+
+    function _removeLot(LotQueue storage queue, uint64 expectedId) private {
+        uint8 count = queue.count;
+        uint8 found = type(uint8).max;
+        for (uint8 index = 0; index < count; index += 1) {
+            if (queue.ids[(uint256(queue.head) + index) % 8] == expectedId) {
+                found = index;
+                break;
+            }
+        }
+        if (found == type(uint8).max) revert InsufficientPairedLots();
+        for (uint8 index = found; index + 1 < count; index += 1) {
+            uint256 current = (uint256(queue.head) + index) % 8;
+            uint256 next = (current + 1) % 8;
+            queue.ids[current] = queue.ids[next];
+        }
+        uint256 tail = (uint256(queue.head) + count - 1) % 8;
+        queue.ids[tail] = 0;
+        queue.count = count - 1;
     }
 }

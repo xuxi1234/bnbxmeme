@@ -28,6 +28,20 @@ contract ClearingHouse {
         uint256 takerFee;
     }
 
+    struct LiquidateAndReplaceParams {
+        address target;
+        address survivor;
+        address replacementMaker;
+        address liquidator;
+        uint256 targetMarginReleased;
+        uint256 survivorMarginReleased;
+        uint256 losingPnl;
+        uint256 oldOpenInterest;
+        uint256 newOpenInterest;
+        uint256 survivorNewMargin;
+        uint256 replacementMargin;
+    }
+
     error ZeroAddress();
     error DependencyHasNoCode();
     error InvalidCap();
@@ -380,6 +394,97 @@ contract ClearingHouse {
         _assertSolvent();
     }
 
+    function liquidateAndReplace(LiquidateAndReplaceParams calldata params)
+        external
+        onlyOrderBook
+        nonReentrant
+    {
+        _validateLiquidationAccounts(params);
+        if (params.oldOpenInterest == 0 || params.newOpenInterest == 0) {
+            revert ZeroAmount();
+        }
+        if (
+            params.oldOpenInterest > matchedOpenInterest
+                || params.newOpenInterest
+                    > matchedOpenInterestCap
+                        - (matchedOpenInterest - params.oldOpenInterest)
+        ) revert CapExceeded();
+        if (
+            lockedMargin[params.target] < params.targetMarginReleased
+                || lockedMargin[params.survivor]
+                    < params.survivorMarginReleased
+        ) revert InsufficientBalance();
+
+        uint256 minimumNewMargin = riskEngine.initialMargin(
+            params.newOpenInterest
+        );
+        if (
+            params.survivorNewMargin < minimumNewMargin
+                || params.replacementMargin < minimumNewMargin
+        ) revert InvalidMargin();
+        uint256 survivorProceeds = params.survivorMarginReleased
+            + params.losingPnl;
+        if (params.survivorNewMargin > survivorProceeds) {
+            revert InsufficientCloseProceeds();
+        }
+        if (available[params.replacementMaker] < params.replacementMargin) {
+            revert InsufficientBalance();
+        }
+
+        uint256 deficit;
+        uint256 targetProceeds;
+        if (params.losingPnl > params.targetMarginReleased) {
+            deficit = params.losingPnl - params.targetMarginReleased;
+            if (insuranceBalance < deficit) revert InsufficientBalance();
+        } else {
+            targetProceeds = params.targetMarginReleased - params.losingPnl;
+        }
+        uint256 requiredFee = riskEngine.orderFee(
+            params.newOpenInterest, FuturesTypes.OrderRole.Taker
+        );
+        uint256 collectedFee = requiredFee < targetProceeds
+            ? requiredFee
+            : targetProceeds;
+        targetProceeds -= collectedFee;
+        uint256 penalty = riskEngine.liquidationPenalty(
+            params.newOpenInterest, int256(targetProceeds)
+        );
+        targetProceeds -= penalty;
+        uint256 reward = (penalty / 5) * 4 + ((penalty % 5) * 4) / 5;
+        uint256 insuranceShare = penalty - reward;
+
+        lockedMargin[params.target] -= params.targetMarginReleased;
+        lockedMargin[params.survivor] -= params.survivorMarginReleased;
+        totalLockedMargin -=
+            params.targetMarginReleased + params.survivorMarginReleased;
+        available[params.replacementMaker] -= params.replacementMargin;
+        totalAvailable -= params.replacementMargin;
+        insuranceBalance -= deficit;
+
+        _makeRoomForLockedCredit(params.survivor, params.survivorNewMargin);
+        lockedMargin[params.survivor] += params.survivorNewMargin;
+        lockedMargin[params.replacementMaker] += params.replacementMargin;
+        totalLockedMargin +=
+            params.survivorNewMargin + params.replacementMargin;
+        matchedOpenInterest = matchedOpenInterest - params.oldOpenInterest
+            + params.newOpenInterest;
+
+        _creditReusableOrClaimable(params.target, targetProceeds);
+        _creditReusableOrClaimable(
+            params.survivor, survivorProceeds - params.survivorNewMargin
+        );
+        if (reward != 0) {
+            liquidationReward[params.liquidator] += reward;
+            totalLiquidationRewards += reward;
+        }
+        insuranceBalance += insuranceShare;
+
+        if (collectedFee != 0) {
+            _transferOutExact(revenueRecipient, collectedFee);
+        }
+        _assertSolvent();
+    }
+
     function lowerTotalLiabilityCap(uint256 newCap)
         external
         onlySafetyController
@@ -431,6 +536,19 @@ contract ClearingHouse {
         ) revert InvalidPair();
     }
 
+    function _validateLiquidationAccounts(
+        LiquidateAndReplaceParams calldata params
+    ) private pure {
+        if (
+            params.target == address(0) || params.survivor == address(0)
+                || params.replacementMaker == address(0)
+                || params.liquidator == address(0)
+                || params.target == params.survivor
+                || params.target == params.replacementMaker
+                || params.survivor == params.replacementMaker
+        ) revert InvalidPair();
+    }
+
     function _debitAvailable(address account, uint256 amount) private {
         if (available[account] < amount) revert InsufficientBalance();
         available[account] -= amount;
@@ -452,6 +570,19 @@ contract ClearingHouse {
             claimable[account] += claimableCredit;
             totalClaimable += claimableCredit;
         }
+    }
+
+    function _makeRoomForLockedCredit(address account, uint256 amount)
+        private
+    {
+        uint256 reusableEquity = available[account] + lockedMargin[account];
+        if (amount <= accountEquityCap - reusableEquity) return;
+        uint256 overflow = amount - (accountEquityCap - reusableEquity);
+        if (available[account] < overflow) revert CapExceeded();
+        available[account] -= overflow;
+        totalAvailable -= overflow;
+        claimable[account] += overflow;
+        totalClaimable += overflow;
     }
 
     function _requireLiabilityCapacity(uint256 amount) private view {

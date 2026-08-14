@@ -6133,6 +6133,10 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
           "nonpayable",
         ],
         ["coverMatchedLossDeficit(address,uint256)", "nonpayable"],
+        [
+          "liquidateAndReplace((address,address,address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256))",
+          "nonpayable",
+        ],
         ["lowerTotalLiabilityCap(uint256)", "nonpayable"],
         ["lowerAccountEquityCap(uint256)", "nonpayable"],
         ["lowerMatchedOpenInterestCap(uint256)", "nonpayable"],
@@ -6176,15 +6180,26 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
       output.contracts["src/futures/OrderBook.sol"].OrderBook;
     const orderTuple =
       "(address,uint8,uint128,uint128,uint8,uint64,uint64,bool,uint8)";
+    const liquidationTuple =
+      "(address,address,uint8,uint128,uint128,uint8,uint64,uint64)";
     const expectedMutability = new Map(
       [
         ["activeLotCount(address)", "view"],
         ["activeLotId(address,uint8)", "view"],
         [`cancel(${orderTuple})`, "nonpayable"],
+        [`cancelLiquidationOrder(${liquidationTuple})`, "nonpayable"],
         ["cancelled(bytes32)", "view"],
+        ["checkpointFunding(int256)", "nonpayable"],
         ["clearingHouse()", "view"],
+        ["cumulativeFundingIndex()", "view"],
         ["domainSeparator()", "view"],
         ["filled(bytes32)", "view"],
+        ["fundingUpdatedAt()", "view"],
+        [`liquidate(uint64,${liquidationTuple},bytes)`, "nonpayable"],
+        [`liquidationOrderHash(${liquidationTuple})`, "view"],
+        ["liquidationNonceCancelled(address,uint64)", "view"],
+        ["liquidationNonceUsed(address,uint64)", "view"],
+        ["lotFundingCheckpoint(uint64)", "view"],
         ["lots(uint64)", "view"],
         ["marketStateProvider()", "view"],
         [
@@ -6195,6 +6210,7 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
         ["nextLotId()", "view"],
         [`orderHash(${orderTuple})`, "view"],
         ["riskEngine()", "view"],
+        ["settleFunding(uint64)", "nonpayable"],
       ].map(([signature, mutability]) => [
         toFunctionSelector(signature),
         mutability,
