@@ -175,3 +175,319 @@ OrderBook and ClearingHouse are each below the 24,576-byte EIP-170 maximum.
 
 - Ganache prints a known optional `uws` native-module compatibility warning and falls back to its JavaScript implementation. All commands still exited 0; this affects test performance, not results.
 - Phase 1 intentionally leaves the cumulative funding index at zero. Activating any nonzero rate later requires a separate trustless authenticated rate-source design and new review; this implementation deliberately provides no administrative/caller-supplied activation path.
+
+---
+
+## Independent review fix round 1/5 (2026-08-14)
+
+Status: PASS
+
+Reviewed tree: `0ecc5b430be9d860b5405727efee05e751fe52a8`
+
+Fix implementation commit: `cea87a8fffc36619f9c4302ff5ab9cd4a80ed264`
+
+Exact-size supplemental test commit:
+`bf42de997ec30d4a4b0b4f7c70b30809df8e1383`
+
+### Changed files
+
+- `packages/contracts/src/futures/OrderBook.sol`
+  - The immutable Oracle provider must now have code at construction.
+  - Construction probes `safeRead()` and accepts only a successful, exactly
+    160-byte response whose first word is a valid `MarketState` enum value.
+- `packages/contracts/test/FundingLiquidation.t.sol`
+  - Added deployed invalid-provider fixtures and deterministic construction
+    attempts.
+  - Raised only the Task 6 fixture OI cap from 100 to 150 BNBX-notional units
+    so a successful rising-mark short replacement is testable while retaining
+    a separate literal cap-overflow case at 160.
+  - Added a same-transaction helper for the exact 300-second Oracle boundary.
+- `packages/contracts/test/OrderBook.t.sol`
+  - Upgraded the legacy state-provider fixture to the canonical five-word
+    `safeRead()` interface required by production construction.
+- `packages/contracts/scripts/run-task-6-tests.mjs`
+  - Corrected the liquidation-equality fixture and added complete rollback
+    assertions.
+  - Added successful short, replacement checkpoint, middle/tail queue,
+    one-unit reward-rounding, exact Oracle-age, and outside-bound funding tests.
+  - Expanded the gate to the complete Futures source/compiler-artifact
+    manifests, every production ABI/runtime, generated prohibited selector
+    probes, and repository service/UI/deployment inputs.
+
+No production web/service/deployment file remains changed. The temporary web
+export used to mutation-test the repository scan was restored before the fix
+commit.
+
+### ABI and construction changes
+
+There are no new or removed production ABI selectors in this fix. The exact
+OrderBook, ClearingHouse, RiskEngine, and FuturesOracle function-selector and
+mutability maps remain gated.
+
+OrderBook construction is intentionally stricter: a provider with no code, a
+contract exposing only `marketState()`, a short `safeRead()` response, a long
+response, a reverting response, or a first word outside enum values 0 and 1 is
+rejected before the immutable is stored. A canonical five-word provider is
+accepted. This is a deployment compatibility requirement, not a runtime
+authority or upgrade path.
+
+### Strict TDD and mutation RED evidence
+
+Every mutation below was applied to the real production contract, exercised
+through a deployed fixture, and restored before the corresponding GREEN. The
+command was `pnpm --filter @bnbx/contracts test:funding-liquidation` unless an
+alternate command is stated.
+
+1. **Oracle immutable has no code**
+   - Unsafe production behavior: omit provider code validation and accept an
+     EOA that can never return the canonical read.
+   - Initial RED: exit 1, `Error: OrderBook accepted no-code provider`.
+   - Minimal production correction: include `marketStateProvider_.code.length`
+     in the immutable dependency code gate.
+
+2. **Oracle interface probe omitted**
+   - Unsafe mutation: retain the code check but delete the constructor
+     `_canonicalOracleInterface` rejection.
+   - RED: exit 1,
+     `Error: OrderBook accepted market-state-only provider`.
+   - This separately proves the code-bearing legacy interface cannot pass.
+
+3. **Oracle exact return size omitted**
+   - Unsafe mutation: accept `success` plus the enum word without requiring
+     `returndatasize() == 160`.
+   - RED: exit 1, `Error: OrderBook accepted short-return provider`.
+   - A second unsafe mutation weakened equality to `returnSize >= 160`; the
+     then-current short/enum suite exited 0. Adding a deployed 192-byte provider
+     REDed at `Error: OrderBook accepted long-return provider`.
+   - Restoring exact equality produced final targeted GREEN at supplemental
+     commit `bf42de997ec30d4a4b0b4f7c70b30809df8e1383`.
+
+4. **Oracle enum validation omitted**
+   - Unsafe mutation: accept a successful 160-byte response without checking
+     the first word.
+   - RED: exit 1, `Error: OrderBook accepted invalid-enum provider`.
+
+5. **Legacy fixture compatibility**
+   - After the production constructor fix, exact command
+     `pnpm --filter @bnbx/contracts test:order-book` initially REDed during
+     `OrderBookTest.setUp` because its provider exposed only `marketState()`.
+   - Adding the canonical five-word test-provider read produced exit 0 with all
+     23 OrderBook behaviors plus its ABI/runtime gate.
+
+6. **Strict liquidation equality**
+   - Reviewer mutation: change RiskEngine eligibility `<` to `<=`.
+   - The old entry-4/mark-4 test suite incorrectly exited 0 because the
+     zero-PnL path rejected before the comparator.
+   - The replacement literal fixture opens at entry 6 with 3x margin 3 and
+     marks at 5: loss 1, equity 2, and
+     `ceil(20% * 5) + ceil(1% * 5) = 2`.
+   - RED against `<=`: exit 1,
+     `Error: maintenance-plus-fee equality was liquidated`.
+   - GREEN against `<`: equality reverts with the lot, all three net
+     quantities/queues, every custody bucket and total, OI, token balances,
+     next lot ID, funding checkpoint, and nonce unchanged. Mark 4, exactly one
+     equity unit below the requirement, succeeds with the same authorization.
+
+7. **Zero-only funding outside the mathematical RiskEngine bound**
+   - Unsafe mutation: reject only nonzero rates inside `[-30, 30]`, accepting
+     larger caller-supplied values.
+   - The old `[1, 30, -1, -30]` matrix exited 0.
+   - Adding literal `31` and `-31` REDed with
+     `Error: nonzero funding rate 31 was accepted`.
+   - Restoring rejection of every nonzero value produced GREEN without moving
+     index, checkpoint, or custody.
+
+8. **Liquidator reward must round down**
+   - Unsafe mutation: round the 80% share upward.
+   - The old suite exited 0 because its nonzero penalty was divisible by 5.
+   - A deployed entry-7/mark-6 liquidation creates an exact one-unit penalty.
+   - RED: exit 1 with state beginning reward 1 / insurance 0 rather than the
+     independent expected reward 0 / insurance 1.
+   - GREEN also asserts all three accounts' available/locked/claimable,
+     matched OI 6, and exact fee revenue 2.
+
+9. **Fee-before-penalty waterfall**
+   - Unsafe mutation: take the liquidation penalty before collecting the close
+     fee from positive target proceeds.
+   - The preexisting literal partial-fee case REDed at
+     `Error: unpaid close fee/penalty was not waived from only positive proceeds`.
+   - Restoring PnL, then capped fee, then capped penalty produced GREEN.
+
+10. **Successful short replacement orientation and accounting**
+    - Unsafe reviewer mutation: add, rather than subtract, the short
+      replacement Maker's net quantity.
+    - The old suite exited 0 because the only rising-mark short path reverted
+      at the OI cap before replacement.
+    - The new mark-120 case stays below the 150 cap. RED showed target 0,
+      survivor +1, and corrupted replacement +1 instead of literal -1.
+    - GREEN asserts long=survivor, short=new Maker, all three nets and queues,
+      target/survivor/Maker margins, 120 OI, target proceeds, survivor-owned
+      20-unit cap spill, exact 0.96 reward / 0.24 insurance / 2.2 revenue, and
+      the current zero-index replacement checkpoint.
+
+11. **Replacement checkpoint initialization**
+    - Unsafe reviewer mutation: delete the new lot's funding-index/timestamp
+      assignments.
+    - The suite without a replacement checkpoint assertion exited 0.
+    - Adding the assertion REDed in the successful short case because the new
+      lot returned timestamp zero rather than `fundingUpdatedAt`.
+    - Restoring both assignments produced GREEN.
+
+12. **Bounded middle/tail removal**
+    - Unsafe reviewer mutation: replace `_removeLot` with FIFO-only `_popLot`
+      during liquidation.
+    - The old suite exited 0 because every completed liquidation removed a
+      head lot.
+    - A three-quarter-lot queue now liquidates the middle original lot and then
+      the tail original lot. RED: exit 1,
+      `Error: middle-lot liquidation reverted`.
+    - GREEN asserts target `[oldHead]`, survivor
+      `[oldHead, firstReplacement, secondReplacement]`, replacement Maker
+      `[firstReplacement, secondReplacement]`, deleted old records, counts
+      1/3/2, nets +0.25/-0.75/+0.5, and exact OI 62.5.
+
+13. **Oracle exact freshness boundary**
+    - Unsafe mutation: reject age `>= 300` rather than only age `> 300`.
+    - The old stale-age-301 case exited 0.
+    - A deployed helper writes age exactly 300 and liquidates in the same
+      transaction. RED: exit 1,
+      `Error: exactly 300-second-old Oracle read was rejected`.
+    - Restoring the inclusive valid boundary produced GREEN; age 301 remains
+      rejected.
+
+14. **Normal open checkpoint initialization**
+    - Unsafe mutation: delete the normal lot's funding-index/timestamp writes.
+    - The existing deployed monotonic test REDed at
+      `Error: new lot inherited a stale funding interval retroactively`.
+    - Restoration produced GREEN, including the bounded 31-hour settlement.
+
+15. **Complete source/artifact manifest**
+    - Unsafe repository mutation: add a sixth file,
+      `src/futures/UnexpectedSurface.sol`.
+    - RED: exit 1 with an exact source-manifest mismatch listing the unexpected
+      file. The file was deleted via patch and the gate returned GREEN.
+
+16. **Service/UI/deployment absence scan**
+    - Unsafe repository mutation: temporarily export a prohibited automatic
+      deleveraging function from `apps/web/lib/deployments.ts`.
+    - RED: exit 1 identifying that exact deployment input and identifier.
+    - The export was removed immediately; `git diff` confirmed the production
+      web file was fully restored.
+
+### GREEN commands and results
+
+- `pnpm --filter @bnbx/contracts test:funding-liquidation`
+  - Exit 0 after final restoration.
+  - 16 deployed behavior PASS lines plus 1 exact
+    ABI/runtime/source/artifact/repository gate.
+- `pnpm --filter @bnbx/contracts test:futures`
+  - Exit 0, 4/4 Task 1 tests.
+- `pnpm --filter @bnbx/contracts test:risk-engine`
+  - Exit 0, 10/10 behaviors plus exact ABI/permission gate.
+- `pnpm --filter @bnbx/contracts test:clearing-house`
+  - Exit 0, 35/35 behaviors plus exact ABI/runtime gate.
+- `pnpm --filter @bnbx/contracts test:order-book`
+  - Exit 0, 23/23 behaviors plus exact ABI/runtime gate.
+- `pnpm --filter @bnbx/contracts test:futures-oracle`
+  - Exit 0, 35/35 Oracle progression, math, dependency, boundary,
+    constructor, and integration behaviors plus exact ABI/runtime gate.
+- `pnpm --filter @bnbx/contracts test`
+  - Exit 0.
+  - Compiler-input phase: 8/8.
+  - Enhanced Task 6 phase: 17 PASS lines.
+  - Complete EVM/artifact matrix: unchanged `PASS_COUNT 247`, including
+    `GraduationTarget.18BNB`.
+  - This complete run followed the production fix commit. The later
+    supplemental commit changed only the invalid Oracle test fixture/matrix;
+    the final exact-tree Task 6 target was rerun exit 0 and production bytecode
+    remained identical.
+- `pnpm exec prettier --check packages/contracts/scripts/run-task-6-tests.mjs`
+  - Exit 0, all matched.
+- `git diff --check`
+  - Exit 0.
+
+Ganache emitted its known optional `uws` native-module warning in every EVM
+command and used the JavaScript fallback. No test failure or semantic warning
+resulted.
+
+### Exact artifact, ABI, runtime, and absence gates
+
+- Exact recursive Futures source manifest: 5 files.
+- Exact compiler artifact manifest: 7 artifacts across those 5 sources,
+  including the two OrderBook interfaces and FuturesTypes library.
+- Exact function selector/mutability maps: OrderBook, ClearingHouse,
+  RiskEngine, and FuturesOracle.
+- Fallback/receive absence: every artifact ABI and deployed empty-calldata
+  calls.
+- Generated prohibited surface matrix: 14 decoded authority/deleveraging names
+  crossed with 12 bounded argument shapes (168 selectors), scanned in all 7
+  artifact runtimes and called against deployed OrderBook, ClearingHouse, and
+  RiskEngine.
+- Repository input scan: 280 Solidity/script/package/service/UI/deployment
+  files under the current bounded roots.
+- Phase 1 Futures deployment manifest: exactly empty; adding a Futures
+  deployment/artifact input fails the gate.
+
+Solidity 0.8.30, optimizer 200 runs, Shanghai deployed runtimes:
+
+- OrderBook: 18,974 bytes.
+- ClearingHouse: 11,637 bytes.
+- RiskEngine: 1,788 bytes.
+- FuturesOracle: 6,731 bytes.
+
+All four remain below the 24,576-byte EIP-170 limit.
+
+### Security, solvency, and mutation-sensitive self-review
+
+- **Immutable authentication:** the provider address is nonzero, has code, and
+  must return one canonical exact-size/enum-safe read during deterministic
+  construction. The dependency remains immutable; no setter, owner, proxy,
+  fallback, or generic execution route was introduced.
+- **Replay/authentication:** signed replacement target, side, exact full
+  quantity, limit, leverage, nonce, deadline, chain, and verifying contract
+  remain bound. Wrong-role/wrong-domain signatures, cancellation, reuse, and
+  reverted attempts remain mutation-covered.
+- **Eligibility equality:** the new losing-PnL fixture necessarily reaches the
+  strict comparator. Equality is ineligible; one unit lower succeeds.
+- **Waterfall:** isolated target margin absorbs loss; actual deficit alone may
+  consume insurance; remaining positive proceeds pay the capped close fee
+  first, then the capped 1% penalty; reward is floor 80%, with the residual
+  owned by insurance. No waived amount reaches unrelated available or
+  insurance custody.
+- **Ownership:** successful long and short cases independently assert target
+  proceeds, survivor new margin/profit, replacement Maker fresh margin,
+  liquidator reward, insurance residual, and revenue. Cap spill remains the
+  survivor's owner-only claimable balance.
+- **Atomic rollback:** equality, insufficient insurance, Maker funds, OI cap,
+  authentication, and token transfer failures preserve nonce, old lot and
+  queue, all net quantities, funding state, liability totals, matched OI,
+  insurance/reward, and collateral balances.
+- **Funding:** all nonzero values, including `+/-31`, revert before timestamp or
+  custody changes. Normal and replacement checkpoints start at the current
+  zero index/timestamp and advance monotonically. Stale settlement remains O(1)
+  and cannot freeze.
+- **Boundedness/liveness:** complete liquidation examines and shifts at most
+  eight queue slots. Direct middle/tail success proves head-only liveness was
+  not accidentally assumed. The short branch has OI headroom and completes.
+- **Oracle boundaries:** construction rejects no-code/reverting/short/long/
+  invalid-enum providers; runtime liquidation accepts age exactly 300 and
+  rejects 301, CloseOnly, zero, future, and malformed values.
+- **Solvency:** the fix changes no ClearingHouse production accounting.
+  Literal successful-short and one-unit-rounding states reconcile available,
+  locked, claimable, reward, insurance, revenue, OI, and token custody; every
+  path still ends at the existing continuous solvency assertion.
+- **No prohibited deleveraging:** exact source and artifact manifests,
+  repository identifier scans, ABI maps, raw runtime selector scans, deployed
+  calls, empty calldata, and the empty deployment manifest provide no such
+  production or integration surface.
+
+### Concerns
+
+- Construction now deliberately rejects legacy market-state-only providers;
+  deployers must supply the canonical five-word `safeRead()` interface. The
+  legacy test fixture was upgraded, while a dedicated invalid fixture preserves
+  rejection coverage.
+- Phase 1 still intentionally accepts only zero funding. Enabling nonzero
+  funding remains a separately reviewed future design.
+- Ganache's optional native `uws` binary is unavailable for this Node build;
+  the documented JavaScript fallback affects speed only.
