@@ -53,6 +53,7 @@ import {
   resolveTradeDestination,
 } from "@/lib/trade-destination-core";
 import { publicQuoteReadConfig } from "@/lib/trade-quote-core";
+import { initialTradeForm } from "@/lib/trade-form-core";
 import {
   accessibilityCopy,
   advancedTokenCopy,
@@ -209,8 +210,8 @@ export function TokenTradingPage({
   const { address: user } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const [buyAmount, setBuyAmount] = useState("0.01");
-  const [sellAmount, setSellAmount] = useState("0");
+  const [buyAmount, setBuyAmount] = useState(initialTradeForm.buyAmount);
+  const [sellAmount, setSellAmount] = useState(initialTradeForm.sellAmount);
   const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
   const [lpAmount, setLPAmount] = useState("0");
   const [copied, setCopied] = useState(false);
