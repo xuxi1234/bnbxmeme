@@ -41,6 +41,9 @@ const input = {
     "src/futures/FuturesOracle.sol": {
       content: loadSource("src/futures/FuturesOracle.sol"),
     },
+    "src/futures/SafetyController.sol": {
+      content: loadSource("src/futures/SafetyController.sol"),
+    },
   },
   settings: {
     optimizer: { enabled: true, runs: 200 },
@@ -104,6 +107,8 @@ const orderBookArtifact =
 const riskArtifact = output.contracts["src/futures/RiskEngine.sol"].RiskEngine;
 const futuresOracleArtifact =
   output.contracts["src/futures/FuturesOracle.sol"].FuturesOracle;
+const safetyControllerArtifact =
+  output.contracts["src/futures/SafetyController.sol"].SafetyController;
 
 const tx = async (
   wallet,
@@ -1469,6 +1474,7 @@ exactAbiGate(
     ["bnbUsdFeed()", "view"],
     ["bnbxIsToken0()", "view"],
     ["bnbxToken()", "view"],
+    ["clearForcedClose()", "nonpayable"],
     ["forceCloseOnly()", "nonpayable"],
     ["forcedClose()", "view"],
     ["guardian()", "view"],
@@ -1482,6 +1488,25 @@ exactAbiGate(
   ]),
   "FuturesOracle",
 );
+exactAbiGate(
+  safetyControllerArtifact,
+  selectorMap([
+    ["clearingHouse()", "view"],
+    ["executeReopen()", "nonpayable"],
+    ["forceCloseOnly()", "nonpayable"],
+    ["guardian()", "view"],
+    ["lowerAccountEquityCap(uint256)", "nonpayable"],
+    ["lowerMatchedOpenInterestCap(uint256)", "nonpayable"],
+    ["lowerMaxDeviationBps(uint16)", "nonpayable"],
+    ["lowerTotalLiabilityCap(uint256)", "nonpayable"],
+    ["oracle()", "view"],
+    ["queueReopen()", "nonpayable"],
+    ["queuedReopenEpoch()", "view"],
+    ["reopenExecutableAt()", "view"],
+    ["safetyEpoch()", "view"],
+  ]),
+  "SafetyController",
+);
 
 const expectedFuturesSources = [
   "ClearingHouse.sol",
@@ -1489,6 +1514,7 @@ const expectedFuturesSources = [
   "FuturesTypes.sol",
   "OrderBook.sol",
   "RiskEngine.sol",
+  "SafetyController.sol",
 ];
 const enumerateRelativeFiles = (absoluteDirectory, prefix = "") =>
   readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((entry) => {
@@ -1520,6 +1546,7 @@ const expectedArtifactManifest = {
     "OrderBook",
   ],
   "src/futures/RiskEngine.sol": ["RiskEngine"],
+  "src/futures/SafetyController.sol": ["SafetyController"],
 };
 const actualArtifactManifest = Object.fromEntries(
   Object.entries(output.contracts)
@@ -1536,15 +1563,19 @@ const orderRuntime = orderBookArtifact.evm.deployedBytecode.object;
 const clearingRuntime = clearingArtifact.evm.deployedBytecode.object;
 const riskRuntime = riskArtifact.evm.deployedBytecode.object;
 const oracleRuntime = futuresOracleArtifact.evm.deployedBytecode.object;
+const safetyControllerRuntime =
+  safetyControllerArtifact.evm.deployedBytecode.object;
 const orderRuntimeBytes = orderRuntime.length / 2;
 const clearingRuntimeBytes = clearingRuntime.length / 2;
 const riskRuntimeBytes = riskRuntime.length / 2;
 const oracleRuntimeBytes = oracleRuntime.length / 2;
+const safetyControllerRuntimeBytes = safetyControllerRuntime.length / 2;
 for (const [runtimeBytes, label] of [
   [orderRuntimeBytes, "OrderBook"],
   [clearingRuntimeBytes, "ClearingHouse"],
   [riskRuntimeBytes, "RiskEngine"],
   [oracleRuntimeBytes, "FuturesOracle"],
+  [safetyControllerRuntimeBytes, "SafetyController"],
 ]) {
   check(runtimeBytes <= 24_576, `${label} exceeds EIP-170 runtime size`);
 }
@@ -1737,5 +1768,5 @@ check(
   `Phase-1 Futures deployment manifest changed: ${currentDeploymentManifest.join(",")}`,
 );
 console.log(
-  `PASS FundingLiquidationTest.exactAbiRuntimeAndForbiddenSelectors (${orderRuntimeBytes} / ${clearingRuntimeBytes} / ${riskRuntimeBytes} / ${oracleRuntimeBytes} bytes; ${actualFuturesSources.length} sources; ${productionArtifacts.length} artifacts; ${repositorySurfaceFiles.length} repository inputs)`,
+  `PASS FundingLiquidationTest.exactAbiRuntimeAndForbiddenSelectors (${orderRuntimeBytes} / ${clearingRuntimeBytes} / ${riskRuntimeBytes} / ${oracleRuntimeBytes} / ${safetyControllerRuntimeBytes} bytes; ${actualFuturesSources.length} sources; ${productionArtifacts.length} artifacts; ${repositorySurfaceFiles.length} repository inputs)`,
 );

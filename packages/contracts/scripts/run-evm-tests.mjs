@@ -6254,6 +6254,7 @@ for (const [suiteIndex, suite] of selectedSuites.entries()) {
         ["bnbUsdFeed()", "view"],
         ["bnbxIsToken0()", "view"],
         ["bnbxToken()", "view"],
+        ["clearForcedClose()", "nonpayable"],
         ["forceCloseOnly()", "nonpayable"],
         ["forcedClose()", "view"],
         ["guardian()", "view"],

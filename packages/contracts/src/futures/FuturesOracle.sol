@@ -155,6 +155,11 @@ contract FuturesOracle {
         forcedClose = true;
     }
 
+    function clearForcedClose() external {
+        if (msg.sender != guardian) revert Unauthorized();
+        forcedClose = false;
+    }
+
     function lowerMaxDeviationBps(uint16 newBps) external {
         if (msg.sender != guardian) revert Unauthorized();
         if (newBps == 0 || newBps >= maxDeviationBps) {
