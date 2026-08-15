@@ -498,7 +498,9 @@ export function BondingCurveChart({
           <span>H {formatTokenPriceUsdt(visibleOhlc.high, locale)}</span>
           <span>L {formatTokenPriceUsdt(visibleOhlc.low, locale)}</span>
           <span>C {formatTokenPriceUsdt(visibleOhlc.close, locale)}</span>
-          <span>VOL {visibleOhlc.volume.toFixed(4)} BNB</span>
+          <span>
+            VOL {visibleOhlc.volume.toFixed(4)} {pair ? "USDT" : "BNB"}
+          </span>
         </div>
       )}
     </section>

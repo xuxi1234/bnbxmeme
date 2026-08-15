@@ -29,6 +29,10 @@ test("shows each token name before USDT across chart and price metrics", async (
   assert.doesNotMatch(messages, /USDT \/ 1 枚代币|USDT per token/);
   assert.match(chart, /name: string/);
   assert.match(chart, /interpolate\(t\("priceUnit"\), \{ tokenName: name \}\)/);
+  assert.match(
+    chart,
+    /VOL \{visibleOhlc\.volume\.toFixed\(4\)\} \{pair \? "USDT" : "BNB"\}/,
+  );
   assert.match(tokenPage, /name=\{tokenName \?\? tokenSymbol \?\? "—"\}/);
   assert.match(
     tokenPage,
