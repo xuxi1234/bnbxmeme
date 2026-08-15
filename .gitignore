@@ -5,6 +5,9 @@ node_modules/
 .vercel/
 out/
 dist/
+.futures-compile/
+.futures-deployments/
+.futures-build*/
 *.tsbuildinfo
 
 .env
