@@ -23,6 +23,28 @@ interface IFuturesOracleRead {
 }
 
 contract OrderBook {
+    event OrderCancelled(bytes32 indexed orderHash, address indexed trader);
+    event LiquidationOrderCancelled(
+        bytes32 indexed orderHash,
+        address indexed maker,
+        uint64 indexed nonce
+    );
+    event OrdersMatched(
+        bytes32 indexed makerOrderHash,
+        bytes32 indexed takerOrderHash,
+        uint128 fillQuantity,
+        uint128 executionPrice
+    );
+    event FundingCheckpoint(int256 cumulativeIndex, uint64 updatedAt);
+    event LiquidationExecuted(
+        uint64 indexed lotId,
+        bytes32 indexed replacementOrderHash,
+        address indexed target,
+        address replacementMaker,
+        uint128 quantity,
+        uint128 markPrice
+    );
+
     struct Lot {
         uint64 id;
         address longTrader;
@@ -236,6 +258,7 @@ contract OrderBook {
 
     function checkpointFunding(int256 rateBps) external nonReentrant {
         _advanceFunding(rateBps);
+        emit FundingCheckpoint(cumulativeFundingIndex, fundingUpdatedAt);
     }
 
     function settleFunding(uint64 lotId) external nonReentrant {
@@ -249,7 +272,9 @@ contract OrderBook {
 
     function cancel(FuturesTypes.Order calldata order) external nonReentrant {
         if (msg.sender != order.trader) revert Unauthorized();
-        cancelled[orderHash(order)] = true;
+        bytes32 hash = orderHash(order);
+        cancelled[hash] = true;
+        emit OrderCancelled(hash, order.trader);
     }
 
     function cancelLiquidationOrder(
@@ -260,6 +285,9 @@ contract OrderBook {
             revert LiquidationNonceUnavailable();
         }
         liquidationNonceCancelled[order.maker][order.nonce] = true;
+        emit LiquidationOrderCancelled(
+            liquidationOrderHash(order), order.maker, order.nonce
+        );
     }
 
     function activeLotId(address trader, uint8 index)
@@ -288,6 +316,9 @@ contract OrderBook {
             fillQuantity
         );
         _matchValidated(maker, taker, fillQuantity, makerHash, takerHash);
+        emit OrdersMatched(
+            makerHash, takerHash, fillQuantity, maker.limitPrice
+        );
     }
 
     function liquidate(
@@ -339,6 +370,14 @@ contract OrderBook {
         _settleLiquidation(plan, replacement, msg.sender);
         _replaceLiquidatedLot(plan, replacement);
         liquidationNonceUsed[replacement.maker][replacement.nonce] = true;
+        emit LiquidationExecuted(
+            lotId,
+            liquidationOrderHash(replacement),
+            replacement.target,
+            replacement.maker,
+            replacement.quantity,
+            plan.markPrice
+        );
     }
 
     function _matchValidated(

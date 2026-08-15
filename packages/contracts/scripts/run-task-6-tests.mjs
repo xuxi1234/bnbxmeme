@@ -6,6 +6,7 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  decodeEventLog,
   defineChain,
   hashTypedData,
   parseAbi,
@@ -109,6 +110,23 @@ const futuresOracleArtifact =
   output.contracts["src/futures/FuturesOracle.sol"].FuturesOracle;
 const safetyControllerArtifact =
   output.contracts["src/futures/SafetyController.sol"].SafetyController;
+
+const decodedEvent = (receipt, eventName) => {
+  for (const log of receipt.logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: orderBookArtifact.abi,
+        data: log.data,
+        topics: log.topics,
+        strict: true,
+      });
+      if (decoded.eventName === eventName) return decoded.args;
+    } catch {
+      // Ignore logs emitted by the collateral or ClearingHouse dependencies.
+    }
+  }
+  throw new Error(`missing ${eventName} event`);
+};
 
 const tx = async (
   wallet,
@@ -330,6 +348,16 @@ const openLot = async ({
     ],
   );
   check(receipt.status === "success", "normal paired-lot open failed");
+  const matchEvent = decodedEvent(receipt, "OrdersMatched");
+  check(
+    matchEvent.makerOrderHash ===
+      (await read(orderBook, orderBookArtifact.abi, "orderHash", [maker])) &&
+      matchEvent.takerOrderHash ===
+        (await read(orderBook, orderBookArtifact.abi, "orderHash", [taker])) &&
+      matchEvent.fillQuantity === quantity &&
+      matchEvent.executionPrice === price,
+    "match event did not bind exact signed orders and fill economics",
+  );
   lastOpenReceipt = receipt;
   return read(orderBook, orderBookArtifact.abi, "activeLotId", [
     accounts[1],
@@ -369,6 +397,7 @@ let receipt = await tx(
   [0n],
 );
 check(receipt.status === "success", "zero funding checkpoint reverted");
+const fundingEvent = decodedEvent(receipt, "FundingCheckpoint");
 const checkpointBlock = await publicClient.getBlock({
   blockHash: receipt.blockHash,
 });
@@ -379,6 +408,8 @@ const updatedFundingTime = await read(
 );
 check(
   updatedFundingTime === checkpointBlock.timestamp &&
+    fundingEvent.cumulativeIndex === 0n &&
+    fundingEvent.updatedAt === updatedFundingTime &&
     updatedFundingTime > initialFundingTime &&
     (await read(orderBook, task6FundingAbi, "cumulativeFundingIndex")) === 0n,
   "zero funding did not catch up the full elapsed interval at a zero index",
@@ -549,6 +580,20 @@ receipt = await liquidate(liquidationLotId, replacement, replacementSignature);
 check(
   receipt.status === "success",
   "valid positive-equity liquidation reverted",
+);
+const liquidationEvent = decodedEvent(receipt, "LiquidationExecuted");
+check(
+  liquidationEvent.lotId === liquidationLotId &&
+    liquidationEvent.replacementOrderHash ===
+      (await read(orderBook, liquidationAbi, "liquidationOrderHash", [
+        replacement,
+      ])) &&
+    liquidationEvent.target.toLowerCase() === replacement.target.toLowerCase() &&
+    liquidationEvent.replacementMaker.toLowerCase() ===
+      replacement.maker.toLowerCase() &&
+    liquidationEvent.quantity === replacement.quantity &&
+    liquidationEvent.markPrice === 75n * e18,
+  "liquidation event did not bind the exact lot and replacement economics",
 );
 const newLotId = await read(orderBook, orderBookArtifact.abi, "activeLotId", [
   accounts[2],
@@ -953,6 +998,20 @@ check(
   receipt.status === "success",
   "replacement maker could not cancel its nonce",
 );
+const liquidationCancellationEvent = decodedEvent(
+  receipt,
+  "LiquidationOrderCancelled",
+);
+check(
+  liquidationCancellationEvent.orderHash ===
+    (await read(orderBook, liquidationAbi, "liquidationOrderHash", [
+      replacement,
+    ])) &&
+    liquidationCancellationEvent.maker.toLowerCase() ===
+      replacement.maker.toLowerCase() &&
+    liquidationCancellationEvent.nonce === replacement.nonce,
+  "liquidation cancellation event did not bind the signed authorization",
+);
 await expectRevert(
   () => liquidate(liquidationLotId, replacement, replacementSignature),
   "cancelled liquidation authorization was accepted",
@@ -1331,6 +1390,34 @@ console.log(
   "PASS FundingLiquidationTest.feeTransferFailureRollsBackAtomically",
 );
 
+const cancellableOrder = {
+  trader: accounts[0],
+  side: 0,
+  quantity: 1n,
+  limitPrice: 1n,
+  leverage: 1,
+  nonce: 9_999n,
+  deadline: 18_446_744_073_709_551_615n,
+  reduceOnly: false,
+  role: 0,
+};
+receipt = await tx(
+  wallets[0],
+  orderBook,
+  orderBookArtifact.abi,
+  "cancel",
+  [cancellableOrder],
+);
+const cancellationEvent = decodedEvent(receipt, "OrderCancelled");
+check(
+  cancellationEvent.orderHash ===
+    (await read(orderBook, orderBookArtifact.abi, "orderHash", [
+      cancellableOrder,
+    ])) &&
+    cancellationEvent.trader.toLowerCase() === accounts[0].toLowerCase(),
+  "order cancellation event did not bind the exact order and trader",
+);
+
 const exactAbiGate = (artifact, expected, label) => {
   const actual = new Map(
     artifact.abi
@@ -1392,6 +1479,23 @@ exactAbiGate(
     ["settleFunding(uint64)", "nonpayable"],
   ]),
   "OrderBook",
+);
+const orderBookEvents = orderBookArtifact.abi
+  .filter(({ type }) => type === "event")
+  .map((item) =>
+    `${item.name}(${item.inputs.map(({ type, indexed }) => `${type}:${indexed ? "indexed" : "data"}`).join(",")})`,
+  )
+  .sort();
+const expectedOrderBookEvents = [
+  "FundingCheckpoint(int256:data,uint64:data)",
+  "LiquidationExecuted(uint64:indexed,bytes32:indexed,address:indexed,address:data,uint128:data,uint128:data)",
+  "LiquidationOrderCancelled(bytes32:indexed,address:indexed,uint64:indexed)",
+  "OrderCancelled(bytes32:indexed,address:indexed)",
+  "OrdersMatched(bytes32:indexed,bytes32:indexed,uint128:data,uint128:data)",
+].sort();
+check(
+  JSON.stringify(orderBookEvents) === JSON.stringify(expectedOrderBookEvents),
+  `OrderBook exact event gate failed: ${orderBookEvents.join(",")}`,
 );
 exactAbiGate(
   clearingArtifact,
