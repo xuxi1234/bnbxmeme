@@ -207,3 +207,21 @@ test("deployment scripts preserve preflight, verification, and acceptance gates"
     assert.doesNotMatch(source, /0x55d398326f99059fF775485246999027B3197955/);
   }
 });
+
+test("manual release workflow is isolated to the testnet environment", () => {
+  const workflow = readFileSync(
+    resolve(
+      import.meta.dirname,
+      "../../../.github/workflows/futures-testnet.yml",
+    ),
+    "utf8",
+  );
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /environment:\s*testnet/);
+  assert.match(workflow, /FUTURES_CHAIN_ID:\s*["']?97["']?/);
+  assert.match(workflow, /futures:testnet:preflight/);
+  assert.match(workflow, /futures:testnet:deploy/);
+  assert.match(workflow, /futures:testnet:acceptance/);
+  assert.match(workflow, /futures:testnet:verify-source/);
+  assert.doesNotMatch(workflow, /mainnet/i);
+});
