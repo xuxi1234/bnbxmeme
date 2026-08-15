@@ -272,6 +272,46 @@ test("stream limits stop reading immediately and response envelopes reject secre
       ),
     /service_unavailable/,
   );
+  const position = {
+    chainId: 97,
+    orderBook: contract,
+    data: [
+      {
+        positionId: `0x${"11".repeat(32)}`,
+        side: 0,
+        quantity: "1",
+        entryPrice: "1",
+        markPrice: "1",
+        margin: "1",
+        equity: "1",
+        maintenanceRequirement: "1",
+        marginRatioBps: "2500",
+        liquidationPrice: "1",
+        fundingAccrued: "0",
+        liquidatable: false,
+      },
+    ],
+    cursor: null,
+  };
+  assert.deepEqual(
+    parseFuturesApiResponse("positions", position, {
+      chainId: 97,
+      orderBook: contract,
+    }),
+    position,
+  );
+  assert.throws(
+    () =>
+      parseFuturesApiResponse(
+        "positions",
+        {
+          ...position,
+          data: [{ ...position.data[0], liquidatable: undefined }],
+        },
+        { chainId: 97, orderBook: contract },
+      ),
+    /service_unavailable/,
+  );
 });
 
 test("stable error codes have complete four-language messages", () => {

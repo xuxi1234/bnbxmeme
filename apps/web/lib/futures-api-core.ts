@@ -543,6 +543,7 @@ export function parseFuturesApiResponse(
         "marginRatioBps",
         "liquidationPrice",
         "fundingAccrued",
+        "liquidatable",
       ],
       (data) => {
         hash(data.positionId);
@@ -559,6 +560,7 @@ export function parseFuturesApiResponse(
           decimal(data[field]);
         decimal(data.equity, true);
         decimal(data.fundingAccrued, true);
+        if (typeof data.liquidatable !== "boolean") invalid();
       },
     );
   } else if (resource === "cancellations") {

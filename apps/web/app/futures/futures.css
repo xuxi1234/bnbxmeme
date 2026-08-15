@@ -1,0 +1,298 @@
+.futures-shell {
+  width: min(1320px, calc(100% - 40px));
+  padding: 38px 0 90px;
+}
+.futures-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 80% 0, rgba(243, 186, 47, 0.14), transparent 34%),
+    var(--surface);
+}
+.futures-hero h1 {
+  margin: 8px 0;
+  font-size: clamp(34px, 5vw, 64px);
+  letter-spacing: -0.055em;
+}
+.futures-hero p {
+  max-width: 680px;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+.futures-hero small {
+  color: var(--muted);
+}
+.futures-testnet {
+  display: inline-flex;
+  padding: 6px 9px;
+  border: 1px solid #f3ba2f;
+  border-radius: 99px;
+  color: #f3ba2f;
+  font: 800 11px monospace;
+  letter-spacing: 0.08em;
+}
+.futures-access {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.futures-alert {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(243, 186, 47, 0.4);
+  border-radius: 7px;
+  background: rgba(243, 186, 47, 0.07);
+}
+.futures-alert.danger {
+  border-color: #ff5f6d;
+  color: #ff8d97;
+}
+.futures-status {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.futures-status article {
+  min-width: 0;
+  padding: 18px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+.futures-status article:last-child {
+  border: 0;
+}
+.futures-status span,
+.futures-status strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.futures-status span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.futures-status strong {
+  margin-top: 8px;
+  color: var(--brand);
+  font-size: 14px;
+}
+.futures-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 390px) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+.futures-ticket,
+.futures-account,
+.futures-ledger > div {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.futures-ticket {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+.futures-ticket label,
+.futures-account > label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.futures-ticket input,
+.futures-ticket select,
+.futures-account input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+}
+.futures-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.futures-tabs button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+.futures-tabs button.active {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: rgba(243, 186, 47, 0.08);
+}
+.futures-tabs button.active.long {
+  border-color: #27d980;
+  color: #27d980;
+  background: rgba(39, 217, 128, 0.08);
+}
+.futures-tabs button.active.short {
+  border-color: #ff6573;
+  color: #ff6573;
+  background: rgba(255, 101, 115, 0.08);
+}
+.futures-tabs.compact button {
+  min-height: 38px;
+  font-size: 11px;
+}
+.futures-check {
+  display: flex !important;
+  align-items: center;
+  grid-template-columns: auto 1fr;
+}
+.futures-check input {
+  width: 17px;
+  min-height: 17px;
+  accent-color: var(--brand);
+}
+.futures-account h2,
+.futures-ledger h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+.futures-account h2:not(:first-child) {
+  margin-top: 28px;
+}
+.futures-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.futures-position {
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid #27d980;
+  border-radius: 7px;
+}
+.futures-position.warning {
+  border-left-color: #f3ba2f;
+}
+.futures-position.liquidation {
+  border-left-color: #ff6573;
+}
+.futures-position header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.futures-position header span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.futures-position dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 14px 0 0;
+}
+.futures-position dl div {
+  min-width: 0;
+}
+.futures-position dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.futures-position dd {
+  overflow: hidden;
+  margin: 5px 0 0;
+  font: 12px monospace;
+  text-overflow: ellipsis;
+}
+.futures-ledger {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.futures-ledger article {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+.futures-ledger article span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.futures-ledger article strong {
+  font: 12px monospace;
+}
+.futures-ledger article button {
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .futures-status {
+    grid-template-columns: 1fr 1fr;
+  }
+  .futures-status article:nth-child(2) {
+    border-right: 0;
+  }
+  .futures-status article:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+  .futures-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .futures-shell {
+    width: min(100% - 24px, 620px);
+    padding-top: 20px;
+  }
+  .futures-hero {
+    display: grid;
+    padding: 22px 18px;
+  }
+  .futures-access,
+  .futures-access > * {
+    width: 100%;
+  }
+  .futures-status {
+    grid-template-columns: 1fr 1fr;
+  }
+  .futures-status article {
+    padding: 14px;
+  }
+  .futures-position dl {
+    grid-template-columns: 1fr 1fr;
+  }
+  .futures-ledger {
+    grid-template-columns: 1fr;
+  }
+  .futures-ledger article {
+    grid-template-columns: 1fr auto;
+  }
+  .futures-ledger article span {
+    grid-column: 1 / -1;
+  }
+}

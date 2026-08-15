@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         "/deploy-mainnet",
         "/deploy-lp-rewards-mainnet",
         "/deploy-testnet",
+        "/futures",
         "/four-mirror-deploy",
         "/flap-mirror-deploy",
       ],
