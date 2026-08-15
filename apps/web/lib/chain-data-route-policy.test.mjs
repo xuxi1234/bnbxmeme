@@ -20,3 +20,10 @@ test("backfill responses never invite aggressive RPC polling", () => {
   assert.ok(retryValues.length > 0);
   assert.ok(retryValues.every((value) => value >= 60));
 });
+
+test("partial backfills return their indexed trades instead of looking broken", () => {
+  assert.match(
+    routeSource,
+    /function backfillResponse\([\s\S]*publicPayload\(payload, chainHead\)/,
+  );
+});

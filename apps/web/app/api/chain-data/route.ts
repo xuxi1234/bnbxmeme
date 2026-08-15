@@ -580,25 +580,13 @@ function publicPayload(payload: ChainDataPayload, chainHead: bigint) {
 }
 
 function backfillResponse(
+  payload: ChainDataPayload,
   state: ChainIndexState,
   chainHead: bigint,
-  market: MarketSnapshot,
-  bnbUsd: number,
 ) {
   return {
+    ...publicPayload(payload, chainHead),
     code: "CHAIN_INDEX_BACKFILLING",
-    market: {
-      source: market.source,
-      priceSource: market.priceSource,
-      pricePerMillionBnb: verifiedReservePrice(market),
-      volume24hBnb: null,
-      priceChange24h: null,
-      liquidityBnb: market.liquidityBnb,
-      buys24h: null,
-      sells24h: null,
-      graduatedAt: null,
-    },
-    bnbUsd,
     index: {
       version: CHAIN_INDEX_VERSION,
       status: "backfilling" as const,
@@ -652,10 +640,9 @@ function serveCachedChainData(
     if (!cached.payload.market) return chainCacheUnavailable();
     return NextResponse.json(
       backfillResponse(
+        cached.payload,
         cachedIndex,
         BigInt(cachedIndex.latestBlock),
-        cached.payload.market,
-        cached.payload.bnbUsd,
       ),
       {
         status: 202,
@@ -1222,10 +1209,9 @@ async function handleChainDataRequest(
         }
         return NextResponse.json(
           backfillResponse(
+            concurrent.payload,
             concurrentIndex,
             latest,
-            concurrentMarket,
-            concurrent.payload.bnbUsd,
           ),
           {
             status: 202,
@@ -1249,7 +1235,7 @@ async function handleChainDataRequest(
 
     if (!indexState.complete) {
       return NextResponse.json(
-        backfillResponse(indexState, latest, market, payload.bnbUsd),
+        backfillResponse(payload, indexState, latest),
         {
           status: 202,
           headers: {
