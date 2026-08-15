@@ -12,6 +12,7 @@ import {
   mergeIndexedTrades,
   pricePerMillionBnb,
   resolveOfficialMarketPair,
+  resolveEffectiveScanCheckpoint,
   resolveSwapAccount,
   resolveScanWindow,
   summarizeTrades,
@@ -215,6 +216,38 @@ test("continues at checkpoint plus one and eventually reaches the chain head", (
   );
 });
 
+test("starts a cold index immediately before the token creation block", () => {
+  assert.equal(
+    resolveEffectiveScanCheckpoint({
+      cachedCheckpoint: null,
+      scanStartBlock: 723n,
+    }),
+    722n,
+  );
+});
+
+test("fast-forwards an empty legacy index to the token creation boundary", () => {
+  assert.equal(
+    resolveEffectiveScanCheckpoint({
+      cachedCheckpoint: 199n,
+      scanStartBlock: 723n,
+      hasIndexedHistory: false,
+    }),
+    722n,
+  );
+});
+
+test("keeps a legacy checkpoint when it already contains indexed history", () => {
+  assert.equal(
+    resolveEffectiveScanCheckpoint({
+      cachedCheckpoint: 199n,
+      scanStartBlock: 723n,
+      hasIndexedHistory: true,
+    }),
+    199n,
+  );
+});
+
 test("rejects legacy, mismatched Pair, and malformed holder cache states", () => {
   const identity = {
     factory,
@@ -240,6 +273,10 @@ test("rejects legacy, mismatched Pair, and malformed holder cache states", () =>
       indexState({ holderBalances: { [buyer]: "-1" } }),
       identity,
     ),
+    false,
+  );
+  assert.equal(
+    isCompatibleIndexState(indexState({ scanStartBlock: "invalid" }), identity),
     false,
   );
   assert.equal(isCompatibleIndexState(indexState(), identity), true);

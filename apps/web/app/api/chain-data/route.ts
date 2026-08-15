@@ -12,6 +12,7 @@ import {
   mergeIndexedTrades,
   pricePerMillionBnb,
   resolveOfficialMarketPair,
+  resolveEffectiveScanCheckpoint,
   resolveSwapAccount,
   resolveScanWindow,
   summarizeTrades,
@@ -40,6 +41,7 @@ import {
 } from "@/lib/server-chain";
 import { createInFlightRequestCoalescer } from "@/lib/server-request-coalescing";
 import { validateTokenProject } from "@/lib/token-project-server";
+import { findContractCreationBlock } from "@/lib/token-creation-block";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -914,11 +916,32 @@ async function handleChainDataRequest(
       throw new Error("RPC chain head is behind the index checkpoint");
     }
 
-    const checkpointBlock = cachedIndex
+    const scanStartBlock = cachedIndex?.scanStartBlock
+      ? BigInt(cachedIndex.scanStartBlock)
+      : await findContractCreationBlock({
+          client,
+          address: tokenAddress,
+          lowerBound: deploymentBlock,
+          upperBound: latest,
+        });
+    if (scanStartBlock === null) {
+      throw new Error("Token contract creation block was not found");
+    }
+    const cachedCheckpoint = cachedIndex
       ? BigInt(cachedIndex.latestBlock)
       : null;
+    const checkpointBlock = resolveEffectiveScanCheckpoint({
+      cachedCheckpoint,
+      scanStartBlock,
+      hasIndexedHistory: Boolean(
+        cachedIndex &&
+          (cached!.payload.trades.length > 0 ||
+            Object.keys(cachedIndex.holderBalances).length > 0 ||
+            cachedIndex.graduatedAt !== null),
+      ),
+    });
     const scanWindow = resolveScanWindow({
-      deploymentBlock,
+      deploymentBlock: scanStartBlock,
       checkpointBlock,
       chainHead: latest,
       maxBlocks: MAX_CHAIN_DATA_BACKFILL_BLOCKS,
@@ -1156,6 +1179,7 @@ async function handleChainDataRequest(
       curve: curveAddress,
       pair: pairAddress,
       deploymentBlock: deploymentBlock.toString(),
+      scanStartBlock: scanStartBlock.toString(),
       latestBlock: checkpoint.toString(),
       holderBalances,
       graduatedAt,
@@ -1207,7 +1231,7 @@ async function handleChainDataRequest(
             status: 202,
             headers: {
               "Cache-Control": "no-store",
-              "Retry-After": "5",
+              "Retry-After": "60",
               "X-BNBX-Chain-Cache": "CONCURRENT",
               "X-BNBX-Chain-Index": "BACKFILLING",
             },
@@ -1230,7 +1254,7 @@ async function handleChainDataRequest(
           status: 202,
           headers: {
             "Cache-Control": "no-store",
-            "Retry-After": "5",
+            "Retry-After": "60",
             "X-BNBX-Chain-Index": "BACKFILLING",
           },
         },
