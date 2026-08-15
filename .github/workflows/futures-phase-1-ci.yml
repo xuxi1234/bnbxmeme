@@ -1,0 +1,60 @@
+name: BNBX Futures Phase 1 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/futures-phase-1-ci.yml"
+      - "packages/contracts/**"
+      - "packages/chain-config/**"
+      - "apps/web/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bnbx-futures-phase-1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Futures contracts and dependency bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run contracts regression
+        run: pnpm --filter @bnbx/contracts test
+
+      - name: Package reusable dependencies
+        if: always()
+        run: tar -czf /tmp/bnbx-futures-node-modules.tgz node_modules packages/contracts/node_modules
+
+      - name: Upload reusable dependencies
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-futures-node-modules
+          path: /tmp/bnbx-futures-node-modules.tgz
+          if-no-files-found: error
+          retention-days: 3
