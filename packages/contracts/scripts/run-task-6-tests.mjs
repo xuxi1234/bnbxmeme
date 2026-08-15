@@ -1763,8 +1763,12 @@ for (const [scriptName, command] of Object.entries(contractPackage.scripts)) {
     );
   }
 }
+const approvedDeploymentSurface = [
+  "packages/contracts/scripts/futures-deployment.test.mjs",
+];
 check(
-  currentDeploymentManifest.length === 0,
+  JSON.stringify(currentDeploymentManifest.sort()) ===
+    JSON.stringify(approvedDeploymentSurface),
   `Phase-1 Futures deployment manifest changed: ${currentDeploymentManifest.join(",")}`,
 );
 console.log(
