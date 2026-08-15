@@ -1869,6 +1869,8 @@ for (const [scriptName, command] of Object.entries(contractPackage.scripts)) {
 }
 const approvedDeploymentSurface = [
   "packages/contracts/scripts/futures-deployment.test.mjs",
+  "packages/contracts/scripts/futures-testnet-deploy.mjs",
+  "packages/contracts/scripts/futures-testnet-deployment.test.mjs",
 ];
 check(
   JSON.stringify(currentDeploymentManifest.sort()) ===
