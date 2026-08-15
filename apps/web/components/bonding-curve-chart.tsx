@@ -19,6 +19,7 @@ import {
   aggregateChartPoints,
   coalesceChartPointsByTimestamp,
   initialChartLogicalRange,
+  type ChartCandle,
   type ChartPoint,
 } from "@/lib/market-chart-core";
 import {
@@ -85,6 +86,9 @@ export function BondingCurveChart({
   const chartContainer = useRef<HTMLDivElement>(null);
   const hasPoints = useRef(false);
   const [points, setPoints] = useState<ChartPoint[]>([]);
+  const [externalCandles, setExternalCandles] = useState<ChartCandle[] | null>(
+    null,
+  );
   const [period, setPeriod] = useState<Period>(300);
   const [statusKey, setStatusKey] = useState("chartSyncing");
   const [loadError, setLoadError] = useState(false);
@@ -100,6 +104,30 @@ export function BondingCurveChart({
       setLoadError(false);
       if (!hasPoints.current) setStatusKey("chartSyncing");
       try {
+        if (pair && token) {
+          try {
+            const response = await fetch(
+              `/api/market-candles?pair=${pair}&token=${token}&period=${period}`,
+              { signal: controller.signal },
+            );
+            if (!response.ok) throw new Error("External candles unavailable");
+            const data = (await response.json()) as {
+              candles: ChartCandle[];
+              refreshedAt?: string;
+            };
+            if (!controller.signal.aborted && data.candles.length > 0) {
+              hasPoints.current = true;
+              setExternalCandles(data.candles);
+              setPoints([]);
+              setRefreshedAt(data.refreshedAt ?? new Date().toISOString());
+              setStatusKey("");
+              return;
+            }
+          } catch (error) {
+            if (controller.signal.aborted) throw error;
+          }
+        }
+        setExternalCandles(null);
         const data = await fetchSharedChainData<{
           trades: Array<{
             tokens: string;
@@ -109,7 +137,10 @@ export function BondingCurveChart({
           }>;
           bnbUsd?: number;
           refreshedAt?: string;
-        }>({ curve, token, pair }, controller.signal);
+        }>(
+          { curve, token, pair, mode: pair ? "cache" : undefined },
+          controller.signal,
+        );
         const bnbUsd = Number(data.bnbUsd ?? 0);
         if (!Number.isFinite(bnbUsd) || bnbUsd <= 0) {
           throw new Error("BNB/USDT price unavailable");
@@ -156,24 +187,27 @@ export function BondingCurveChart({
       controller.abort();
       stopPolling();
     };
-  }, [curve, pair, refreshKey, reloadKey, token]);
+  }, [curve, pair, period, refreshKey, reloadKey, token]);
 
   const candles = useMemo(
-    () => aggregateChartPoints(points, period),
-    [period, points],
+    () => externalCandles ?? aggregateChartPoints(points, period),
+    [externalCandles, period, points],
   );
   const linePoints = useMemo(
     () => coalesceChartPointsByTimestamp(points),
     [points],
   );
-  const sparse = linePoints.length > 0 && linePoints.length < 12;
+  const sparse =
+    externalCandles === null && linePoints.length > 0 && linePoints.length < 12;
   const latest = candles.at(-1);
   const first = candles[0];
   const change =
     latest && first && first.open > 0
       ? ((latest.close - first.open) / first.open) * 100
       : 0;
-  const totalVolume = points.reduce((sum, point) => sum + point.volume, 0);
+  const totalVolume = externalCandles
+    ? candles.reduce((sum, candle) => sum + candle.volume, 0)
+    : points.reduce((sum, point) => sum + point.volume, 0);
   const visibleOhlc = hover ?? latest ?? null;
   const priceFormat = useMemo(
     () => chartPricePrecision(latest?.close),
@@ -183,7 +217,7 @@ export function BondingCurveChart({
 
   useEffect(() => {
     const container = chartContainer.current;
-    if (!container || points.length === 0) return;
+    if (!container || candles.length === 0) return;
     const isMobile = window.matchMedia("(max-width: 560px)").matches;
 
     const chart = createChart(container, {
@@ -397,7 +431,7 @@ export function BondingCurveChart({
             {change.toFixed(2)}%
           </span>
           <span>
-            {t("volume")} {compact(totalVolume)} BNB
+            {t("volume")} {compact(totalVolume)} {pair ? "USDT" : "BNB"}
           </span>
         </div>
       </div>

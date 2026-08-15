@@ -22,6 +22,7 @@ export type ChainIndexState = {
   curve: `0x${string}`;
   pair: `0x${string}` | null;
   deploymentBlock: string;
+  scanStartBlock?: string;
   latestBlock: string;
   holderBalances: Record<string, string>;
   graduatedAt: number | null;
@@ -125,6 +126,8 @@ export function isCompatibleIndexState(
     typeof value.curve !== "string" ||
     (value.pair !== null && typeof value.pair !== "string") ||
     value.deploymentBlock !== identity.deploymentBlock ||
+    (value.scanStartBlock !== undefined &&
+      !isUnsignedInteger(value.scanStartBlock)) ||
     !isUnsignedInteger(value.latestBlock) ||
     !isRecord(value.holderBalances) ||
     (value.graduatedAt !== null && typeof value.graduatedAt !== "number")
@@ -176,6 +179,23 @@ export function resolveScanWindow({
     toBlock,
     complete: toBlock === chainHead,
   };
+}
+
+export function resolveEffectiveScanCheckpoint({
+  cachedCheckpoint,
+  scanStartBlock,
+  hasIndexedHistory = false,
+}: {
+  cachedCheckpoint: bigint | null;
+  scanStartBlock: bigint;
+  hasIndexedHistory?: boolean;
+}) {
+  const creationCheckpoint = scanStartBlock - 1n;
+  if (cachedCheckpoint === null) return creationCheckpoint;
+  if (!hasIndexedHistory && cachedCheckpoint < creationCheckpoint) {
+    return creationCheckpoint;
+  }
+  return cachedCheckpoint;
 }
 
 export function mergeIndexedTrades(
