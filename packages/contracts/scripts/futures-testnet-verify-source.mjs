@@ -7,7 +7,7 @@ import {
   parseFuturesTestnetConfig,
 } from "./futures-testnet-core.mjs";
 
-const API_URL = "https://api.etherscan.io/v2/api";
+const API_URL = "https://api-testnet.bscscan.com/api";
 const root = resolve(import.meta.dirname, "..");
 const config = parseFuturesTestnetConfig(process.env);
 const apiKey = process.env.BSC_SCAN_API_KEY;
