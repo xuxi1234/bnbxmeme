@@ -175,6 +175,20 @@ test("market catalog requests bypass a browser's previously cached response", as
   );
 });
 
+test("market catalog reads current state from the fresh-state RPC client", async () => {
+  const source = await readFile(
+    new URL("../app/api/market-data/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /import \{ serverFreshStateClient \} from "@\/lib\/server-chain"/,
+  );
+  assert.doesNotMatch(source, /serverPublicClient/);
+  assert.match(source, /serverFreshStateClient\.multicall/);
+});
+
 test("does not restart activity polling when result counts change", async () => {
   const source = await readFile(
     new URL("../components/token-activity.tsx", import.meta.url),
