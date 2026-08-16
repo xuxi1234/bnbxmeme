@@ -5,6 +5,7 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  encodeDeployData,
   http,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -86,11 +87,14 @@ const entries = [];
 for (const planned of plan) {
   const artifact = artifacts[planned.contract];
   const args = constructorArgs[planned.contract];
-  const gas = await publicClient.estimateContractGas({
-    account,
+  const data = encodeDeployData({
     abi: artifact.abi,
     bytecode: `0x${artifact.evm.bytecode.object}`,
     args,
+  });
+  const gas = await publicClient.estimateGas({
+    account,
+    data,
   });
   const transactionHash = await walletClient.deployContract({
     account,
