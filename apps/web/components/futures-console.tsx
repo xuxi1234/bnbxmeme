@@ -114,7 +114,7 @@ const approveAbi = [
 ] as const;
 const short = (value: string) => `${value.slice(0, 8)}…${value.slice(-6)}`;
 const idempotency = () => crypto.randomUUID();
-const MAX_ORACLE_AGE_SECONDS = 300;
+const MAX_ORACLE_AGE_SECONDS = 3_900;
 class FuturesApiResponseError extends Error {}
 const apiFailure = (body: unknown, fallback: string) =>
   new FuturesApiResponseError(
