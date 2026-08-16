@@ -117,7 +117,7 @@ test("polls market scores independently once per five minutes", async () => {
   assert.match(source, /\[indexReloadKey, scoreRefreshKey\]/);
 });
 
-test("uses sixty second polling for market catalogs and token chain data", async () => {
+test("refreshes the market catalog every thirty seconds", async () => {
   const market = await readFile(
     new URL("../components/token-market.tsx", import.meta.url),
     "utf8",
@@ -135,7 +135,7 @@ test("uses sixty second polling for market catalogs and token chain data", async
     "utf8",
   );
 
-  assert.match(market, /startVisiblePolling\([\s\S]*?loadMarket[\s\S]*?60_000/);
+  assert.match(market, /startVisiblePolling\([\s\S]*?loadMarket[\s\S]*?30_000/);
   assert.doesNotMatch(market, /creator \? 60_000 : 15_000/);
   assert.match(trading, /startVisiblePolling\(load, 60_000\)/);
   assert.match(chart, /startVisiblePolling\(load, 60_000\)/);
@@ -151,13 +151,16 @@ test("home market scores use cache-only chain data", async () => {
   assert.match(source, /\/api\/chain-data\?mode=cache&curve=/);
 });
 
-test("market data uses a sixty second CDN cache", async () => {
+test("new launches refresh through a bounded thirty second CDN cache", async () => {
   const source = await readFile(
     new URL("../app/api/market-data/route.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /s-maxage=60, stale-while-revalidate=300/);
+  assert.match(
+    source,
+    /"Cache-Control": "no-store"[\s\S]*?"CDN-Cache-Control":\s*"public, s-maxage=30, stale-while-revalidate=30"/,
+  );
 });
 
 test("does not restart activity polling when result counts change", async () => {
