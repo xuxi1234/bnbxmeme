@@ -67,6 +67,13 @@ function compareCreationFallback(left: RankingEntry, right: RankingEntry) {
   );
 }
 
+function compareOnchainCreation(left: RankingEntry, right: RankingEntry) {
+  if (left.creationIndex !== right.creationIndex) {
+    return right.creationIndex - left.creationIndex;
+  }
+  return compareCreationFallback(left, right);
+}
+
 export function parseMarketFilter(value: string | null): MarketFilter | null {
   if (marketFilters.includes(value as MarketFilter)) {
     return value as MarketFilter;
@@ -116,11 +123,15 @@ export function compareMarketEntries(
 ) {
   const fallback = compareCreationFallback(left, right);
   if (filter === "newInternal") {
-    return compareKnownDescending(
-      scores[left.token]?.createdAt,
-      scores[right.token]?.createdAt,
-      fallback,
-    );
+    const leftCreatedAt = scores[left.token]?.createdAt;
+    const rightCreatedAt = scores[right.token]?.createdAt;
+    if (leftCreatedAt === undefined && rightCreatedAt === undefined) {
+      return fallback;
+    }
+    if (leftCreatedAt === undefined || rightCreatedAt === undefined) {
+      return compareOnchainCreation(left, right);
+    }
+    return compareKnownDescending(leftCreatedAt, rightCreatedAt, fallback);
   }
   if (filter === "graduating") {
     const leftProgress = progress(left);
