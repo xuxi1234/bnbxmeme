@@ -42,7 +42,10 @@ contract FuturesOracle {
     uint256 private constant OBSERVATION_SPACING = 5 minutes;
     uint256 private constant INTERMEDIATE_AGE = 15 minutes;
     uint256 private constant WINDOW_AGE = 30 minutes;
-    uint256 private constant MAX_FEED_AGE = 5 minutes;
+    // BSC Testnet's Chainlink BNB/USD feed has an approximately one-hour
+    // heartbeat. Keep a small buffer so the test market remains usable between
+    // scheduled rounds; production deployment parameters require a tighter feed.
+    uint256 private constant MAX_FEED_AGE = 65 minutes;
     uint256 private constant MAX_MARK_AGE = 5 minutes;
     uint8 private constant OBSERVATION_CAPACITY = 7;
     uint256 private constant TOKEN0_CALL_GAS = 30_000;
