@@ -110,9 +110,6 @@ jobs:
           pnpm --filter @bnbx/contracts futures:build
           pnpm --filter @bnbx/contracts futures:audit
 
-      - name: Wait for a fresh BNB/USD testnet round
-        run: node packages/contracts/scripts/futures-testnet-wait-feed.mjs
-
       - name: Run chain-97 preflight
         run: pnpm --filter @bnbx/contracts futures:testnet:preflight
 
