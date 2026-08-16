@@ -123,7 +123,7 @@ contract OrderBook {
     error LiquidationNonceUnavailable();
 
     uint256 private constant WAD = 1e18;
-    uint256 private constant MAX_ORACLE_AGE = 5 minutes;
+    // Chainlink BSC testnet BNB/USD updates roughly hourly; retain a narrow buffer.\n    uint256 private constant MAX_ORACLE_AGE = 65 minutes;
     uint256 private constant SECP256K1N_HALF =
         0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
     bytes32 private constant NAME_HASH = keccak256("BNBX Futures");
