@@ -886,7 +886,7 @@ await expectRevert(
   "CloseOnly oracle read liquidated a position",
 );
 let latestBlock = await publicClient.getBlock();
-await setOracle(1, 75n * e18, latestBlock.timestamp - 301n);
+await setOracle(1, 75n * e18, latestBlock.timestamp - 3_901n);
 await expectRevert(
   () => liquidate(liquidationLotId, replacement, replacementSignature),
   "stale Open oracle read liquidated a position",
@@ -1028,7 +1028,7 @@ console.log(
 );
 
 await reset();
-// Mutation caught: rejecting an Oracle read at the inclusive five-minute
+// Mutation caught: rejecting an Oracle read at the inclusive sixty-five-minute
 // freshness boundary. The fixture sets the age and liquidates in one block.
 liquidationLotId = await openLot();
 replacement = replacementOrder({ nonce: 25n });
@@ -1037,7 +1037,7 @@ receipt = await tx(
   fixture,
   fixtureArtifact.abi,
   "liquidateAtOracleAge",
-  [liquidationLotId, replacement, await signReplacement(replacement), 300],
+  [liquidationLotId, replacement, await signReplacement(replacement), 3_900],
   20_000_000n,
 );
 check(
@@ -1045,7 +1045,7 @@ check(
     (await read(orderBook, orderBookArtifact.abi, "activeLotCount", [
       accounts[1],
     ])) === 0,
-  "exactly 300-second-old Oracle read was rejected",
+  "exactly 3,900-second-old Oracle read was rejected",
 );
 console.log("PASS FundingLiquidationTest.oracleFreshnessExactBoundary");
 
