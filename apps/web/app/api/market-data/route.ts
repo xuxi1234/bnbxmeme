@@ -211,7 +211,9 @@ function successful<T>(result: MulticallResult | undefined) {
 
 function responseHeaders(status: "fresh" | "partial") {
   return {
-    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    "Cache-Control": "no-store",
+    "CDN-Cache-Control":
+      "public, s-maxage=30, stale-while-revalidate=30",
     "X-BNBX-Data-Status": status,
   };
 }
