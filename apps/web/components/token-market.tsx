@@ -44,6 +44,7 @@ type MarketEntry = {
   factoryOrder: number;
   curve: `0x${string}` | null;
   metadataURI: string | null;
+  createdAt: number | null;
   creationIndex: number;
   principal: string | null;
   target: string | null;
@@ -89,6 +90,7 @@ const FEATURED_BNBX_ENTRY: MarketEntry = {
   factoryOrder: -1,
   curve: null,
   metadataURI: null,
+  createdAt: null,
   creationIndex: Number.MAX_SAFE_INTEGER,
   principal: null,
   target: null,
@@ -370,6 +372,18 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         if (!signal.aborted) {
           hasPayload.current = true;
           setPayload(next);
+          setScores((current) => {
+            const merged = { ...current };
+            for (const entry of next.entries) {
+              if (entry.createdAt !== null) {
+                merged[entry.token] = {
+                  ...merged[entry.token],
+                  createdAt: entry.createdAt,
+                };
+              }
+            }
+            return merged;
+          });
         }
       } catch {
         if (!signal.aborted) setLoadError(true);
