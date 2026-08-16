@@ -13,6 +13,7 @@ import {
 import { serverFreshStateClient } from "@/lib/server-chain";
 import { validateTokenProject } from "@/lib/token-project-server";
 import { isHiddenTokenAddress } from "@/lib/hidden-token-addresses";
+import { readMetadataCreatedAt } from "@/lib/market-metadata-created-at";
 import type { ProjectValidationResult } from "@/lib/project-validation-core";
 
 export const dynamic = "force-dynamic";
@@ -243,6 +244,7 @@ type MarketEntry = {
   symbol: string | null;
   totalSupply: string | null;
   metadataURI: string | null;
+  createdAt: number | null;
   principal: string | null;
   target: string | null;
   state: number | null;
@@ -427,6 +429,7 @@ async function readEntries(records: CurveRecord[], initialPartial: boolean) {
         symbol: symbol ?? null,
         totalSupply: totalSupply?.toString() ?? null,
         metadataURI: metadataURI ?? null,
+        createdAt: null,
         principal: principal?.toString() ?? null,
         target: target?.toString() ?? null,
         state: state ?? null,
@@ -436,8 +439,18 @@ async function readEntries(records: CurveRecord[], initialPartial: boolean) {
     });
   }
 
+  const enrichedEntries: MarketEntry[] = [];
+  for (const batch of chunkItems(entries, 12)) {
+    const createdAt = await Promise.all(
+      batch.map((entry) => readMetadataCreatedAt(entry.metadataURI)),
+    );
+    enrichedEntries.push(
+      ...batch.map((entry, position) => ({ ...entry, createdAt: createdAt[position] })),
+    );
+  }
+
   return {
-    entries,
+    entries: enrichedEntries,
     dataStatus: partial ? ("partial" as const) : ("fresh" as const),
   };
 }
