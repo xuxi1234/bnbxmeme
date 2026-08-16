@@ -5257,7 +5257,7 @@ async function runFuturesOracleDependencySemanticTests() {
     },
     {
       label: "stale updatedAt",
-      args: (now) => [2n, 60_000_000_000n, now - 301n, now - 301n, 2n],
+      args: (now) => [2n, 60_000_000_000n, now - 3_901n, now - 3_901n, 2n],
     },
   ];
   for (const testCase of cases) {
