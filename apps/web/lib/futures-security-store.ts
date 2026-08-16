@@ -19,7 +19,7 @@ function configuration() {
   const url = new URL(rawUrl);
   if (url.protocol !== "https:")
     throw new FuturesApiError("service_unavailable", 503);
-  const hmacSecret = process.env.FUTURES_SESSION_SECRET;
+  const hmacSecret = process.env.FUTURES_SESSION_SECRET ?? process.env.BNBX_AI_SESSION_SECRET;
   if (!hmacSecret || hmacSecret.length < 32)
     throw new FuturesApiError("service_unavailable", 503);
   return { url, secret, hmacSecret };
