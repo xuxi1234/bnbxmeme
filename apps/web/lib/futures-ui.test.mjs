@@ -105,7 +105,7 @@ test("wires the noindex responsive Futures route to every required workflow", ()
   assert.match(consoleSource, /liquidationPrice/);
   assert.match(consoleSource, /liquidatable/);
   assert.match(consoleSource, /const canWrite/);
-  assert.match(consoleSource, /MAX_ORACLE_AGE_SECONDS\s*=\s*300/);
+  assert.match(consoleSource, /MAX_ORACLE_AGE_SECONDS\s*=\s*3_900/);
   assert.match(consoleSource, /setAuthenticated\(false\)[\s\S]*chainId/);
   assert.doesNotMatch(
     consoleSource,
