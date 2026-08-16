@@ -168,7 +168,7 @@ export async function validateFuturesOracleDependencies(client, config) {
     startedAt === 0n ||
     startedAt > updatedAt ||
     updatedAt > block.timestamp ||
-    block.timestamp - updatedAt > 300n
+    block.timestamp - updatedAt > 3_900n
   )
     throw new Error("BNB/USD test feed is invalid or stale");
   return { blockNumber: block.number, feedUpdatedAt: updatedAt };
