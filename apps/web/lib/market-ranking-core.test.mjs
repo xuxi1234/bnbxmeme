@@ -105,6 +105,25 @@ test("orders new internal cards by deployment time with an onchain-order fallbac
   );
 });
 
+test("keeps a newly indexed token visible when its metadata timestamp is unavailable", () => {
+  const olderKnown = entry("older-known", 10, { factoryOrder: 0 });
+  const newestUnknown = entry("newest-unknown", 24, { factoryOrder: 1 });
+
+  assert.deepEqual(
+    [olderKnown, newestUnknown]
+      .sort((left, right) =>
+        compareMarketEntries(
+          "newInternal",
+          { "older-known": { createdAt: 100 } },
+          left,
+          right,
+        ),
+      )
+      .map(({ token }) => token),
+    ["newest-unknown", "older-known"],
+  );
+});
+
 test("keeps internal and external lifecycle categories strictly separated", () => {
   const internal = entry("internal", 1, { state: 0, principal: "90" });
   const migrating = entry("migrating", 2, { state: 1, principal: "80" });
