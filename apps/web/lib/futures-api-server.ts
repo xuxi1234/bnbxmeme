@@ -41,7 +41,7 @@ type SessionPayload = {
 };
 
 function sessionSecret() {
-  const value = process.env.FUTURES_SESSION_SECRET;
+  const value =\n    process.env.FUTURES_SESSION_SECRET ?? process.env.BNBX_AI_SESSION_SECRET;
   if (!value || value.length < 32)
     throw new FuturesApiError("service_unavailable", 503);
   return value;
