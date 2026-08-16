@@ -56,9 +56,33 @@ function rpcTransports(urls: string[]) {
   ];
 }
 
+function freshStateRpcTransports() {
+  const urls = [
+    "https://bsc-dataseed.binance.org",
+    "https://bsc.drpc.org",
+    "https://bsc-rpc.publicnode.com",
+    ...configuredRpcUrls(),
+  ];
+  return [...new Set(urls)].map((url) =>
+    http(url, {
+      timeout: 12_000,
+      retryCount: 1,
+      batch: { batchSize: 50, wait: 10 },
+    }),
+  );
+}
+
 export const serverPublicClient = createPublicClient({
   chain: bsc,
   transport: fallback(rpcTransports(configuredRpcUrls()), { rank: false }),
+});
+
+// Catalog reads need the newest Factory counters and token state. A configured
+// archive provider can return a successful but lagging response, which prevents
+// viem's failure-based fallback from advancing to another transport.
+export const serverFreshStateClient = createPublicClient({
+  chain: bsc,
+  transport: fallback(freshStateRpcTransports(), { rank: false }),
 });
 
 // Historical log scans must prefer the archive-capable endpoint. General RPCs
