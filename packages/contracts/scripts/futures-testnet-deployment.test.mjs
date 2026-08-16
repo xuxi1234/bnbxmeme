@@ -191,6 +191,9 @@ test("deployment scripts preserve preflight, verification, and acceptance gates"
   assert.match(preflight, /getReserves/);
   assert.match(preflight, /price0CumulativeLast/);
   assert.match(deploy, /runFuturesTestnetPreflight/);
+  assert.match(deploy, /encodeDeployData/);
+  assert.match(deploy, /estimateGas/);
+  assert.doesNotMatch(deploy, /estimateContractGas/);
   assert.match(deploy, /waitForTransactionReceipt/);
   assert.match(deploy, /deployedRuntimeBytecodeHash/);
   assert.match(deploy, /assertFuturesTestnetManifest/);
