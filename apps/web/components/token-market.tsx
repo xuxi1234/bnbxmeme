@@ -387,7 +387,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
     const controller = new AbortController();
     const stopPolling = startVisiblePolling(
       () => loadMarket(controller.signal),
-      60_000,
+      30_000,
     );
     return () => {
       controller.abort();
