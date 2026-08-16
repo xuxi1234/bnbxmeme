@@ -364,7 +364,7 @@ export function TokenMarket({ creator }: { creator?: string } = {}) {
         const endpoint = creator
           ? `/api/market-data?creator=${encodeURIComponent(creator)}`
           : "/api/market-data";
-        const response = await fetch(endpoint, { signal });
+        const response = await fetch(endpoint, { signal, cache: "no-store" });
         if (!response.ok) throw new Error("market data unavailable");
         const next = (await response.json()) as MarketPayload;
         if (!signal.aborted) {
