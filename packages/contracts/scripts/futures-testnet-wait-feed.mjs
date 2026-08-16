@@ -57,7 +57,7 @@ for (;;) {
       ageSeconds: age?.toString() ?? "future",
     }),
   );
-  if (age !== undefined && age <= 30n) break;
+  if (age !== undefined && age <= 180n) break;
   if (Date.now() >= deadline) {
     throw new Error("BNB/USD test feed did not refresh before the deadline");
   }
