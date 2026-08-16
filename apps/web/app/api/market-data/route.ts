@@ -10,7 +10,7 @@ import {
   chunkItems,
   hasCompleteMarketEntryRead,
 } from "@/lib/market-data-core";
-import { serverPublicClient } from "@/lib/server-chain";
+import { serverFreshStateClient } from "@/lib/server-chain";
 import { validateTokenProject } from "@/lib/token-project-server";
 import { isHiddenTokenAddress } from "@/lib/hidden-token-addresses";
 import type { ProjectValidationResult } from "@/lib/project-validation-core";
@@ -251,7 +251,7 @@ type MarketEntry = {
 };
 
 async function readFactoryCounts() {
-  const countResults = await serverPublicClient.multicall({
+  const countResults = await serverFreshStateClient.multicall({
     allowFailure: true,
     contracts: officialFactoryAddresses.map((address) => ({
       address,
@@ -278,7 +278,7 @@ async function readTokenRecords(slots: FactorySlot[]) {
   const records: TokenRecord[] = [];
   let partial = false;
   for (const batch of chunkItems(slots, TOKEN_READ_BATCH_SIZE)) {
-    const results = await serverPublicClient.multicall({
+    const results = await serverFreshStateClient.multicall({
       allowFailure: true,
       contracts: batch.map(({ factory, index }) => ({
         address: factory,
@@ -301,7 +301,7 @@ async function readCurveRecords(records: TokenRecord[]) {
   const curveRecords: CurveRecord[] = [];
   let partial = false;
   for (const batch of chunkItems(records, TOKEN_READ_BATCH_SIZE)) {
-    const results = await serverPublicClient.multicall({
+    const results = await serverFreshStateClient.multicall({
       allowFailure: true,
       contracts: batch.map(({ factory, token }) => ({
         address: factory,
@@ -325,7 +325,7 @@ async function readEntries(records: CurveRecord[], initialPartial: boolean) {
   let partial = initialPartial;
   for (const batch of chunkItems(records, ENTRY_READ_BATCH_SIZE)) {
     const [identityResults, curveResults] = await Promise.all([
-      serverPublicClient.multicall({
+      serverFreshStateClient.multicall({
         allowFailure: true,
         contracts: batch.flatMap(({ factory, token }) => [
           {
@@ -351,7 +351,7 @@ async function readEntries(records: CurveRecord[], initialPartial: boolean) {
           },
         ]),
       }),
-      serverPublicClient.multicall({
+      serverFreshStateClient.multicall({
         allowFailure: true,
         contracts: batch.flatMap(({ curve }) =>
           curve
@@ -474,7 +474,7 @@ type ValidProject = Extract<ProjectValidationResult, { status: "valid" }>;
 async function readToken({ token, factory, curve }: ValidProject) {
   const isHolderRewards =
     factory.toLowerCase() === holderRewardsFactoryAddress.toLowerCase();
-  const detailResults = await serverPublicClient.multicall({
+  const detailResults = await serverFreshStateClient.multicall({
     allowFailure: true,
     contracts: [
       { address: token, abi: tokenReadAbi, functionName: "name" },
@@ -525,7 +525,7 @@ async function readToken({ token, factory, curve }: ValidProject) {
     ],
   });
   const holderResults = isHolderRewards
-    ? await serverPublicClient.multicall({
+    ? await serverFreshStateClient.multicall({
         allowFailure: true,
         contracts: [
           { address: token, abi: holderV2TaxReadAbi, functionName: "buyTaxes" },
