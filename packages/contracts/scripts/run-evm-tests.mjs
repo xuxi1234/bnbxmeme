@@ -4600,21 +4600,21 @@ async function runFuturesOracleFreshnessAndRecoveryTests() {
     fixture.feed,
     fixture.artifacts.feed.abi,
     "setAnswerWithAge",
-    [60_000_000_000n, 300n],
+    [60_000_000_000n, 3_900n],
   );
   check(
     Number((await oracleRead(fixture))[0]) === 1,
-    "Oracle rejected feed data exactly five minutes old",
+    "Oracle rejected feed data exactly sixty-five minutes old",
   );
   await oracleWrite(
     fixture.feed,
     fixture.artifacts.feed.abi,
     "setAnswerWithAge",
-    [60_000_000_000n, 301n],
+    [60_000_000_000n, 3_901n],
   );
   checkOracleClose(
     await oracleRead(fixture),
-    "Oracle feed older than five minutes",
+    "Oracle feed older than sixty-five minutes",
   );
   await oracleFreshFeed(fixture);
   check(
