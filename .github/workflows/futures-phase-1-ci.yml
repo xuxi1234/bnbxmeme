@@ -130,3 +130,66 @@ jobs:
           path: packages/contracts/deployments/bsc-testnet-futures*.json
           if-no-files-found: warn
           retention-days: 30
+
+
+  verify-testnet:
+    name: Verify deployed Futures sources on BscScan
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feat/bnbx-futures-phase-1' &&
+      contains(github.event.pull_request.title, '[verify-testnet]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: testnet
+    env:
+      FUTURES_CHAIN_ID: "97"
+      BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+      BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+      FUTURES_TEST_USDT: ${{ secrets.FUTURES_TEST_USDT }}
+      FUTURES_TEST_BNBX: ${{ secrets.FUTURES_TEST_BNBX }}
+      FUTURES_TEST_WBNB: ${{ secrets.FUTURES_TEST_WBNB }}
+      FUTURES_TEST_BNBX_WBNB_PAIR: ${{ secrets.FUTURES_TEST_BNBX_WBNB_PAIR }}
+      FUTURES_TEST_BNB_USD_FEED: ${{ secrets.FUTURES_TEST_BNB_USD_FEED }}
+      FUTURES_GUARDIAN: ${{ secrets.FUTURES_GUARDIAN }}
+      FUTURES_REVENUE_RECIPIENT: ${{ secrets.FUTURES_REVENUE_RECIPIENT }}
+      FUTURES_TOTAL_LIABILITY_CAP: ${{ secrets.FUTURES_TOTAL_LIABILITY_CAP }}
+      FUTURES_ACCOUNT_EQUITY_CAP: ${{ secrets.FUTURES_ACCOUNT_EQUITY_CAP }}
+      FUTURES_OPEN_INTEREST_CAP: ${{ secrets.FUTURES_OPEN_INTEREST_CAP }}
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+
+      - name: Download accepted deployment manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: bnbx-futures-bsc-testnet-deployment
+          path: packages/contracts/deployments
+          github-token: ${{ github.token }}
+          repository: xuxi1234/bnbxmeme
+          run-id: 31966199629
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify five contract sources
+        run: pnpm --filter @bnbx/contracts futures:testnet:verify-source
+
+      - name: Upload source verification proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-futures-bsc-testnet-source-verification
+          path: packages/contracts/deployments/bsc-testnet-futures-verification.json
+          if-no-files-found: warn
+          retention-days: 30
