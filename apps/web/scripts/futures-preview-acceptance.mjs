@@ -244,12 +244,15 @@ async function waitForPreview() {
 async function prepareCollateral(index, cookie) {
   const wallet = wallets[index];
   const amount = collateralAmount;
-  const intent = await api(cookie, "collateral-intents", "POST", {
-    chainId: 97,
-    idempotencyKey: idempotency(),
-    action: "deposit",
-    amount: amount.toString(),
-  });
+  const intentKey = idempotency();
+  const intent = await retryServiceUnavailable(() =>
+    api(cookie, "collateral-intents", "POST", {
+      chainId: 97,
+      idempotencyKey: intentKey,
+      action: "deposit",
+      amount: amount.toString(),
+    }),
+  );
   const approveHash = await receipt(
     await wallet.writeContract({
       address: config.testUsdt,
@@ -407,11 +410,13 @@ async function signedOrder(account, side, role, quantity, limitPrice, nonce) {
 }
 
 async function submit(cookie, envelope, key) {
-  return api(cookie, "orders", "POST", {
-    chainId: 97,
-    idempotencyKey: key,
-    envelope,
-  });
+  return retryServiceUnavailable(() =>
+    api(cookie, "orders", "POST", {
+      chainId: 97,
+      idempotencyKey: key,
+      envelope,
+    }),
+  );
 }
 
 await waitForPreview();
@@ -548,11 +553,14 @@ const cancellable = cancelSubmit.data.find(
     order.status === "open",
 );
 if (!cancellable) throw new Error("fresh cancellable order missing");
-const cancellation = await api(cookies[0], "cancellations", "DELETE", {
-  chainId: 97,
-  idempotencyKey: idempotency(),
-  orderId: cancellable.orderId,
-});
+const cancellationKey = idempotency();
+const cancellation = await retryServiceUnavailable(() =>
+  api(cookies[0], "cancellations", "DELETE", {
+    chainId: 97,
+    idempotencyKey: cancellationKey,
+    orderId: cancellable.orderId,
+  }),
+);
 const cancelHash = await receipt(
   await wallets[0].sendTransaction({
     to: cancellation.data.to,
@@ -568,13 +576,16 @@ if (
 )
   throw new Error("wallet cancellation was not reconciled");
 
-const withdrawAmount = parseEther("1").toString();
-const withdrawal = await api(cookies[0], "collateral-intents", "POST", {
-  chainId: 97,
-  idempotencyKey: idempotency(),
-  action: "withdraw",
-  amount: withdrawAmount,
-});
+const withdrawAmount = parseEther("0.01").toString();
+const withdrawalKey = idempotency();
+const withdrawal = await retryServiceUnavailable(() =>
+  api(cookies[0], "collateral-intents", "POST", {
+    chainId: 97,
+    idempotencyKey: withdrawalKey,
+    action: "withdraw",
+    amount: withdrawAmount,
+  }),
+);
 const withdrawHash = await receipt(
   await wallets[0].sendTransaction({
     to: withdrawal.data.to,
