@@ -710,6 +710,33 @@ const updateOrdersForEffect = (
   }
 };
 
+export function expirePreparedMatch(
+  state: MatchingState,
+  command: { expectedRevision: number; effectId: string; now: bigint },
+) {
+  const effect = state.effects[command.effectId];
+  if (!effect || effect.kind !== "submit-match")
+    throw new Error("prepared match effect not found");
+  if (effect.status === "failed")
+    return { state, duplicate: true, effects: [] as MatchEffect[] };
+  if (effect.status !== "prepared")
+    throw new Error("match effect is already bound to a transaction");
+  asBoundedInteger(command.now, "now", UINT64_MAX, true);
+  const expired = [effect.makerOrderId, effect.takerOrderId].some(
+    (id) => amount(state.orders[id].envelope.order.deadline) < command.now,
+  );
+  if (!expired)
+    return { state, duplicate: true, effects: [] as MatchEffect[] };
+  assertRevision(state, command.expectedRevision);
+  const next = clone(state);
+  const nextEffect = next.effects[command.effectId] as MatchEffect;
+  updateOrdersForEffect(next, nextEffect, "release");
+  nextEffect.status = "failed";
+  const effects = runMatching(next, command.now);
+  next.revision += 1;
+  return { state: finalized(next), duplicate: false, effects };
+}
+
 export function reconcileSubmission(
   state: MatchingState,
   command: {

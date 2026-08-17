@@ -2,6 +2,7 @@ import { getAddress, keccak256, type Address, type Hex } from "viem";
 import {
   cancelOrder,
   createMatchingState,
+  expirePreparedMatch,
   hydrateMatchingState,
   intakeOrder,
   reconcileSubmission,
@@ -277,6 +278,14 @@ export function createFuturesRuntime(deps: {
   }
 
   async function submitPrepared(state: MatchingState, effect: MatchEffect) {
+    const expired = expirePreparedMatch(state, {
+      expectedRevision: state.revision,
+      effectId: effect.id,
+      now: BigInt(nowSeconds()),
+    });
+    if (expired.state.revision !== state.revision) {
+      return persist(state, expired.state);
+    }
     const prepared = await deps.relayer.prepare(effect);
     if (prepared.hash.toLowerCase() !== keccak256(prepared.raw).toLowerCase())
       fail("relayer prepared hash mismatch");

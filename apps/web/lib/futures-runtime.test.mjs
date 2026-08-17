@@ -198,6 +198,44 @@ test("maker then crossing taker persists one prepared identity and broadcasts on
   assert.equal(deps.broadcasts, 1);
 });
 
+test("an expired prepared match releases reservations without calling the relayer", async () => {
+  const store = memoryStore();
+  let nowCall = 0;
+  let preparations = 0;
+  const deps = dependencies(store, {
+    relayer: {
+      async prepare() {
+        preparations += 1;
+        throw new Error("expired match must not reach the relayer");
+      },
+    },
+  });
+  deps.nowSeconds = () => [9_000, 9_000, 10_001][nowCall++] ?? 10_001;
+  const runtime = createFuturesRuntime(deps);
+  await runtime.dispatch({
+    wallet: maker.address,
+    resource: "orders",
+    method: "POST",
+    input: await orderInput(maker, { side: 1, role: 0 }, "expiring-maker"),
+  });
+  await runtime.dispatch({
+    wallet: taker.address,
+    resource: "orders",
+    method: "POST",
+    input: await orderInput(
+      taker,
+      { side: 0, role: 1, nonce: "2" },
+      "expiring-taker",
+    ),
+  });
+
+  const durable = JSON.parse(store.row.serialized);
+  assert.equal(preparations, 0);
+  assert.equal(Object.values(durable.effects)[0].status, "failed");
+  assert.equal(durable.orders[Object.keys(durable.orders)[0]].reserved, "0");
+  assert.equal(durable.orders[Object.keys(durable.orders)[1]].reserved, "0");
+});
+
 test("wallet identity is enforced and a lease loser never broadcasts", async () => {
   const store = memoryStore({ lease: false });
   const deps = dependencies(store);
