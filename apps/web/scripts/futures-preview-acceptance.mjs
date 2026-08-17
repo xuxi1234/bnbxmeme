@@ -66,6 +66,21 @@ const orderTypes = {
     { name: "role", type: "uint8" },
   ],
 };
+const oracleAbi = [
+  {
+    type: "function",
+    name: "update",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [
+      { name: "state", type: "uint8" },
+      { name: "markPriceWad", type: "uint256" },
+      { name: "twapBnbPerTokenWad", type: "uint256" },
+      { name: "bnbUsdWad", type: "uint256" },
+      { name: "updatedAt", type: "uint256" },
+    ],
+  },
+];
 const domain = {
   name: "BNBX Futures",
   version: "1",
@@ -183,6 +198,24 @@ async function prepareCollateral(index, cookie) {
   return { mintHash, approveHash, depositHash };
 }
 
+async function recoverOpenMarket(cookie) {
+  for (let observation = 0; observation < 8; observation += 1) {
+    const market = (await api(cookie, "market-status")).data;
+    if (market.marketState === "Open") return market;
+    await receipt(
+      await wallets[0].writeContract({
+        address: config.oracle,
+        abi: oracleAbi,
+        functionName: "update",
+      }),
+    );
+    const updated = (await api(cookie, "market-status")).data;
+    if (updated.marketState === "Open") return updated;
+    if (observation < 7) await sleep(305_000);
+  }
+  throw new Error("Futures oracle did not rebuild an open market");
+}
+
 async function signedOrder(account, side, role, quantity, limitPrice, nonce) {
   const order = {
     trader: account.address,
@@ -231,8 +264,7 @@ if ((await publicClient.getBalance({ address: accounts[1].address })) < parseEth
   );
 }
 const cookies = [await authenticate(accounts[0]), await authenticate(accounts[1])];
-const market = (await api(cookies[0], "market-status")).data;
-if (market.marketState !== "Open") throw new Error("Futures market is not open");
+const market = await recoverOpenMarket(cookies[0]);
 const deposits = await Promise.all([
   prepareCollateral(0, cookies[0]),
   prepareCollateral(1, cookies[1]),

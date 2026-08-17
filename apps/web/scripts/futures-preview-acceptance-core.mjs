@@ -32,6 +32,7 @@ export function validateAcceptanceEnvironment(environment) {
     testUsdt: getAddress(environment.FUTURES_TEST_USDT ?? ""),
     clearingHouse: getAddress(environment.FUTURES_CLEARING_HOUSE ?? ""),
     orderBook: getAddress(environment.FUTURES_ORDER_BOOK ?? ""),
+    oracle: getAddress(environment.FUTURES_ORACLE ?? ""),
   };
 }
 

@@ -75,7 +75,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.head_ref == 'feat/bnbx-futures-phase-1'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
     environment: testnet
     permissions:
       contents: read
@@ -89,6 +89,7 @@ jobs:
       FUTURES_TEST_USDT: ${{ secrets.FUTURES_TEST_USDT }}
       FUTURES_CLEARING_HOUSE: "0x396fdd258EeFca47ec1B4983a17F062924295729"
       FUTURES_ORDER_BOOK: "0x2cd069E2FB1c7Cf098AF609D37aAE2710eeF53f6"
+      FUTURES_ORACLE: "0xF793359908ABc6ae640A91e7F2a0682423D55751"
     steps:
       - name: Check out feature branch
         uses: actions/checkout@v4

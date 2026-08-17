@@ -15,6 +15,7 @@ const base = {
   FUTURES_TEST_USDT: `0x${"1".repeat(40)}`,
   FUTURES_CLEARING_HOUSE: `0x${"2".repeat(40)}`,
   FUTURES_ORDER_BOOK: `0x${"3".repeat(40)}`,
+  FUTURES_ORACLE: `0x${"4".repeat(40)}`,
 };
 
 test("acceptance rejects non-testnet and Production URLs", () => {
