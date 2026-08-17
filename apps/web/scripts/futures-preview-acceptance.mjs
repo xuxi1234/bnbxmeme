@@ -208,18 +208,20 @@ async function authenticate(account) {
 
 async function api(cookie, resource, method = "GET", input) {
   const suffix = method === "GET" ? "?chainId=97&limit=100" : "";
-  return json(
-    await fetch(`${config.preview}/api/futures/${resource}${suffix}`, {
-      method,
-      headers: {
-        Cookie: cookie,
-        "Content-Type": "application/json",
-        "Accept-Language": "en",
-        "User-Agent": userAgent,
-      },
-      body: method === "GET" ? undefined : JSON.stringify(input),
-      cache: "no-store",
-    }),
+  return retryServiceUnavailable(async () =>
+    json(
+      await fetch(`${config.preview}/api/futures/${resource}${suffix}`, {
+        method,
+        headers: {
+          Cookie: cookie,
+          "Content-Type": "application/json",
+          "Accept-Language": "en",
+          "User-Agent": userAgent,
+        },
+        body: method === "GET" ? undefined : JSON.stringify(input),
+        cache: "no-store",
+      }),
+    ),
   );
 }
 
@@ -439,8 +441,8 @@ if (
   );
 }
 const cookies = [
-  await authenticate(accounts[0]),
-  await authenticate(accounts[1]),
+  await retryServiceUnavailable(() => authenticate(accounts[0])),
+  await retryServiceUnavailable(() => authenticate(accounts[1])),
 ];
 const market = await recoverOpenMarket(cookies[0]);
 await ensureCollateralBalances();
