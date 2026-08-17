@@ -47,7 +47,7 @@ A security-definer compare-and-swap RPC updates the state only when the stored r
 
 The coordinator persists the prepared effect before any chain write. After submission it persists transaction hash, sender, nonce, and block. After the required confirmations it fetches the transaction, receipt, canonical block hash, and decoded event, then calls the existing reconciliation core. A retry observes the persisted effect and reconciles it rather than submitting again.
 
-Relayer nonce use is serialized by the effect lease. Before sending, the transport obtains the pending nonce from chain and records it with the effect. A nonce conflict or ambiguous timeout leaves the effect in a reconcilable state; the runtime searches by sender/nonce before considering a retry.
+Relayer nonce use is serialized by the effect lease. Before any broadcast, the transport obtains the pending nonce, builds and locally signs the exact transaction, computes its deterministic transaction hash, and persists the nonce, hash, and signed raw transaction in service-role-only effect state. It then broadcasts that same raw transaction. A nonce conflict or ambiguous timeout is reconciled by the precomputed hash and nonce; retries may rebroadcast only those identical signed bytes and can never create a second transaction with different calldata.
 
 ## API behavior
 
@@ -56,7 +56,8 @@ The existing resources remain allowlisted and wallet authenticated.
 - `market-status GET`: bounded reads from FuturesOracle and OrderBook.
 - `orders GET`: wallet-scoped durable orders.
 - `orders POST`: validate the EIP-712 envelope, compare-and-swap intake, then trigger one bounded coordinator drain.
-- `cancellations DELETE`: create a cancellation intent containing the exact OrderBook target and calldata. The UI sends it from the trader wallet and refreshes after receipt.
+- `orders GET`, `fills GET`, and `keeper-health GET`: before returning, run a strictly bounded reconcile/drain pass so normal UI polling advances included effects even without a separate long-lived worker.
+- `cancellations DELETE`: create a cancellation intent containing the exact OrderBook target and calldata. The UI sends it from the trader wallet; after receipt, an authenticated refresh reconciles the on-chain cancellation into durable state.
 - `fills GET`: confirmed canonical fills involving the authenticated wallet.
 - `positions GET`: bounded active-lot and ClearingHouse reads for the authenticated wallet.
 - `collateral-intents POST`: exact ClearingHouse deposit/withdraw calldata; the UI continues to approve and submit from the trader wallet.
@@ -76,7 +77,7 @@ At startup the runtime derives the relayer address, checks chain ID 97, checks O
 
 - State revision conflict: reload and retry a bounded number of times.
 - Lease unavailable: return accepted order state; another invocation owns submission.
-- RPC timeout before a hash: inspect sender/nonce and persisted submission state before retrying.
+- RPC timeout during broadcast: query the precomputed transaction hash; if absent, rebroadcast only the identical persisted signed bytes.
 - Reverted transaction: release reservations through core reconciliation and retain failure evidence.
 - Included but not confirmed: keep the effect included and reconcile on the next request.
 - Reorg: compare canonical block hash, reverse the confirmed effect through the existing core, and rematch if valid.
