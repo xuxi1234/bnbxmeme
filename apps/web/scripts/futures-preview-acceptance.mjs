@@ -8,6 +8,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   assertSanitizedEvidence,
+  ORACLE_UPDATE_GAS,
   validateAcceptanceEnvironment,
 } from "./futures-preview-acceptance-core.mjs";
 
@@ -207,6 +208,7 @@ async function recoverOpenMarket(cookie) {
         address: config.oracle,
         abi: oracleAbi,
         functionName: "update",
+        gas: ORACLE_UPDATE_GAS,
       }),
     );
     const updated = (await api(cookie, "market-status")).data;

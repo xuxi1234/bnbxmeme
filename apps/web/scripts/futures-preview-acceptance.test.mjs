@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertSanitizedEvidence,
+  ORACLE_UPDATE_GAS,
   validateAcceptanceEnvironment,
 } from "./futures-preview-acceptance-core.mjs";
 
@@ -67,4 +68,9 @@ test("a second wallet may be generated ephemerally without weakening funding-key
       }),
     /funding wallet key/,
   );
+});
+
+test("oracle maintenance reserves enough gas to cross the fail-closed read guard", () => {
+  assert.equal(ORACLE_UPDATE_GAS, 600_000n);
+  assert.ok(ORACLE_UPDATE_GAS > 350_000n);
 });

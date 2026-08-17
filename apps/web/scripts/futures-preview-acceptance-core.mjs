@@ -2,6 +2,11 @@ import { getAddress } from "viem";
 
 const privateKeyPattern = /^0x[0-9a-fA-F]{64}$/;
 
+// FuturesOracle deliberately fails closed when less than 350k gas remains.
+// Automatic gas estimation therefore sees a successful CloseOnly return and
+// can choose a limit that clears, rather than advances, the observation window.
+export const ORACLE_UPDATE_GAS = 600_000n;
+
 export function validateAcceptanceEnvironment(environment) {
   const chainId = Number(environment.FUTURES_CHAIN_ID ?? "97");
   if (chainId !== 97) throw new Error("acceptance requires BSC Testnet chain 97");
