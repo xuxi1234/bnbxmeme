@@ -29,6 +29,7 @@ export type PreparedMatchEffect = {
   takerOrderId: Hex;
   quantity: string;
   price: string;
+  transactionSender?: Address;
 };
 
 type RelayerAccount = {
@@ -179,11 +180,14 @@ export function createFuturesRelayer(input: {
       };
     }
     const transaction = object(transactionValue, "transaction is unavailable");
+    const expectedSender = effect.transactionSender
+      ? getAddress(effect.transactionSender)
+      : account.address;
     if (
       exactHash(transaction.hash, "transaction hash mismatch").toLowerCase() !==
         hash.toLowerCase() ||
       transaction.chainId !== 97 ||
-      getAddress(`${transaction.from}`) !== account.address ||
+      getAddress(`${transaction.from}`) !== expectedSender ||
       getAddress(`${transaction.to}`) !== orderBook ||
       `${transaction.input}`.toLowerCase() !== effect.calldata.toLowerCase()
     )
@@ -247,7 +251,7 @@ export function createFuturesRelayer(input: {
           transaction: {
             hash,
             chainId: 97,
-            from: account.address,
+            from: expectedSender,
             to: orderBook,
             input: effect.calldata,
           },

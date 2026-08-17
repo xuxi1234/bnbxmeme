@@ -192,3 +192,59 @@ test("inspect validates transaction, canonical block, and exact OrdersMatched ev
   const reorgObservation = await reorged.inspect(prepared.hash, effect);
   assert.equal(reorgObservation.status, "reorged");
 });
+
+test("inspect accepts a submitted transaction from the sender recorded before relayer key rotation", async () => {
+  const historicalAccount = privateKeyToAccount(`0x${"99".repeat(32)}`);
+  const prepared = await createFuturesRelayer({
+    account: historicalAccount,
+    orderBook,
+    client: client(),
+  }).prepare(effect);
+  const topics = encodeEventTopics({
+    abi: eventAbi,
+    eventName: "OrdersMatched",
+    args: { makerOrderHash: makerOrderId, takerOrderHash: takerOrderId },
+  });
+  const rotatedClient = client({
+    getTransaction: async () => ({
+      hash: prepared.hash,
+      chainId: 97,
+      from: historicalAccount.address,
+      to: orderBook,
+      input: calldata,
+      nonce: 7,
+    }),
+    getTransactionReceipt: async () => ({
+      status: "success",
+      transactionHash: prepared.hash,
+      blockNumber: 101n,
+      blockHash,
+      logs: [
+        {
+          address: orderBook,
+          topics,
+          data: encodeAbiParameters(
+            [{ type: "uint128" }, { type: "uint128" }],
+            [10n, 2_000n],
+          ),
+          logIndex: 3,
+        },
+      ],
+    }),
+  });
+  const currentAccount = privateKeyToAccount(`0x${"9a".repeat(32)}`);
+  const relayer = createFuturesRelayer({
+    account: currentAccount,
+    orderBook,
+    client: rotatedClient,
+  });
+
+  const observation = await relayer.inspect(prepared.hash, {
+    ...effect,
+    status: "submitted",
+    transactionSender: historicalAccount.address,
+  });
+
+  assert.equal(observation.status, "included");
+  assert.equal(observation.transaction.from, historicalAccount.address);
+});
