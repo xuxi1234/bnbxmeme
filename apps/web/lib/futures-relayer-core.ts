@@ -203,6 +203,10 @@ export function createFuturesRelayer(input: {
     const receiptHash = exactHash(receipt.transactionHash, "receipt hash mismatch");
     if (receiptHash.toLowerCase() !== hash.toLowerCase()) fail("receipt hash mismatch");
     const blockNumber = safeNumber(receipt.blockNumber, "invalid receipt block");
+    const headBlock = Math.max(
+      safeNumber(head, "invalid relayer head block"),
+      blockNumber,
+    );
     const receiptBlockHash = exactHash(receipt.blockHash, "invalid receipt block hash");
     const block = object(
       await client.getBlock({ blockNumber: BigInt(blockNumber) }),
@@ -213,7 +217,7 @@ export function createFuturesRelayer(input: {
       return {
         status: "reorged" as const,
         transactionPresent: true,
-        headBlock: safeNumber(head, "invalid relayer head block"),
+        headBlock,
         receipt: {
           status: `${receipt.status}`,
           transactionHash: receiptHash,
@@ -247,7 +251,7 @@ export function createFuturesRelayer(input: {
         return {
           status: "included" as const,
           transactionPresent: true,
-          headBlock: safeNumber(head, "invalid relayer head block"),
+          headBlock,
           transaction: {
             hash,
             chainId: 97,

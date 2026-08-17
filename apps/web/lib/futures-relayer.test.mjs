@@ -159,6 +159,7 @@ test("inspect validates transaction, canonical block, and exact OrdersMatched ev
   const relayer = createFuturesRelayer({ account, orderBook, client: ready });
   const observation = await relayer.inspect(prepared.hash, effect);
   assert.equal(observation.status, "included");
+  assert.equal(observation.headBlock, 101);
   assert.equal(observation.event.makerOrderHash, makerOrderId);
   assert.equal(observation.event.fillQuantity, "10");
   assert.equal(observation.logIndex, 3);
