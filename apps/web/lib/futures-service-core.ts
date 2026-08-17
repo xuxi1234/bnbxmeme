@@ -2,6 +2,7 @@ import {
   encodeFunctionData,
   getAddress,
   hashTypedData,
+  keccak256,
   verifyTypedData,
   type Address,
   type Hex,
@@ -108,6 +109,8 @@ type MatchEffect = {
   status:
     "prepared" | "submitted" | "included" | "confirmed" | "failed" | "reorged";
   txHash?: Hex;
+  rawTransaction?: Hex;
+  walletConfirmed?: never;
   submittedAtBlock?: number;
   transactionNonce?: number;
   transactionSender?: Address;
@@ -124,6 +127,8 @@ type CancellationEffect = {
   status:
     "prepared" | "submitted" | "included" | "confirmed" | "failed" | "reorged";
   txHash?: Hex;
+  rawTransaction?: Hex;
+  walletConfirmed?: boolean;
   submittedAtBlock?: number;
   transactionNonce?: number;
   transactionSender?: Address;
@@ -596,7 +601,7 @@ export function recordSubmission(
   command: {
     expectedRevision: number;
     effectId: string;
-    txHash: Hex;
+    rawTransaction: Hex;
     submittedAtBlock: number;
     transactionNonce: number;
     transactionSender: Address;
@@ -604,7 +609,9 @@ export function recordSubmission(
 ) {
   const effect = state.effects[command.effectId];
   if (!effect) throw new Error("submission effect not found");
-  if (!HASH.test(command.txHash)) throw new Error("invalid transaction hash");
+  if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(command.rawTransaction))
+    throw new Error("invalid raw signed transaction");
+  const txHash = keccak256(command.rawTransaction);
   if (
     !Number.isSafeInteger(command.submittedAtBlock) ||
     command.submittedAtBlock < 0 ||
@@ -615,7 +622,14 @@ export function recordSubmission(
     throw new Error("submission block and nonce are required");
   }
   if (effect.txHash) {
-    if (effect.txHash.toLowerCase() === command.txHash.toLowerCase()) {
+    if (
+      effect.txHash.toLowerCase() === txHash.toLowerCase() &&
+      effect.rawTransaction?.toLowerCase() ===
+        command.rawTransaction.toLowerCase() &&
+      effect.submittedAtBlock === command.submittedAtBlock &&
+      effect.transactionNonce === command.transactionNonce &&
+      effect.transactionSender === command.transactionSender
+    ) {
       return { state, duplicate: true };
     }
     throw new Error("submission already binds another transaction");
@@ -629,11 +643,39 @@ export function recordSubmission(
   }
   assertRevision(state, command.expectedRevision);
   const next = clone(state);
-  next.effects[command.effectId].txHash = command.txHash;
+  next.effects[command.effectId].txHash = txHash;
+  next.effects[command.effectId].rawTransaction = command.rawTransaction;
   next.effects[command.effectId].submittedAtBlock = command.submittedAtBlock;
   next.effects[command.effectId].transactionNonce = command.transactionNonce;
   next.effects[command.effectId].transactionSender = command.transactionSender;
   next.effects[command.effectId].status = "submitted";
+  next.revision += 1;
+  return { state: finalized(next), duplicate: false };
+}
+
+export function reconcileWalletCancellation(
+  state: MatchingState,
+  command: {
+    expectedRevision: number;
+    effectId: string;
+    cancelledOnChain: boolean;
+  },
+) {
+  const effect = state.effects[command.effectId];
+  if (!effect || effect.kind !== "submit-cancellation")
+    throw new Error("wallet cancellation effect not found");
+  if (effect.status === "confirmed" && effect.walletConfirmed)
+    return { state, duplicate: true };
+  if (effect.status !== "prepared")
+    throw new Error("wallet cancellation is already bound to a transaction");
+  if (command.cancelledOnChain !== true)
+    throw new Error("wallet cancellation is not confirmed on-chain");
+  assertRevision(state, command.expectedRevision);
+  const next = clone(state);
+  const nextEffect = next.effects[command.effectId] as CancellationEffect;
+  nextEffect.status = "confirmed";
+  nextEffect.walletConfirmed = true;
+  next.orders[nextEffect.orderId].status = "cancelled";
   next.revision += 1;
   return { state: finalized(next), duplicate: false };
 }
@@ -994,13 +1036,29 @@ export async function hydrateMatchingState(
     );
     const hasCompleteSubmission = Boolean(
       effect.txHash &&
+      effect.rawTransaction &&
       effect.transactionSender !== undefined &&
       Number.isSafeInteger(effect.submittedAtBlock) &&
       Number.isSafeInteger(effect.transactionNonce),
     );
+    const walletConfirmedCancellation = Boolean(
+      effect.kind === "submit-cancellation" &&
+        effect.status === "confirmed" &&
+        effect.walletConfirmed === true &&
+        !effect.txHash &&
+        !effect.rawTransaction,
+    );
     if (
-      (requiresSubmission && !hasCompleteSubmission) ||
-      Boolean(effect.txHash) !== hasCompleteSubmission
+      (requiresSubmission &&
+        !hasCompleteSubmission &&
+        !walletConfirmedCancellation) ||
+      Boolean(effect.txHash || effect.rawTransaction) !==
+        hasCompleteSubmission ||
+      (hasCompleteSubmission &&
+        (!/^0x(?:[0-9a-fA-F]{2})+$/.test(effect.rawTransaction as string) ||
+          keccak256(effect.rawTransaction as Hex).toLowerCase() !==
+            effect.txHash?.toLowerCase())) ||
+      (effect.walletConfirmed === true && !walletConfirmedCancellation)
     ) {
       throw new Error("durable effect submission state mismatch");
     }

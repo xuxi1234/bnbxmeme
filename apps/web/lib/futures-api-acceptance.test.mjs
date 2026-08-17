@@ -61,3 +61,15 @@ test("all API writes pass the explicit Preview-only gate", () => {
   assert.match(resources, /export const PUT = unsupported/);
   assert.match(session, /export const OPTIONS = unsupported/);
 });
+
+test("Preview direct mode dispatches the authenticated wallet without an external URL", () => {
+  assert.match(server, /dispatchFuturesRuntime/);
+  assert.match(server, /FUTURES_RUNTIME_MODE\s*===\s*"external"/);
+  assert.match(server, /wallet:\s*authenticatedWallet/);
+  assert.match(resources, /session\.wallet/);
+  assert.match(server, /MAX_REQUEST_BYTES\s*=\s*64\s*\*\s*1024/);
+  assert.match(server, /MAX_RESPONSE_BYTES\s*=\s*256\s*\*\s*1024/);
+  const directBranch = server.indexOf("dispatchFuturesRuntime");
+  const externalConfig = server.lastIndexOf("serviceConfiguration()");
+  assert.ok(directBranch >= 0 && externalConfig > directBranch);
+});

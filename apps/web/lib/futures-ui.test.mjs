@@ -97,6 +97,9 @@ test("wires the noindex responsive Futures route to every required workflow", ()
   }
   assert.match(consoleSource, /useSignTypedData/);
   assert.match(consoleSource, /useSendTransaction/);
+  assert.match(consoleSource, /api<CancellationIntent>\("cancellations"/);
+  assert.match(consoleSource, /sendTransactionAsync\(\{[\s\S]*result\.data\.calldata/);
+  assert.match(consoleSource, /waitForTransactionReceipt\(\{ hash \}\)/);
   assert.match(consoleSource, /useSwitchChain/);
   assert.match(consoleSource, /bscTestnet\.id/);
   assert.match(consoleSource, /approve/);
@@ -113,4 +116,19 @@ test("wires the noindex responsive Futures route to every required workflow", ()
   );
   assert.match(css, /@media\s*\(max-width:\s*760px\)/);
   assert.match(css, /\.futures-workspace/);
+});
+
+test("shows every order lifecycle state in all four languages", () => {
+  for (const locale of locales) {
+    for (const key of [
+      "awaitingCounterparty",
+      "relayerSubmitting",
+      "included",
+      "confirmed",
+      "failed",
+    ]) {
+      assert.equal(typeof FUTURES_COPY[locale][key], "string");
+      assert.ok(FUTURES_COPY[locale][key].length > 0);
+    }
+  }
 });

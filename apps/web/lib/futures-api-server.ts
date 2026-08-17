@@ -23,6 +23,7 @@ import {
   consumeSharedFuturesQuota,
   registerFuturesNonce,
 } from "@/lib/futures-security-store";
+import { dispatchFuturesRuntime } from "@/lib/futures-runtime";
 
 const COOKIE = "bnbx_futures_testnet_session";
 const CHALLENGE_SECONDS = 5 * 60;
@@ -261,11 +262,11 @@ export async function forwardFuturesRequest(
   request: Request,
   resource: string,
   method: "GET" | "POST" | "DELETE",
+  authenticatedWallet?: string,
 ) {
   if (!FUTURES_API_RESOURCES.includes(resource as FuturesApiResource))
     throw new FuturesApiError("invalid_resource", 404);
   if (method !== "GET") requireFuturesWriteEnvironment(process.env);
-  const { origin: serviceOrigin, secret } = serviceConfiguration();
   let raw: unknown;
   if (method === "GET") {
     raw = Object.fromEntries(new URL(request.url).searchParams);
@@ -287,6 +288,30 @@ export async function forwardFuturesRequest(
   }
   const responseConfig = configuration();
   const parsed = parseFuturesApiInput(resource, method, raw, responseConfig);
+  const wallet = authenticatedWallet ?? (await requireFuturesSession(request)).wallet;
+  if (process.env.FUTURES_RUNTIME_MODE !== "external") {
+    try {
+      const result = await dispatchFuturesRuntime({
+        wallet: authenticatedWallet ?? wallet,
+        resource,
+        method,
+        input: parsed,
+      });
+      return {
+        status: result.status,
+        payload: parseFuturesApiResponse(resource, result.payload, responseConfig),
+      };
+    } catch (error) {
+      if (error instanceof FuturesApiError) throw error;
+      const message = error instanceof Error ? error.message : "";
+      if (/invalid|wallet|order|idempotency|cancel|expired|signature|domain/i.test(message))
+        throw new FuturesApiError("request_rejected", 409);
+      throw new FuturesApiError("service_unavailable", 503);
+    }
+  }
+  const externalMode = process.env.FUTURES_RUNTIME_MODE === "external";
+  if (!externalMode) throw new FuturesApiError("service_unavailable", 503);
+  const { origin: serviceOrigin, secret } = serviceConfiguration();
   const upstreamUrl = new URL(`/v1/futures/${resource}`, serviceOrigin);
   if (method === "GET") {
     for (const [key, value] of Object.entries(parsed)) {
@@ -301,7 +326,7 @@ export async function forwardFuturesRequest(
       headers: {
         Authorization: `Bearer ${secret}`,
         "Content-Type": "application/json",
-        "X-BNBX-Wallet": (await requireFuturesSession(request)).wallet,
+        "X-BNBX-Wallet": wallet,
       },
       body: method === "GET" ? undefined : JSON.stringify(parsed),
       cache: "no-store",

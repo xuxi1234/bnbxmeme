@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { keccak256 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import {
@@ -9,11 +10,17 @@ import {
   hydrateMatchingState,
   intakeOrder,
   persistMatchingStateAtomic,
+  reconcileWalletCancellation,
   reconcileSubmission,
   recordSubmission,
   serializeMatchingState,
   validateOrderEnvelope,
 } from "./futures-service-core.ts";
+
+const signedTransaction = (byte) => {
+  const rawTransaction = `0x${byte.repeat(20)}`;
+  return { rawTransaction, txHash: keccak256(rawTransaction) };
+};
 
 const makerA = privateKeyToAccount(`0x${"11".repeat(32)}`);
 const makerB = privateKeyToAccount(`0x${"22".repeat(32)}`);
@@ -414,11 +421,12 @@ test("cancellation requires an exact trader transaction and canonical event", as
   assert.equal(duplicateWithNewKey.effect.id, cancelled.effect.id);
   assert.equal(Object.keys(duplicateWithNewKey.state.effects).length, 1);
 
-  const txHash = `0x${"aa".repeat(32)}`;
+  const signedCancel = signedTransaction("aa");
+  const txHash = signedCancel.txHash;
   const submitted = recordSubmission(cancelled.state, {
     expectedRevision: cancelled.state.revision,
     effectId: cancelled.effect.id,
-    txHash,
+    rawTransaction: signedCancel.rawTransaction,
     submittedAtBlock: 90,
     transactionNonce: 1,
     transactionSender: makerA.address,
@@ -512,10 +520,11 @@ test("submission retries are idempotent and canonical confirmation finalizes fil
     state = result.state;
   }
   const [effect] = Object.values(state.effects);
+  const signedMatch = signedTransaction("55");
   const submitted = recordSubmission(state, {
     expectedRevision: state.revision,
     effectId: effect.id,
-    txHash: `0x${"55".repeat(32)}`,
+    rawTransaction: signedMatch.rawTransaction,
     submittedAtBlock: 90,
     transactionNonce: 2,
     transactionSender: makerA.address,
@@ -523,7 +532,7 @@ test("submission retries are idempotent and canonical confirmation finalizes fil
   const retry = recordSubmission(submitted.state, {
     expectedRevision: 0,
     effectId: effect.id,
-    txHash: `0x${"55".repeat(32)}`,
+    rawTransaction: signedMatch.rawTransaction,
     submittedAtBlock: 90,
     transactionNonce: 2,
     transactionSender: makerA.address,
@@ -534,7 +543,7 @@ test("submission retries are idempotent and canonical confirmation finalizes fil
       recordSubmission(submitted.state, {
         expectedRevision: submitted.state.revision,
         effectId: effect.id,
-        txHash: `0x${"66".repeat(32)}`,
+        rawTransaction: signedTransaction("66").rawTransaction,
         submittedAtBlock: 90,
         transactionNonce: 2,
         transactionSender: makerA.address,
@@ -542,7 +551,7 @@ test("submission retries are idempotent and canonical confirmation finalizes fil
     /transaction/i,
   );
 
-  const txHash = `0x${"55".repeat(32)}`;
+  const txHash = signedMatch.txHash;
   const exactProof = matchProof(effect, txHash);
   assert.throws(
     () =>
@@ -581,10 +590,11 @@ test("a transaction absent from receipt and mempool releases after a bounded blo
     ).state;
   }
   const [effect] = Object.values(state.effects);
+  const signedDropped = signedTransaction("ab");
   state = recordSubmission(state, {
     expectedRevision: state.revision,
     effectId: effect.id,
-    txHash: `0x${"ab".repeat(32)}`,
+    rawTransaction: signedDropped.rawTransaction,
     submittedAtBlock: 100,
     transactionNonce: 7,
     transactionSender: makerA.address,
@@ -639,10 +649,11 @@ test("reorg reconciliation reverses confirmed fills and releases reservations on
     state = result.state;
   }
   const [effect] = Object.values(state.effects);
+  const signedMatch = signedTransaction("55");
   state = recordSubmission(state, {
     expectedRevision: state.revision,
     effectId: effect.id,
-    txHash: `0x${"55".repeat(32)}`,
+    rawTransaction: signedMatch.rawTransaction,
     submittedAtBlock: 90,
     transactionNonce: 2,
     transactionSender: makerA.address,
@@ -650,12 +661,12 @@ test("reorg reconciliation reverses confirmed fills and releases reservations on
   state = reconcileSubmission(state, {
     expectedRevision: state.revision,
     effectId: effect.id,
-    ...matchProof(effect, `0x${"55".repeat(32)}`),
+    ...matchProof(effect, signedMatch.txHash),
   }).state;
   const reorged = reconcileSubmission(state, {
     expectedRevision: state.revision,
     effectId: effect.id,
-    ...matchProof(effect, `0x${"55".repeat(32)}`),
+    ...matchProof(effect, signedMatch.txHash),
     canonicalBlockHash: `0x${"88".repeat(32)}`,
   });
   assert.equal(reorged.state.effects[effect.id].status, "reorged");
@@ -665,7 +676,7 @@ test("reorg reconciliation reverses confirmed fills and releases reservations on
   const duplicate = reconcileSubmission(reorged.state, {
     expectedRevision: 0,
     effectId: effect.id,
-    ...matchProof(effect, `0x${"55".repeat(32)}`),
+    ...matchProof(effect, signedMatch.txHash),
     canonicalBlockHash: `0x${"88".repeat(32)}`,
   });
   assert.equal(duplicate.duplicate, true);
@@ -675,7 +686,7 @@ test("reorg reconciliation reverses confirmed fills and releases reservations on
       recordSubmission(reorged.state, {
         expectedRevision: reorged.state.revision,
         effectId: effect.id,
-        txHash: `0x${"99".repeat(32)}`,
+        rawTransaction: signedTransaction("99").rawTransaction,
         submittedAtBlock: 104,
         transactionNonce: 2,
         transactionSender: makerA.address,
@@ -683,13 +694,110 @@ test("reorg reconciliation reverses confirmed fills and releases reservations on
     /another transaction/i,
   );
   const rematched = reorged.effects[0];
+  const signedRematch = signedTransaction("99");
   const resubmitted = recordSubmission(reorged.state, {
     expectedRevision: reorged.state.revision,
     effectId: rematched.id,
-    txHash: `0x${"99".repeat(32)}`,
+    rawTransaction: signedRematch.rawTransaction,
     submittedAtBlock: 104,
     transactionNonce: 3,
     transactionSender: makerA.address,
   });
   assert.equal(resubmitted.state.effects[rematched.id].status, "submitted");
+});
+
+test("submission identity is derived from immutable signed bytes before broadcast", async () => {
+  let state = createMatchingState(config);
+  for (const [account, overrides, key] of [
+    [makerA, { side: 1, role: 0, nonce: 71n }, "raw-maker"],
+    [taker, { side: 0, role: 1, nonce: 72n }, "raw-taker"],
+  ]) {
+    state = (
+      await intakeOrder(state, {
+        expectedRevision: state.revision,
+        idempotencyKey: key,
+        receivedAt: state.revision,
+        now: 9_000n,
+        envelope: await envelope(account, overrides),
+      })
+    ).state;
+  }
+  const [effect] = Object.values(state.effects);
+  const signed = signedTransaction("12");
+  const recorded = recordSubmission(state, {
+    expectedRevision: state.revision,
+    effectId: effect.id,
+    rawTransaction: signed.rawTransaction,
+    submittedAtBlock: 90,
+    transactionNonce: 8,
+    transactionSender: makerA.address,
+  });
+  assert.equal(recorded.state.effects[effect.id].txHash, signed.txHash);
+  assert.equal(
+    recorded.state.effects[effect.id].rawTransaction,
+    signed.rawTransaction,
+  );
+  const duplicate = recordSubmission(recorded.state, {
+    expectedRevision: 0,
+    effectId: effect.id,
+    rawTransaction: signed.rawTransaction,
+    submittedAtBlock: 90,
+    transactionNonce: 8,
+    transactionSender: makerA.address,
+  });
+  assert.equal(duplicate.duplicate, true);
+  assert.throws(
+    () =>
+      recordSubmission(recorded.state, {
+        expectedRevision: recorded.state.revision,
+        effectId: effect.id,
+        rawTransaction: signedTransaction("13").rawTransaction,
+        submittedAtBlock: 90,
+        transactionNonce: 8,
+        transactionSender: makerA.address,
+      }),
+    /another transaction/i,
+  );
+  await hydrateMatchingState(serializeMatchingState(recorded.state), config);
+  const malformed = structuredClone(recorded.state);
+  malformed.effects[effect.id].rawTransaction = signedTransaction("14").rawTransaction;
+  await assert.rejects(
+    hydrateMatchingState(JSON.stringify(malformed), config),
+    /submission state/i,
+  );
+});
+
+test("wallet cancellation confirms only from the exact OrderBook cancelled flag", async () => {
+  const accepted = await intakeOrder(createMatchingState(config), {
+    expectedRevision: 0,
+    idempotencyKey: "wallet-cancel-intake",
+    receivedAt: 100,
+    now: 9_000n,
+    envelope: await envelope(makerA, { nonce: 81n }),
+  });
+  const pending = cancelOrder(accepted.state, {
+    expectedRevision: accepted.state.revision,
+    idempotencyKey: "wallet-cancel",
+    orderId: accepted.acceptedOrderId,
+    trader: makerA.address,
+  });
+  assert.throws(
+    () =>
+      reconcileWalletCancellation(pending.state, {
+        expectedRevision: pending.state.revision,
+        effectId: pending.effect.id,
+        cancelledOnChain: false,
+      }),
+    /on-chain/i,
+  );
+  const confirmed = reconcileWalletCancellation(pending.state, {
+    expectedRevision: pending.state.revision,
+    effectId: pending.effect.id,
+    cancelledOnChain: true,
+  });
+  assert.equal(
+    confirmed.state.orders[accepted.acceptedOrderId].status,
+    "cancelled",
+  );
+  assert.equal(confirmed.state.effects[pending.effect.id].status, "confirmed");
 });

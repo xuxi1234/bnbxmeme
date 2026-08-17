@@ -44,7 +44,12 @@ const handle = async (
     const session = await requireFuturesSession(request);
     await consumeFuturesQuota(session.wallet, method);
     const { resource } = await context.params;
-    const result = await forwardFuturesRequest(request, resource, method);
+    const result = await forwardFuturesRequest(
+      request,
+      resource,
+      method,
+      session.wallet,
+    );
     return NextResponse.json(result.payload, {
       status: result.status,
       headers: { "Cache-Control": "no-store" },

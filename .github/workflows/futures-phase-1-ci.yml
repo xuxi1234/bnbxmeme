@@ -8,6 +8,7 @@ on:
       - "packages/contracts/**"
       - "packages/chain-config/**"
       - "apps/web/**"
+      - "supabase/migrations/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -48,6 +49,9 @@ jobs:
 
       - name: Run web unit tests
         run: pnpm --filter @bnbx/web test
+
+      - name: Verify Futures runtime migration security
+        run: node --test apps/web/lib/futures-runtime-migration.test.mjs
 
       - name: Package reusable dependencies
         if: always()

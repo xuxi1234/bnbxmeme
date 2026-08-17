@@ -564,10 +564,27 @@ export function parseFuturesApiResponse(
       },
     );
   } else if (resource === "cancellations") {
-    const data = object(envelope.data, ["orderId", "status"]);
+    const data = object(envelope.data, [
+      "orderId",
+      "status",
+      "to",
+      "calldata",
+      "expiresAt",
+    ]);
     hash(data.orderId);
     if (!["cancellation-pending", "cancelled"].includes(`${data.status}`))
       invalid();
+    try {
+      if (getAddress(`${data.to}`) !== getAddress(config.orderBook)) invalid();
+    } catch {
+      invalid();
+    }
+    if (
+      typeof data.calldata !== "string" ||
+      !/^0x(?:[0-9a-fA-F]{2})+$/.test(data.calldata)
+    )
+      invalid();
+    integer(data.expiresAt);
   } else if (resource === "collateral-intents") {
     const data = object(envelope.data, [
       "action",

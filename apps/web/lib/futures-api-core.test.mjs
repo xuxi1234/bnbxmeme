@@ -320,3 +320,34 @@ test("stable error codes have complete four-language messages", () => {
     assert.ok(localizeFuturesError("rate_limited", locale).length > 3);
   }
 });
+
+test("cancellation response is an exact wallet transaction intent", () => {
+  const response = {
+    chainId: 97,
+    orderBook: contract,
+    data: {
+      orderId: `0x${"44".repeat(32)}`,
+      status: "cancellation-pending",
+      to: contract,
+      calldata: "0x1234",
+      expiresAt: 2_000_000_000,
+    },
+    cursor: null,
+  };
+  assert.deepEqual(
+    parseFuturesApiResponse("cancellations", response, {
+      chainId: 97,
+      orderBook: contract,
+    }),
+    response,
+  );
+  assert.throws(
+    () =>
+      parseFuturesApiResponse(
+        "cancellations",
+        { ...response, data: { ...response.data, privateKey: "leak" } },
+        { chainId: 97, orderBook: contract },
+      ),
+    /service_unavailable/,
+  );
+});

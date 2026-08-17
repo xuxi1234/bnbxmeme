@@ -84,6 +84,13 @@ type CollateralIntent = {
   calldata: Hex;
   expiresAt: number;
 };
+type CancellationIntent = {
+  orderId: Hex;
+  status: "cancellation-pending" | "cancelled";
+  to: Address;
+  calldata: Hex;
+  expiresAt: number;
+};
 
 const orderBook = process.env.NEXT_PUBLIC_FUTURES_ORDER_BOOK ?? "";
 const testUsdt = process.env.NEXT_PUBLIC_FUTURES_TEST_USDT ?? "";
@@ -168,6 +175,12 @@ export function FuturesConsole() {
     canWrite && (market?.marketState === "Open" || reduceOnly),
   );
   const locale = language === "zh" ? "zh-CN" : language;
+  const orderLifecycle = (status: string) => {
+    if (status === "filled" || status === "cancelled") return copy.confirmed;
+    if (status === "reserved") return copy.relayerSubmitting;
+    if (status === "cancellation-pending") return copy.included;
+    return copy.awaitingCounterparty;
+  };
 
   const api = useCallback(
     async <T,>(resource: string, init?: RequestInit) => {
@@ -333,11 +346,12 @@ export function FuturesConsole() {
   }
 
   async function cancelOrder(orderId: Hex) {
-    if (!canWrite) return;
+    if (!canWrite || !publicClient) return;
     setBusy(orderId);
     setError("");
+    setNotice(copy.transaction);
     try {
-      await api("cancellations", {
+      const result = await api<CancellationIntent>("cancellations", {
         method: "DELETE",
         body: JSON.stringify({
           chainId: 97,
@@ -345,10 +359,17 @@ export function FuturesConsole() {
           orderId,
         }),
       });
+      const hash = await sendTransactionAsync({
+        to: result.data.to,
+        data: result.data.calldata,
+        chainId: bscTestnet.id,
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
       setNotice(copy.success);
       await refresh();
     } catch (cause) {
       setError(visibleError(cause, copy.unavailable));
+      setNotice("");
     } finally {
       setBusy("");
     }
@@ -678,7 +699,7 @@ export function FuturesConsole() {
                 <span>
                   {order.side === 0 ? copy.long : copy.short} ·{" "}
                   {order.role === 0 ? copy.makerRole : copy.takerRole} ·{" "}
-                  {order.leverage}×
+                  {order.leverage}× · {orderLifecycle(order.status)}
                 </span>
                 <strong>
                   {formatFuturesDecimal(order.quantity)} @{" "}
