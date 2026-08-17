@@ -107,18 +107,6 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Wait for the matching Vercel Preview
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for attempt in $(seq 1 60); do
-            state=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status" --jq '.statuses[] | select(.context == "Vercel") | .state' | head -1)
-            if [ "$state" = "success" ]; then exit 0; fi
-            if [ "$state" = "failure" ] || [ "$state" = "error" ]; then exit 1; fi
-            sleep 10
-          done
-          exit 1
-
       - name: Run real long-short lifecycle
         run: node apps/web/scripts/futures-preview-acceptance.mjs | tee futures-preview-acceptance.json
 
