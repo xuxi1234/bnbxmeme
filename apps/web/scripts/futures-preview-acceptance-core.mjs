@@ -7,6 +7,15 @@ const privateKeyPattern = /^0x[0-9a-fA-F]{64}$/;
 // can choose a limit that clears, rather than advances, the observation window.
 export const ORACLE_UPDATE_GAS = 600_000n;
 
+export function quoteConstantProductOut(amountIn, reserveIn, reserveOut) {
+  if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n)
+    throw new Error("positive swap amounts and reserves are required");
+  const amountInWithFee = amountIn * 997n;
+  return (
+    (amountInWithFee * reserveOut) / (reserveIn * 1_000n + amountInWithFee)
+  );
+}
+
 export async function retryServiceUnavailable(
   operation,
   {

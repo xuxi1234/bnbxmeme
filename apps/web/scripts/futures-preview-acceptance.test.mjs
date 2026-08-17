@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertSanitizedEvidence,
   ORACLE_UPDATE_GAS,
+  quoteConstantProductOut,
   retryServiceUnavailable,
   validateAcceptanceEnvironment,
 } from "./futures-preview-acceptance-core.mjs";
@@ -95,4 +96,11 @@ test("market recovery retries only transient Preview service failures", async ()
     }),
     /unauthorized/,
   );
+});
+
+test("testnet collateral swap quote is bounded and rejects empty reserves", () => {
+  const output = quoteConstantProductOut(50n, 1_000n, 10_000n);
+  assert.equal(output, 474n);
+  assert.ok(output < 10_000n);
+  assert.throws(() => quoteConstantProductOut(1n, 0n, 1n), /positive swap/);
 });

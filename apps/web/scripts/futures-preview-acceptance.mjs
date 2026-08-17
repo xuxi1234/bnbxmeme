@@ -9,6 +9,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   assertSanitizedEvidence,
   ORACLE_UPDATE_GAS,
+  quoteConstantProductOut,
   retryServiceUnavailable,
   validateAcceptanceEnvironment,
 } from "./futures-preview-acceptance-core.mjs";
@@ -36,17 +37,28 @@ const userAgent = "bnbx-futures-preview-acceptance/1";
 const sleep = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 const idempotency = () => crypto.randomUUID();
+const collateralAmount = parseEther("0.1");
+const swapInput = parseEther("0.05");
+const testnetWbnb = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd";
+const testnetUsdtWbnbPair = "0x5F52Ad4bD4f519AE79999400ad8B83A3D002fD92";
 
 const erc20Abi = [
   {
     type: "function",
-    name: "mint",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "transfer",
     stateMutability: "nonpayable",
     inputs: [
       { name: "to", type: "address" },
       { name: "amount", type: "uint256" },
     ],
-    outputs: [],
+    outputs: [{ name: "", type: "bool" }],
   },
   {
     type: "function",
@@ -57,6 +69,55 @@ const erc20Abi = [
       { name: "amount", type: "uint256" },
     ],
     outputs: [{ name: "", type: "bool" }],
+  },
+];
+const wbnbAbi = [
+  {
+    type: "function",
+    name: "deposit",
+    stateMutability: "payable",
+    inputs: [],
+    outputs: [],
+  },
+  erc20Abi[1],
+];
+const pairAbi = [
+  {
+    type: "function",
+    name: "getReserves",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "reserve0", type: "uint112" },
+      { name: "reserve1", type: "uint112" },
+      { name: "blockTimestampLast", type: "uint32" },
+    ],
+  },
+  {
+    type: "function",
+    name: "token0",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "token1",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    type: "function",
+    name: "swap",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "amount0Out", type: "uint256" },
+      { name: "amount1Out", type: "uint256" },
+      { name: "to", type: "address" },
+      { name: "data", type: "bytes" },
+    ],
+    outputs: [],
   },
 ];
 const orderTypes = {
@@ -181,17 +242,8 @@ async function waitForPreview() {
 }
 
 async function prepareCollateral(index, cookie) {
-  const account = accounts[index];
   const wallet = wallets[index];
-  const amount = parseEther("1000");
-  const mintHash = await receipt(
-    await wallet.writeContract({
-      address: config.testUsdt,
-      abi: erc20Abi,
-      functionName: "mint",
-      args: [account.address, amount],
-    }),
-  );
+  const amount = collateralAmount;
   const intent = await api(cookie, "collateral-intents", "POST", {
     chainId: 97,
     idempotencyKey: idempotency(),
@@ -212,7 +264,96 @@ async function prepareCollateral(index, cookie) {
       data: intent.data.calldata,
     }),
   );
-  return { mintHash, approveHash, depositHash };
+  return { approveHash, depositHash };
+}
+
+async function ensureCollateralBalances() {
+  const required = collateralAmount * 2n;
+  let fundingBalance = await publicClient.readContract({
+    address: config.testUsdt,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [accounts[0].address],
+  });
+  if (fundingBalance < required) {
+    const [token0, token1, reserves] = await Promise.all([
+      publicClient.readContract({
+        address: testnetUsdtWbnbPair,
+        abi: pairAbi,
+        functionName: "token0",
+      }),
+      publicClient.readContract({
+        address: testnetUsdtWbnbPair,
+        abi: pairAbi,
+        functionName: "token1",
+      }),
+      publicClient.readContract({
+        address: testnetUsdtWbnbPair,
+        abi: pairAbi,
+        functionName: "getReserves",
+      }),
+    ]);
+    if (
+      token0.toLowerCase() !== config.testUsdt.toLowerCase() ||
+      token1.toLowerCase() !== testnetWbnb.toLowerCase()
+    )
+      throw new Error("testnet collateral pool identity mismatch");
+    const quotedOut = quoteConstantProductOut(
+      swapInput,
+      reserves[1],
+      reserves[0],
+    );
+    const conservativeOut = (quotedOut * 95n) / 100n;
+    await receipt(
+      await wallets[0].writeContract({
+        address: testnetWbnb,
+        abi: wbnbAbi,
+        functionName: "deposit",
+        value: swapInput,
+      }),
+    );
+    await receipt(
+      await wallets[0].writeContract({
+        address: testnetWbnb,
+        abi: wbnbAbi,
+        functionName: "transfer",
+        args: [testnetUsdtWbnbPair, swapInput],
+      }),
+    );
+    await receipt(
+      await wallets[0].writeContract({
+        address: testnetUsdtWbnbPair,
+        abi: pairAbi,
+        functionName: "swap",
+        args: [conservativeOut, 0n, accounts[0].address, "0x"],
+      }),
+    );
+    fundingBalance = await publicClient.readContract({
+      address: config.testUsdt,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [accounts[0].address],
+    });
+  }
+  const secondBalance = await publicClient.readContract({
+    address: config.testUsdt,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [accounts[1].address],
+  });
+  const transferAmount =
+    secondBalance >= collateralAmount ? 0n : collateralAmount - secondBalance;
+  if (fundingBalance < collateralAmount + transferAmount)
+    throw new Error("insufficient Test USDT after testnet swap");
+  if (transferAmount > 0n)
+    await receipt(
+      await wallets[0].writeContract({
+        address: config.testUsdt,
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [accounts[1].address, transferAmount],
+      }),
+    );
 }
 
 async function recoverOpenMarket(cookie) {
@@ -297,6 +438,7 @@ const cookies = [
   await authenticate(accounts[1]),
 ];
 const market = await recoverOpenMarket(cookies[0]);
+await ensureCollateralBalances();
 const deposits = await Promise.all([
   prepareCollateral(0, cookies[0]),
   prepareCollateral(1, cookies[1]),
