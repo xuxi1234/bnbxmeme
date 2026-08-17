@@ -5,7 +5,7 @@ import {
   http,
   parseEther,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   assertSanitizedEvidence,
   validateAcceptanceEnvironment,
@@ -19,10 +19,11 @@ const chain = defineChain({
   rpcUrls: { default: { http: [config.rpcUrl] } },
 });
 const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
-const accounts = [
-  privateKeyToAccount(config.walletAKey),
-  privateKeyToAccount(config.walletBKey),
+const walletKeys = [
+  config.walletAKey,
+  config.walletBKey ?? generatePrivateKey(),
 ];
+const accounts = walletKeys.map((key) => privateKeyToAccount(key));
 const wallets = accounts.map((account) =>
   createWalletClient({ account, chain, transport: http(config.rpcUrl) }),
 );
@@ -219,9 +220,15 @@ async function submit(cookie, envelope, key) {
 
 await waitForPreview();
 if ((await publicClient.getChainId()) !== 97) throw new Error("RPC is not chain 97");
-for (const account of accounts) {
-  if ((await publicClient.getBalance({ address: account.address })) < parseEther("0.005"))
-    throw new Error(`insufficient tBNB for ${account.address}`);
+if ((await publicClient.getBalance({ address: accounts[0].address })) < parseEther("0.015"))
+  throw new Error(`insufficient tBNB for ${accounts[0].address}`);
+if ((await publicClient.getBalance({ address: accounts[1].address })) < parseEther("0.005")) {
+  await receipt(
+    await wallets[0].sendTransaction({
+      to: accounts[1].address,
+      value: parseEther("0.01"),
+    }),
+  );
 }
 const cookies = [await authenticate(accounts[0]), await authenticate(accounts[1])];
 const market = (await api(cookies[0], "market-status")).data;
@@ -345,6 +352,6 @@ const evidence = assertSanitizedEvidence(
     cancellationTransactionHash: cancelHash,
     withdrawalTransactionHash: withdrawHash,
   },
-  [config.walletAKey, config.walletBKey],
+  walletKeys,
 );
 console.log(JSON.stringify(evidence, null, 2));

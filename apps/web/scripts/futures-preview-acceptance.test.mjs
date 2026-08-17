@@ -51,3 +51,19 @@ test("acceptance evidence cannot contain either wallet key", () => {
     /private key/,
   );
 });
+
+test("a second wallet may be generated ephemerally without weakening funding-key validation", () => {
+  const config = validateAcceptanceEnvironment({
+    ...base,
+    FUTURES_WALLET_B_PRIVATE_KEY: "",
+  });
+  assert.equal(config.walletBKey, undefined);
+  assert.throws(
+    () =>
+      validateAcceptanceEnvironment({
+        ...base,
+        FUTURES_WALLET_A_PRIVATE_KEY: "",
+      }),
+    /funding wallet key/,
+  );
+});

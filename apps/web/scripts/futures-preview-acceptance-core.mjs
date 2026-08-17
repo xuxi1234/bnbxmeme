@@ -14,10 +14,12 @@ export function validateAcceptanceEnvironment(environment) {
     throw new Error("acceptance URL must be the Futures feature Preview");
   }
   const walletAKey = environment.FUTURES_WALLET_A_PRIVATE_KEY ?? "";
-  const walletBKey = environment.FUTURES_WALLET_B_PRIVATE_KEY ?? "";
-  if (!privateKeyPattern.test(walletAKey) || !privateKeyPattern.test(walletBKey))
-    throw new Error("two environment-only test wallet keys are required");
-  if (walletAKey.toLowerCase() === walletBKey.toLowerCase())
+  const walletBKey = environment.FUTURES_WALLET_B_PRIVATE_KEY || undefined;
+  if (!privateKeyPattern.test(walletAKey))
+    throw new Error("an environment-only funding wallet key is required");
+  if (walletBKey && !privateKeyPattern.test(walletBKey))
+    throw new Error("the optional second wallet key is malformed");
+  if (walletBKey && walletAKey.toLowerCase() === walletBKey.toLowerCase())
     throw new Error("acceptance wallets must be distinct");
   const rpcUrl = new URL(environment.FUTURES_RPC_URL ?? "");
   if (rpcUrl.protocol !== "https:") throw new Error("HTTPS testnet RPC required");

@@ -108,7 +108,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run real long-short lifecycle
-        run: node apps/web/scripts/futures-preview-acceptance.mjs | tee futures-preview-acceptance.json
+        run: |
+          set -o pipefail
+          node apps/web/scripts/futures-preview-acceptance.mjs | tee futures-preview-acceptance.json
 
       - name: Upload sanitized acceptance evidence
         if: always()
