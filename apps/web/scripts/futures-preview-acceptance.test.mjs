@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertSanitizedEvidence,
   ORACLE_UPDATE_GAS,
+  retryServiceUnavailable,
   validateAcceptanceEnvironment,
 } from "./futures-preview-acceptance-core.mjs";
 
@@ -38,18 +39,18 @@ test("acceptance evidence cannot contain either wallet key", () => {
   const config = validateAcceptanceEnvironment(base);
   assert.equal(config.chainId, 97);
   assert.deepEqual(
-    assertSanitizedEvidence(
-      { wallets: ["0xabc", "0xdef"], status: "PASS" },
-      [config.walletAKey, config.walletBKey],
-    ),
+    assertSanitizedEvidence({ wallets: ["0xabc", "0xdef"], status: "PASS" }, [
+      config.walletAKey,
+      config.walletBKey,
+    ]),
     { wallets: ["0xabc", "0xdef"], status: "PASS" },
   );
   assert.throws(
     () =>
-      assertSanitizedEvidence(
-        { accidental: config.walletAKey },
-        [config.walletAKey, config.walletBKey],
-      ),
+      assertSanitizedEvidence({ accidental: config.walletAKey }, [
+        config.walletAKey,
+        config.walletBKey,
+      ]),
     /private key/,
   );
 });
@@ -73,4 +74,25 @@ test("a second wallet may be generated ephemerally without weakening funding-key
 test("oracle maintenance reserves enough gas to cross the fail-closed read guard", () => {
   assert.equal(ORACLE_UPDATE_GAS, 600_000n);
   assert.ok(ORACLE_UPDATE_GAS > 350_000n);
+});
+
+test("market recovery retries only transient Preview service failures", async () => {
+  let calls = 0;
+  const result = await retryServiceUnavailable(
+    async () => {
+      calls += 1;
+      if (calls < 3) throw new Error("service_unavailable");
+      return "Open";
+    },
+    { wait: async () => {} },
+  );
+  assert.equal(result, "Open");
+  assert.equal(calls, 3);
+
+  await assert.rejects(
+    retryServiceUnavailable(async () => {
+      throw new Error("unauthorized");
+    }),
+    /unauthorized/,
+  );
 });

@@ -9,6 +9,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   assertSanitizedEvidence,
   ORACLE_UPDATE_GAS,
+  retryServiceUnavailable,
   validateAcceptanceEnvironment,
 } from "./futures-preview-acceptance-core.mjs";
 
@@ -19,7 +20,10 @@ const chain = defineChain({
   nativeCurrency: { name: "Test BNB", symbol: "tBNB", decimals: 18 },
   rpcUrls: { default: { http: [config.rpcUrl] } },
 });
-const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
+const publicClient = createPublicClient({
+  chain,
+  transport: http(config.rpcUrl),
+});
 const walletKeys = [
   config.walletAKey,
   config.walletBKey ?? generatePrivateKey(),
@@ -29,7 +33,8 @@ const wallets = accounts.map((account) =>
   createWalletClient({ account, chain, transport: http(config.rpcUrl) }),
 );
 const userAgent = "bnbx-futures-preview-acceptance/1";
-const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const sleep = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 const idempotency = () => crypto.randomUUID();
 
 const erc20Abi = [
@@ -90,15 +95,20 @@ const domain = {
 };
 
 async function receipt(hash) {
-  const result = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
-  if (result.status !== "success") throw new Error(`testnet transaction reverted: ${hash}`);
+  const result = await publicClient.waitForTransactionReceipt({
+    hash,
+    confirmations: 1,
+  });
+  if (result.status !== "success")
+    throw new Error(`testnet transaction reverted: ${hash}`);
   return hash;
 }
 
 async function json(response) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const code = typeof body?.code === "string" ? body.code : `HTTP_${response.status}`;
+    const code =
+      typeof body?.code === "string" ? body.code : `HTTP_${response.status}`;
     throw new Error(code);
   }
   return body;
@@ -107,7 +117,10 @@ async function json(response) {
 async function authenticate(account) {
   const challengeResponse = await fetch(
     `${config.preview}/api/futures/session?wallet=${account.address}`,
-    { headers: { "Accept-Language": "en", "User-Agent": userAgent }, cache: "no-store" },
+    {
+      headers: { "Accept-Language": "en", "User-Agent": userAgent },
+      cache: "no-store",
+    },
   );
   const challenge = await json(challengeResponse);
   const signature = await account.signMessage({ message: challenge.message });
@@ -194,14 +207,19 @@ async function prepareCollateral(index, cookie) {
     }),
   );
   const depositHash = await receipt(
-    await wallet.sendTransaction({ to: intent.data.to, data: intent.data.calldata }),
+    await wallet.sendTransaction({
+      to: intent.data.to,
+      data: intent.data.calldata,
+    }),
   );
   return { mintHash, approveHash, depositHash };
 }
 
 async function recoverOpenMarket(cookie) {
   for (let observation = 0; observation < 8; observation += 1) {
-    const market = (await api(cookie, "market-status")).data;
+    const market = (
+      await retryServiceUnavailable(() => api(cookie, "market-status"))
+    ).data;
     if (market.marketState === "Open") return market;
     await receipt(
       await wallets[0].writeContract({
@@ -211,7 +229,9 @@ async function recoverOpenMarket(cookie) {
         gas: ORACLE_UPDATE_GAS,
       }),
     );
-    const updated = (await api(cookie, "market-status")).data;
+    const updated = (
+      await retryServiceUnavailable(() => api(cookie, "market-status"))
+    ).data;
     if (updated.marketState === "Open") return updated;
     if (observation < 7) await sleep(305_000);
   }
@@ -254,10 +274,17 @@ async function submit(cookie, envelope, key) {
 }
 
 await waitForPreview();
-if ((await publicClient.getChainId()) !== 97) throw new Error("RPC is not chain 97");
-if ((await publicClient.getBalance({ address: accounts[0].address })) < parseEther("0.015"))
+if ((await publicClient.getChainId()) !== 97)
+  throw new Error("RPC is not chain 97");
+if (
+  (await publicClient.getBalance({ address: accounts[0].address })) <
+  parseEther("0.015")
+)
   throw new Error(`insufficient tBNB for ${accounts[0].address}`);
-if ((await publicClient.getBalance({ address: accounts[1].address })) < parseEther("0.005")) {
+if (
+  (await publicClient.getBalance({ address: accounts[1].address })) <
+  parseEther("0.005")
+) {
   await receipt(
     await wallets[0].sendTransaction({
       to: accounts[1].address,
@@ -265,7 +292,10 @@ if ((await publicClient.getBalance({ address: accounts[1].address })) < parseEth
     }),
   );
 }
-const cookies = [await authenticate(accounts[0]), await authenticate(accounts[1])];
+const cookies = [
+  await authenticate(accounts[0]),
+  await authenticate(accounts[1]),
+];
 const market = await recoverOpenMarket(cookies[0]);
 const deposits = await Promise.all([
   prepareCollateral(0, cookies[0]),
@@ -274,8 +304,22 @@ const deposits = await Promise.all([
 
 const baseNonce = Date.now();
 const quantity = (parseEther("1") + BigInt(baseNonce % 1_000_000)).toString();
-const maker = await signedOrder(accounts[0], 0, 0, quantity, market.markPrice, baseNonce);
-const taker = await signedOrder(accounts[1], 1, 1, quantity, market.markPrice, baseNonce + 1);
+const maker = await signedOrder(
+  accounts[0],
+  0,
+  0,
+  quantity,
+  market.markPrice,
+  baseNonce,
+);
+const taker = await signedOrder(
+  accounts[1],
+  1,
+  1,
+  quantity,
+  market.markPrice,
+  baseNonce + 1,
+);
 const makerKey = idempotency();
 const takerKey = idempotency();
 const makerResponse = await submit(cookies[0], maker, makerKey);
@@ -289,7 +333,10 @@ const makerOrder = makerResponse.data.find(
 if (!makerOrder) throw new Error("maker order missing from response");
 const takerResponse = await submit(cookies[1], taker, takerKey);
 const takerOrder = takerResponse.data.find(
-  (order) => order.quantity === quantity && order.limitPrice === market.markPrice && order.side === 1,
+  (order) =>
+    order.quantity === quantity &&
+    order.limitPrice === market.markPrice &&
+    order.side === 1,
 );
 if (!takerOrder) throw new Error("taker order missing from response");
 
@@ -301,33 +348,48 @@ for (let attempt = 0; attempt < 24; attempt += 1) {
   ]);
   const both = [...makerFills.data, ...takerFills.data].filter(
     (fill) =>
-      fill.makerOrderId === makerOrder.orderId && fill.takerOrderId === takerOrder.orderId,
+      fill.makerOrderId === makerOrder.orderId &&
+      fill.takerOrderId === takerOrder.orderId,
   );
-  matchingFills = [...new Map(both.map((fill) => [fill.txHash, fill])).values()];
+  matchingFills = [
+    ...new Map(both.map((fill) => [fill.txHash, fill])).values(),
+  ];
   if (matchingFills.length === 1) break;
   await sleep(4_000);
 }
-if (matchingFills.length !== 1) throw new Error("expected exactly one canonical fill");
+if (matchingFills.length !== 1)
+  throw new Error("expected exactly one canonical fill");
 const fill = matchingFills[0];
 const [makerPositions, takerPositions] = await Promise.all([
   api(cookies[0], "positions"),
   api(cookies[1], "positions"),
 ]);
-if (!makerPositions.data.some((position) => position.side === 0 && position.quantity === quantity))
+if (
+  !makerPositions.data.some(
+    (position) => position.side === 0 && position.quantity === quantity,
+  )
+)
   throw new Error("maker long position missing");
-if (!takerPositions.data.some((position) => position.side === 1 && position.quantity === quantity))
+if (
+  !takerPositions.data.some(
+    (position) => position.side === 1 && position.quantity === quantity,
+  )
+)
   throw new Error("taker short position missing");
 
 await submit(cookies[0], maker, makerKey);
 await submit(cookies[1], taker, takerKey);
 const replayFills = (await api(cookies[0], "fills")).data.filter(
   (candidate) =>
-    candidate.makerOrderId === makerOrder.orderId && candidate.takerOrderId === takerOrder.orderId,
+    candidate.makerOrderId === makerOrder.orderId &&
+    candidate.takerOrderId === takerOrder.orderId,
 );
 if (replayFills.length !== 1 || replayFills[0].txHash !== fill.txHash)
   throw new Error("idempotent replay created a second fill");
 
-const cancelQuantity = (parseEther("2") + BigInt(baseNonce % 1_000_000)).toString();
+const cancelQuantity = (
+  parseEther("2") + BigInt(baseNonce % 1_000_000)
+).toString();
 const cancelEnvelope = await signedOrder(
   accounts[0],
   0,
@@ -338,7 +400,10 @@ const cancelEnvelope = await signedOrder(
 );
 const cancelSubmit = await submit(cookies[0], cancelEnvelope, idempotency());
 const cancellable = cancelSubmit.data.find(
-  (order) => order.quantity === cancelQuantity && order.limitPrice === "1" && order.status === "open",
+  (order) =>
+    order.quantity === cancelQuantity &&
+    order.limitPrice === "1" &&
+    order.status === "open",
 );
 if (!cancellable) throw new Error("fresh cancellable order missing");
 const cancellation = await api(cookies[0], "cancellations", "DELETE", {
@@ -353,7 +418,12 @@ const cancelHash = await receipt(
   }),
 );
 const cancelledOrders = (await api(cookies[0], "orders")).data;
-if (!cancelledOrders.some((order) => order.orderId === cancellable.orderId && order.status === "cancelled"))
+if (
+  !cancelledOrders.some(
+    (order) =>
+      order.orderId === cancellable.orderId && order.status === "cancelled",
+  )
+)
   throw new Error("wallet cancellation was not reconciled");
 
 const withdrawAmount = parseEther("1").toString();
@@ -364,7 +434,10 @@ const withdrawal = await api(cookies[0], "collateral-intents", "POST", {
   amount: withdrawAmount,
 });
 const withdrawHash = await receipt(
-  await wallets[0].sendTransaction({ to: withdrawal.data.to, data: withdrawal.data.calldata }),
+  await wallets[0].sendTransaction({
+    to: withdrawal.data.to,
+    data: withdrawal.data.calldata,
+  }),
 );
 
 const evidence = assertSanitizedEvidence(

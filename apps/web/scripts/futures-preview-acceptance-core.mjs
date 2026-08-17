@@ -7,9 +7,31 @@ const privateKeyPattern = /^0x[0-9a-fA-F]{64}$/;
 // can choose a limit that clears, rather than advances, the observation window.
 export const ORACLE_UPDATE_GAS = 600_000n;
 
+export async function retryServiceUnavailable(
+  operation,
+  {
+    attempts = 4,
+    wait = () => new Promise((resolve) => setTimeout(resolve, 5_000)),
+  } = {},
+) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (error?.message !== "service_unavailable" || attempt === attempts - 1)
+        throw error;
+      await wait();
+    }
+  }
+  throw lastError;
+}
+
 export function validateAcceptanceEnvironment(environment) {
   const chainId = Number(environment.FUTURES_CHAIN_ID ?? "97");
-  if (chainId !== 97) throw new Error("acceptance requires BSC Testnet chain 97");
+  if (chainId !== 97)
+    throw new Error("acceptance requires BSC Testnet chain 97");
   const preview = new URL(environment.FUTURES_PREVIEW_URL ?? "");
   if (
     preview.protocol !== "https:" ||
@@ -27,7 +49,8 @@ export function validateAcceptanceEnvironment(environment) {
   if (walletBKey && walletAKey.toLowerCase() === walletBKey.toLowerCase())
     throw new Error("acceptance wallets must be distinct");
   const rpcUrl = new URL(environment.FUTURES_RPC_URL ?? "");
-  if (rpcUrl.protocol !== "https:") throw new Error("HTTPS testnet RPC required");
+  if (rpcUrl.protocol !== "https:")
+    throw new Error("HTTPS testnet RPC required");
   return {
     chainId,
     preview: preview.origin,
