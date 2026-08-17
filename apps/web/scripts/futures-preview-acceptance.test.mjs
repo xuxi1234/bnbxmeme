@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertSanitizedEvidence,
+  isExpectedPreviewDeployment,
   ORACLE_UPDATE_GAS,
   quoteConstantProductOut,
   retryServiceUnavailable,
@@ -34,6 +35,19 @@ test("acceptance rejects non-testnet and Production URLs", () => {
       }),
     /feature Preview/,
   );
+});
+
+test("acceptance waits for the Preview deployment built from the current commit", () => {
+  const sha = "51709fd370d9af192f913eb39756ca5d48214ad6";
+  assert.equal(isExpectedPreviewDeployment({ commit: sha }, sha), true);
+  assert.equal(
+    isExpectedPreviewDeployment(
+      { commit: "fbd42e839a692159328c8b7ddf69fc3bab5d1345" },
+      sha,
+    ),
+    false,
+  );
+  assert.equal(isExpectedPreviewDeployment({}, sha), false);
 });
 
 test("acceptance evidence cannot contain either wallet key", () => {

@@ -8,6 +8,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   assertSanitizedEvidence,
+  isExpectedPreviewDeployment,
   ORACLE_UPDATE_GAS,
   quoteConstantProductOut,
   retryServiceUnavailable,
@@ -226,15 +227,23 @@ async function api(cookie, resource, method = "GET", input) {
 }
 
 async function waitForPreview() {
+  const expectedCommit = process.env.GITHUB_SHA ?? "";
+  if (!expectedCommit)
+    throw new Error("GITHUB_SHA is required to identify the Preview deployment");
   let lastError;
   for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
-      const response = await fetch(`${config.preview}/futures`, {
+      const response = await fetch(`${config.preview}/api/futures/deployment`, {
         headers: { "User-Agent": userAgent },
         cache: "no-store",
       });
-      if (response.ok) return;
-      lastError = new Error(`preview HTTP ${response.status}`);
+      if (response.ok) {
+        const deployment = await response.json();
+        if (isExpectedPreviewDeployment(deployment, expectedCommit)) return;
+        lastError = new Error("Preview is still serving a different commit");
+      } else {
+        lastError = new Error(`preview marker HTTP ${response.status}`);
+      }
     } catch (error) {
       lastError = error;
     }
