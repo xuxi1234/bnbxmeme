@@ -24,6 +24,7 @@ import {
   registerFuturesNonce,
 } from "@/lib/futures-security-store";
 import { dispatchFuturesRuntime } from "@/lib/futures-runtime";
+import { runtimeFailureDiagnostic } from "@/lib/futures-runtime-diagnostic";
 
 const COOKIE = "bnbx_futures_testnet_session";
 const CHALLENGE_SECONDS = 5 * 60;
@@ -303,6 +304,10 @@ export async function forwardFuturesRequest(
       };
     } catch (error) {
       if (error instanceof FuturesApiError) throw error;
+      console.error(
+        "futures-runtime-dispatch-failed",
+        runtimeFailureDiagnostic(error),
+      );
       const message = error instanceof Error ? error.message : "";
       if (/invalid|wallet|order|idempotency|cancel|expired|signature|domain/i.test(message))
         throw new FuturesApiError("request_rejected", 409);
