@@ -249,3 +249,23 @@ test("inspect accepts a submitted transaction from the sender recorded before re
   assert.equal(observation.status, "included");
   assert.equal(observation.transaction.from, historicalAccount.address);
 });
+
+test("inspect waits when a lagging RPC returns a receipt before its transaction", async () => {
+  const ready = client();
+  const relayer = createFuturesRelayer({ account, orderBook, client: ready });
+  const prepared = await relayer.prepare(effect);
+  ready.getTransaction = async () => null;
+  ready.getTransactionReceipt = async () => ({
+    transactionHash: prepared.hash,
+    blockNumber: 101n,
+    blockHash,
+    status: "success",
+    logs: [],
+  });
+
+  assert.deepEqual(await relayer.inspect(prepared.hash, effect), {
+    status: "pending",
+    transactionPresent: true,
+    headBlock: 101,
+  });
+});

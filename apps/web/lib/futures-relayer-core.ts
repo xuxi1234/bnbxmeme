@@ -179,6 +179,24 @@ export function createFuturesRelayer(input: {
         headBlock: safeNumber(head, "invalid relayer head block"),
       };
     }
+    if (!transactionValue && receiptValue) {
+      const receipt = object(receiptValue, "invalid transaction receipt");
+      const receiptHash = exactHash(
+        receipt.transactionHash,
+        "receipt hash mismatch",
+      );
+      if (receiptHash.toLowerCase() !== hash.toLowerCase())
+        fail("receipt hash mismatch");
+      const blockNumber = safeNumber(receipt.blockNumber, "invalid receipt block");
+      return {
+        status: "pending" as const,
+        transactionPresent: true,
+        headBlock: Math.max(
+          safeNumber(head, "invalid relayer head block"),
+          blockNumber,
+        ),
+      };
+    }
     const transaction = object(transactionValue, "transaction is unavailable");
     const expectedSender = effect.transactionSender
       ? getAddress(effect.transactionSender)
