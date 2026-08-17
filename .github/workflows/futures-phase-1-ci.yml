@@ -71,7 +71,6 @@ jobs:
 
   preview-acceptance:
     name: Real two-wallet Futures Preview acceptance
-    needs: contracts
     if: >-
       github.event_name == 'pull_request' &&
       github.head_ref == 'feat/bnbx-futures-phase-1'
