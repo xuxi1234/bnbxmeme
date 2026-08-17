@@ -401,8 +401,16 @@ export function createFuturesRuntime(deps: {
         request.input.action as "deposit" | "withdraw",
         `${request.input.amount}`,
       );
-      const { abi: _abi, ...bounded } = intent;
-      return envelope(bounded, 201);
+      return envelope(
+        {
+          action: intent.action,
+          amount: intent.amount,
+          to: intent.to,
+          calldata: intent.calldata,
+          expiresAt: intent.expiresAt,
+        },
+        201,
+      );
     }
     if (request.resource === "keeper-health" && request.method === "GET") {
       await drainOnce();
