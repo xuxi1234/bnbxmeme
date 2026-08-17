@@ -6,6 +6,10 @@ const migration = new URL(
   "../../../supabase/migrations/20260817120000_futures_matching_runtime.sql",
   import.meta.url,
 );
+const fillTextMigration = new URL(
+  "../../../supabase/migrations/20260817130000_futures_fill_numeric_text.sql",
+  import.meta.url,
+);
 
 test("runtime migration is RLS locked and exposes bounded CAS and lease RPCs", () => {
   const sql = readFileSync(migration, "utf8");
@@ -56,4 +60,14 @@ test("runtime state and fill inputs are size and identity bounded", () => {
   assert.match(sql, /p_order_book !~ '\^0x\[0-9a-f\]\{40\}\$'/i);
   assert.match(sql, /p_tx_hash !~ '\^0x\[0-9a-f\]\{64\}\$'/i);
   assert.match(sql, /p_limit < 1 or p_limit > 100/i);
+});
+
+test("fill list preserves uint256 precision across the PostgREST boundary", () => {
+  const sql = readFileSync(fillTextMigration, "utf8");
+  assert.match(sql, /quantity text/i);
+  assert.match(sql, /price text/i);
+  assert.match(sql, /f\.quantity::text/i);
+  assert.match(sql, /f\.price::text/i);
+  assert.match(sql, /revoke all[\s\S]+from public, anon, authenticated/i);
+  assert.match(sql, /grant execute[\s\S]+to service_role/i);
 });
