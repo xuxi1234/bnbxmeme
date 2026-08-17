@@ -53,6 +53,9 @@ jobs:
       - name: Verify Futures runtime migration security
         run: node --test apps/web/lib/futures-runtime-migration.test.mjs
 
+      - name: Verify Preview acceptance safety guards
+        run: node --test apps/web/scripts/futures-preview-acceptance.test.mjs
+
       - name: Package reusable dependencies
         if: always()
         run: tar -czf /tmp/bnbx-futures-node-modules.tgz node_modules packages/contracts/node_modules
@@ -65,6 +68,69 @@ jobs:
           path: /tmp/bnbx-futures-node-modules.tgz
           if-no-files-found: error
           retention-days: 3
+
+  preview-acceptance:
+    name: Real two-wallet Futures Preview acceptance
+    needs: contracts
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feat/bnbx-futures-phase-1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: testnet
+    permissions:
+      contents: read
+      statuses: read
+    env:
+      FUTURES_CHAIN_ID: "97"
+      FUTURES_PREVIEW_URL: https://bnbx-git-feat-bnbx-futures-phase-1-xuxis-projects-7df64997.vercel.app
+      FUTURES_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+      FUTURES_WALLET_A_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+      FUTURES_WALLET_B_PRIVATE_KEY: ${{ secrets.FUTURES_RELAYER_PRIVATE_KEY }}
+      FUTURES_TEST_USDT: ${{ secrets.FUTURES_TEST_USDT }}
+      FUTURES_CLEARING_HOUSE: "0x396fdd258EeFca47ec1B4983a17F062924295729"
+      FUTURES_ORDER_BOOK: "0x2cd069E2FB1c7Cf098AF609D37aAE2710eeF53f6"
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for the matching Vercel Preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 60); do
+            state=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status" --jq '.statuses[] | select(.context == "Vercel") | .state' | head -1)
+            if [ "$state" = "success" ]; then exit 0; fi
+            if [ "$state" = "failure" ] || [ "$state" = "error" ]; then exit 1; fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Run real long-short lifecycle
+        run: node apps/web/scripts/futures-preview-acceptance.mjs | tee futures-preview-acceptance.json
+
+      - name: Upload sanitized acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-futures-preview-acceptance
+          path: futures-preview-acceptance.json
+          if-no-files-found: warn
+          retention-days: 30
 
   deploy-testnet:
     name: Deploy Futures to BSC Testnet

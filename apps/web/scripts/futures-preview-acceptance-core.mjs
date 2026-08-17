@@ -1,0 +1,43 @@
+import { getAddress } from "viem";
+
+const privateKeyPattern = /^0x[0-9a-fA-F]{64}$/;
+
+export function validateAcceptanceEnvironment(environment) {
+  const chainId = Number(environment.FUTURES_CHAIN_ID ?? "97");
+  if (chainId !== 97) throw new Error("acceptance requires BSC Testnet chain 97");
+  const preview = new URL(environment.FUTURES_PREVIEW_URL ?? "");
+  if (
+    preview.protocol !== "https:" ||
+    !preview.hostname.endsWith(".vercel.app") ||
+    !preview.hostname.includes("git-feat-bnbx-futures-phase-1-")
+  ) {
+    throw new Error("acceptance URL must be the Futures feature Preview");
+  }
+  const walletAKey = environment.FUTURES_WALLET_A_PRIVATE_KEY ?? "";
+  const walletBKey = environment.FUTURES_WALLET_B_PRIVATE_KEY ?? "";
+  if (!privateKeyPattern.test(walletAKey) || !privateKeyPattern.test(walletBKey))
+    throw new Error("two environment-only test wallet keys are required");
+  if (walletAKey.toLowerCase() === walletBKey.toLowerCase())
+    throw new Error("acceptance wallets must be distinct");
+  const rpcUrl = new URL(environment.FUTURES_RPC_URL ?? "");
+  if (rpcUrl.protocol !== "https:") throw new Error("HTTPS testnet RPC required");
+  return {
+    chainId,
+    preview: preview.origin,
+    rpcUrl: rpcUrl.href,
+    walletAKey,
+    walletBKey,
+    testUsdt: getAddress(environment.FUTURES_TEST_USDT ?? ""),
+    clearingHouse: getAddress(environment.FUTURES_CLEARING_HOUSE ?? ""),
+    orderBook: getAddress(environment.FUTURES_ORDER_BOOK ?? ""),
+  };
+}
+
+export function assertSanitizedEvidence(evidence, privateKeys) {
+  const serialized = JSON.stringify(evidence);
+  for (const key of privateKeys) {
+    if (serialized.toLowerCase().includes(key.toLowerCase()))
+      throw new Error("private key reached acceptance evidence");
+  }
+  return evidence;
+}
