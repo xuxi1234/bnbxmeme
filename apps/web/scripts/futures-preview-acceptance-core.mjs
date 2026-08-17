@@ -16,6 +16,10 @@ export function isExpectedPreviewDeployment(payload, expectedCommit) {
   );
 }
 
+export function expectedPreviewCommit(env) {
+  return env.FUTURES_EXPECTED_COMMIT || env.GITHUB_SHA || "";
+}
+
 export function quoteConstantProductOut(amountIn, reserveIn, reserveOut) {
   if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n)
     throw new Error("positive swap amounts and reserves are required");

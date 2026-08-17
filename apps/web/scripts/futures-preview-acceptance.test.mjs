@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assertSanitizedEvidence,
+  expectedPreviewCommit,
   isExpectedPreviewDeployment,
   ORACLE_UPDATE_GAS,
   quoteConstantProductOut,
@@ -48,6 +49,20 @@ test("acceptance waits for the Preview deployment built from the current commit"
     false,
   );
   assert.equal(isExpectedPreviewDeployment({}, sha), false);
+});
+
+test("pull request acceptance uses the branch head instead of the synthetic merge SHA", () => {
+  assert.equal(
+    expectedPreviewCommit({
+      FUTURES_EXPECTED_COMMIT: "6cf0f4fd38605dd278db1b9c2e900f188a03e8db",
+      GITHUB_SHA: "4b89f92598afd98240c5688d2f557490381ea252",
+    }),
+    "6cf0f4fd38605dd278db1b9c2e900f188a03e8db",
+  );
+  assert.equal(
+    expectedPreviewCommit({ GITHUB_SHA: "9472665ce0e5b85ab85a56f9e94ac8f983941318" }),
+    "9472665ce0e5b85ab85a56f9e94ac8f983941318",
+  );
 });
 
 test("acceptance evidence cannot contain either wallet key", () => {

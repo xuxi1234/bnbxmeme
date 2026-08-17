@@ -82,6 +82,7 @@ jobs:
       statuses: read
     env:
       FUTURES_CHAIN_ID: "97"
+      FUTURES_EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha }}
       FUTURES_PREVIEW_URL: https://bnbx-git-feat-bnbx-futures-phase-1-xuxis-projects-7df64997.vercel.app
       FUTURES_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
       FUTURES_WALLET_A_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}

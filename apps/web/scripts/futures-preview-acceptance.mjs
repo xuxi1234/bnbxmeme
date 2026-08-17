@@ -8,6 +8,7 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   assertSanitizedEvidence,
+  expectedPreviewCommit,
   isExpectedPreviewDeployment,
   ORACLE_UPDATE_GAS,
   quoteConstantProductOut,
@@ -227,7 +228,7 @@ async function api(cookie, resource, method = "GET", input) {
 }
 
 async function waitForPreview() {
-  const expectedCommit = process.env.GITHUB_SHA ?? "";
+  const expectedCommit = expectedPreviewCommit(process.env);
   if (!expectedCommit)
     throw new Error("GITHUB_SHA is required to identify the Preview deployment");
   let lastError;
