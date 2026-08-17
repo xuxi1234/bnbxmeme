@@ -14,6 +14,7 @@ import {
   type OrderEnvelope,
 } from "./futures-service-core.ts";
 import type { RuntimeStore } from "./futures-runtime-types.ts";
+import { runtimeFailureDiagnostic } from "./futures-runtime-diagnostic.ts";
 
 type RuntimeRelayer = {
   prepare(effect: MatchEffect): Promise<{
@@ -116,12 +117,17 @@ export function createFuturesRuntime(deps: {
   nowMillis?: () => number;
   leaseOwner?: () => string;
   requiredConfirmations: number;
+  reportDrainFailure?: (diagnostic: Record<string, unknown>) => void;
 }) {
   const config = deps.config;
   const store = deps.store;
   const nowSeconds = deps.nowSeconds ?? (() => Math.floor(Date.now() / 1_000));
   const nowMillis = deps.nowMillis ?? (() => Date.now());
   const leaseOwner = deps.leaseOwner ?? (() => crypto.randomUUID());
+  const reportDrainFailure =
+    deps.reportDrainFailure ??
+    ((diagnostic: Record<string, unknown>) =>
+      console.error("futures-runtime-drain-failed", diagnostic));
   const deploymentKey = `${config.chainId}:${config.verifyingContract.toLowerCase()}`;
   let lastSuccessfulRun: number | null = null;
 
@@ -333,6 +339,15 @@ export function createFuturesRuntime(deps: {
     }
   }
 
+  async function drainBestEffort() {
+    try {
+      return await drainOnce();
+    } catch (error) {
+      reportDrainFailure(runtimeFailureDiagnostic(error));
+      return false;
+    }
+  }
+
   async function dispatch(request: RuntimeInput) {
     const wallet = getAddress(request.wallet);
     if (request.resource === "orders" && request.method === "POST") {
@@ -348,7 +363,7 @@ export function createFuturesRuntime(deps: {
         });
         return { state: accepted.state, value: accepted };
       });
-      await drainOnce();
+      await drainBestEffort();
       const state = await loadState();
       const hasMatch = effectValues(state).some(
         (effect) => effect.kind === "submit-match",
@@ -356,7 +371,7 @@ export function createFuturesRuntime(deps: {
       return envelope(orderRows(state, wallet), hasMatch ? 202 : result.duplicate ? 200 : 201);
     }
     if (request.resource === "orders" && request.method === "GET") {
-      await drainOnce();
+      await drainBestEffort();
       return envelope(orderRows(await loadState(), wallet));
     }
     if (request.resource === "cancellations" && request.method === "DELETE") {
@@ -383,7 +398,7 @@ export function createFuturesRuntime(deps: {
       );
     }
     if (request.resource === "fills" && request.method === "GET") {
-      await drainOnce();
+      await drainBestEffort();
       const fills = await store.listFills(wallet, Number(request.input.limit ?? 100));
       return envelope(
         fills.map((fill) => ({
@@ -399,7 +414,7 @@ export function createFuturesRuntime(deps: {
     if (request.resource === "market-status" && request.method === "GET")
       return envelope(await deps.reads.readMarketStatus());
     if (request.resource === "positions" && request.method === "GET") {
-      await drainOnce();
+      await drainBestEffort();
       return envelope(
         await deps.reads.readPositions(wallet, Math.min(Number(request.input.limit ?? 8), 8)),
       );
@@ -422,7 +437,7 @@ export function createFuturesRuntime(deps: {
       );
     }
     if (request.resource === "keeper-health" && request.method === "GET") {
-      await drainOnce();
+      await drainBestEffort();
       return envelope(await deps.reads.readKeeperHealth(lastSuccessfulRun));
     }
     fail("unsupported futures runtime resource");

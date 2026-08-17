@@ -153,6 +153,7 @@ function dependencies(store, overrides = {}) {
     nowMillis: () => 9_000_000,
     leaseOwner: () => "123e4567-e89b-42d3-a456-426614174000",
     requiredConfirmations: 2,
+    reportDrainFailure: () => {},
     get broadcasts() {
       return broadcasts;
     },
@@ -424,4 +425,54 @@ test("ambiguous broadcast retries only identical durable signed bytes", async ()
   assert.equal(inspection, 1);
   assert.equal(sent.length, 2);
   assert.equal(sent[0], sent[1]);
+});
+
+test("a transient drain failure does not reject a durably accepted order and retries later", async () => {
+  const store = memoryStore();
+  const raw = `0x${"b5".repeat(20)}`;
+  let preparations = 0;
+  const deps = dependencies(store, {
+    relayer: {
+      async prepare() {
+        preparations += 1;
+        if (preparations === 1) throw new Error("transient rpc disagreement");
+        return {
+          raw,
+          hash: keccak256(raw),
+          nonce: 4,
+          sender: relayerAccount.address,
+          submittedAtBlock: 90,
+        };
+      },
+    },
+  });
+  const runtime = createFuturesRuntime(deps);
+  await runtime.dispatch({
+    wallet: maker.address,
+    resource: "orders",
+    method: "POST",
+    input: await orderInput(maker, { side: 1, role: 0 }, "transient-maker"),
+  });
+
+  const accepted = await runtime.dispatch({
+    wallet: taker.address,
+    resource: "orders",
+    method: "POST",
+    input: await orderInput(
+      taker,
+      { side: 0, role: 1, nonce: "2" },
+      "transient-taker",
+    ),
+  });
+
+  assert.equal(accepted.status, 202);
+  assert.equal(deps.broadcasts, 0);
+  await runtime.dispatch({
+    wallet: maker.address,
+    resource: "orders",
+    method: "GET",
+    input: { chainId: 97 },
+  });
+  assert.equal(preparations, 2);
+  assert.equal(deps.broadcasts, 1);
 });
