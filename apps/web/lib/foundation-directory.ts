@@ -64,6 +64,7 @@ export const foundationShareholders: readonly FoundationShareholder[] = [
   { id: "050", name: "MACK总", shares: 1 },
   { id: "051", name: "福", shares: 1 },
   { id: "052", name: "绿水青山", shares: 1 },
+  { id: "053", name: "糖🍬🍬", shares: 1 },
 ];
 
 const registeredShares = foundationShareholders.reduce(
