@@ -1,0 +1,256 @@
+name: BNBX Futures Phase 1 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/futures-phase-1-ci.yml"
+      - "packages/contracts/**"
+      - "packages/chain-config/**"
+      - "apps/web/**"
+      - "supabase/migrations/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bnbx-futures-phase-1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Futures contracts and dependency bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run contracts regression
+        run: pnpm --filter @bnbx/contracts test
+
+      - name: Run web unit tests
+        run: pnpm --filter @bnbx/web test
+
+      - name: Verify Futures runtime migration security
+        run: node --test apps/web/lib/futures-runtime-migration.test.mjs
+
+      - name: Verify Preview acceptance safety guards
+        run: node --test apps/web/scripts/futures-preview-acceptance.test.mjs
+
+      - name: Package reusable dependencies
+        if: always()
+        run: tar -czf /tmp/bnbx-futures-node-modules.tgz node_modules packages/contracts/node_modules
+
+      - name: Upload reusable dependencies
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-futures-node-modules
+          path: /tmp/bnbx-futures-node-modules.tgz
+          if-no-files-found: error
+          retention-days: 3
+
+  preview-acceptance:
+    name: Real two-wallet Futures Preview acceptance
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feat/bnbx-futures-phase-1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    environment: testnet
+    permissions:
+      contents: read
+      statuses: read
+    env:
+      FUTURES_CHAIN_ID: "97"
+      FUTURES_EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha }}
+      FUTURES_PREVIEW_URL: https://bnbx-git-feat-bnbx-futures-phase-1-xuxis-projects-7df64997.vercel.app
+      FUTURES_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+      FUTURES_WALLET_A_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+      FUTURES_WALLET_B_PRIVATE_KEY: ${{ secrets.FUTURES_RELAYER_PRIVATE_KEY }}
+      FUTURES_TEST_USDT: ${{ secrets.FUTURES_TEST_USDT }}
+      FUTURES_CLEARING_HOUSE: "0x396fdd258EeFca47ec1B4983a17F062924295729"
+      FUTURES_ORDER_BOOK: "0x2cd069E2FB1c7Cf098AF609D37aAE2710eeF53f6"
+      FUTURES_ORACLE: "0xF793359908ABc6ae640A91e7F2a0682423D55751"
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run real long-short lifecycle
+        run: |
+          set -o pipefail
+          node apps/web/scripts/futures-preview-acceptance.mjs | tee futures-preview-acceptance.json
+
+      - name: Upload sanitized acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-futures-preview-acceptance
+          path: futures-preview-acceptance.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  deploy-testnet:
+    name: Deploy Futures to BSC Testnet
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feat/bnbx-futures-phase-1' &&
+      contains(github.event.pull_request.title, '[deploy-testnet]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: testnet
+    env:
+      FUTURES_CHAIN_ID: "97"
+      BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+      DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+      BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+      FUTURES_TEST_USDT: ${{ secrets.FUTURES_TEST_USDT }}
+      FUTURES_TEST_BNBX: ${{ secrets.FUTURES_TEST_BNBX }}
+      FUTURES_TEST_WBNB: ${{ secrets.FUTURES_TEST_WBNB }}
+      FUTURES_TEST_BNBX_WBNB_PAIR: ${{ secrets.FUTURES_TEST_BNBX_WBNB_PAIR }}
+      FUTURES_TEST_BNB_USD_FEED: ${{ secrets.FUTURES_TEST_BNB_USD_FEED }}
+      FUTURES_GUARDIAN: ${{ secrets.FUTURES_GUARDIAN }}
+      FUTURES_REVENUE_RECIPIENT: ${{ secrets.FUTURES_REVENUE_RECIPIENT }}
+      FUTURES_TOTAL_LIABILITY_CAP: ${{ secrets.FUTURES_TOTAL_LIABILITY_CAP }}
+      FUTURES_ACCOUNT_EQUITY_CAP: ${{ secrets.FUTURES_ACCOUNT_EQUITY_CAP }}
+      FUTURES_OPEN_INTEREST_CAP: ${{ secrets.FUTURES_OPEN_INTEREST_CAP }}
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run deployment tooling tests and audit
+        run: |
+          node --test packages/contracts/scripts/futures-testnet-deployment.test.mjs
+          pnpm --filter @bnbx/contracts futures:build
+          pnpm --filter @bnbx/contracts futures:audit
+
+      - name: Run chain-97 preflight
+        run: pnpm --filter @bnbx/contracts futures:testnet:preflight
+
+      - name: Deploy five Futures contracts
+        run: pnpm --filter @bnbx/contracts futures:testnet:deploy
+
+      - name: Run on-chain acceptance checks
+        run: pnpm --filter @bnbx/contracts futures:testnet:acceptance
+
+      - name: Verify contract sources
+        run: pnpm --filter @bnbx/contracts futures:testnet:verify-source
+
+      - name: Upload deployment proofs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-futures-bsc-testnet-deployment
+          path: packages/contracts/deployments/bsc-testnet-futures*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+
+  verify-testnet:
+    name: Verify deployed Futures sources on BscScan
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feat/bnbx-futures-phase-1' &&
+      contains(github.event.pull_request.title, '[verify-testnet]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: testnet
+    env:
+      FUTURES_CHAIN_ID: "97"
+      BSC_TESTNET_RPC_URL: ${{ secrets.BSC_TESTNET_RPC_URL }}
+      BSC_SCAN_API_KEY: ${{ secrets.BSC_SCAN_API_KEY }}
+      FUTURES_TEST_USDT: ${{ secrets.FUTURES_TEST_USDT }}
+      FUTURES_TEST_BNBX: ${{ secrets.FUTURES_TEST_BNBX }}
+      FUTURES_TEST_WBNB: ${{ secrets.FUTURES_TEST_WBNB }}
+      FUTURES_TEST_BNBX_WBNB_PAIR: ${{ secrets.FUTURES_TEST_BNBX_WBNB_PAIR }}
+      FUTURES_TEST_BNB_USD_FEED: ${{ secrets.FUTURES_TEST_BNB_USD_FEED }}
+      FUTURES_GUARDIAN: ${{ secrets.FUTURES_GUARDIAN }}
+      FUTURES_REVENUE_RECIPIENT: ${{ secrets.FUTURES_REVENUE_RECIPIENT }}
+      FUTURES_TOTAL_LIABILITY_CAP: ${{ secrets.FUTURES_TOTAL_LIABILITY_CAP }}
+      FUTURES_ACCOUNT_EQUITY_CAP: ${{ secrets.FUTURES_ACCOUNT_EQUITY_CAP }}
+      FUTURES_OPEN_INTEREST_CAP: ${{ secrets.FUTURES_OPEN_INTEREST_CAP }}
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+
+      - name: Download accepted deployment manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: bnbx-futures-bsc-testnet-deployment
+          path: packages/contracts/deployments
+          github-token: ${{ github.token }}
+          repository: xuxi1234/bnbxmeme
+          run-id: 31966199629
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify five contract sources
+        run: pnpm --filter @bnbx/contracts futures:testnet:verify-source
+
+      - name: Upload source verification proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bnbx-futures-bsc-testnet-source-verification
+          path: packages/contracts/deployments/bsc-testnet-futures-verification.json
+          if-no-files-found: warn
+          retention-days: 30
